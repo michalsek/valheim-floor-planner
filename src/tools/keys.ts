@@ -11,3 +11,7 @@ export const isRedoKey = (e: KeyboardEvent): boolean => {
   const key = e.key.toLowerCase();
   return (key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey);
 };
+
+/** R turns props 90° clockwise, Shift+R 22.5° (the game's step); null for other keys. */
+export const rotateStep = (e: KeyboardEvent): number | null =>
+  e.key.toLowerCase() === 'r' && !isMod(e) && !e.altKey ? (e.shiftKey ? 22.5 : 90) : null;

@@ -1,6 +1,6 @@
 import { hoverAtom } from '../../store/selection';
 import { cursorStyleAtom } from '../../store/session';
-import { isMod, isRedoKey, isUndoKey } from '../keys';
+import { isMod, isRedoKey, isUndoKey, rotateStep } from '../keys';
 import type { Tool, ToolContext } from '../types';
 
 import {
@@ -8,6 +8,7 @@ import {
   deleteSelection,
   duplicateSelection,
   nudgeSelection,
+  rotateItems,
   selectAll,
 } from './selectActions';
 import { SelectIcon } from './SelectIcon';
@@ -26,7 +27,7 @@ const ARROWS: Record<string, readonly [number, number]> = {
 const isEditKey = (e: KeyboardEvent): boolean => {
   const key = e.key.toLowerCase();
   if (isMod(e)) return key === 'd' || key === 'a';
-  return e.key === 'Delete' || e.key === 'Backspace' || e.key in ARROWS;
+  return e.key === 'Delete' || e.key === 'Backspace' || e.key in ARROWS || rotateStep(e) !== null;
 };
 
 /**
@@ -39,6 +40,8 @@ const onGestureKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
 };
 
 const onIdleKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
+  const turn = rotateStep(e);
+  if (turn !== null) return rotateItems(ctx, turn);
   if (e.altKey || e.shiftKey) return false;
   if (isMod(e)) {
     const key = e.key.toLowerCase();
@@ -62,7 +65,8 @@ const onIdleKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
 /**
  * Click to select (Shift toggles), drag a selected item to move the selection, drag
  * a selected wall's corner to reshape it, or drag on empty space to box-select.
- * Delete, arrows (nudge), Mod+D (duplicate), Mod+A and Esc act on the selection.
+ * Delete, arrows (nudge), R / Shift+R (turn props), Mod+D (duplicate), Mod+A and Esc act
+ * on the selection.
  */
 export const selectTool: Tool = {
   id: 'select',

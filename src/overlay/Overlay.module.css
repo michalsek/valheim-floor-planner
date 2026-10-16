@@ -273,3 +273,63 @@
   stroke-opacity: 0.7;
   stroke-width: 1px;
 }
+
+.propFootprint {
+  fill-opacity: 0.5;
+  stroke-opacity: 0.95;
+  stroke-width: 1px;
+}
+
+.propApprox {
+  stroke-dasharray: 4 3;
+}
+
+.propGhost {
+  fill-opacity: 0.3;
+  stroke-dasharray: 5 3;
+}
+
+.propLabel {
+  fill: var(--overlay-ink);
+  stroke: var(--canvas-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-size: 11px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.ringBuild,
+.ringWard {
+  fill: none;
+  stroke-width: 1.5px;
+  stroke-dasharray: 8 6;
+}
+
+.ringBuild {
+  stroke: var(--ring-build);
+}
+
+.ringWard {
+  stroke: var(--ring-ward);
+}
+
+.calibLine {
+  stroke: var(--overlay-warning);
+  stroke-width: 1.5px;
+  stroke-dasharray: 6 4;
+}
+
+.calibMarker {
+  fill: var(--canvas-bg);
+  stroke: var(--overlay-warning);
+  stroke-width: 2px;
+}
+
+.underlayMissing {
+  fill: none;
+  stroke: var(--overlay-muted);
+  stroke-dasharray: 6 4;
+}

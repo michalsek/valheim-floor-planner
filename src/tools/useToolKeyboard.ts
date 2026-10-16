@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 
+import { library } from '../catalog';
 import { nextSnapStep } from '../model/geometry/snap';
+import { planBounds } from '../model/planBounds';
 import { openPlanFile, saveCurrentPlan } from '../store/fileActions';
 import {
   activeToolIdAtom,
+  fitViewTo,
   resetModifiers,
   setModifier,
   snapStepAtom,
@@ -12,7 +15,7 @@ import {
 } from '../store/session';
 import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
-import { isRedoKey, isUndoKey } from './keys';
+import { isMod, isRedoKey, isUndoKey } from './keys';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, TOOLS } from './toolbox';
 import type { ToolContext } from './types';
@@ -51,6 +54,12 @@ const KEYMAP: readonly KeyBinding[] = [
     run: (s) => zoomViewportAt(s, null, 1 / KEY_ZOOM_FACTOR),
   },
   { keys: ['0'], run: (s) => s.set(viewportAtom, DEFAULT_VIEWPORT) },
+  // Home or Shift+1 frames the whole plan (F is the wall tool's flip).
+  {
+    test: (e) =>
+      !isMod(e) && !e.altKey && (e.key === 'Home' || (e.shiftKey && e.code === 'Digit1')),
+    run: (s) => fitViewTo(s, planBounds(s.plan.getPlan(), library)),
+  },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
   { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },
   { test: isRedoKey, repeat: true, run: (s) => s.plan.redo() },

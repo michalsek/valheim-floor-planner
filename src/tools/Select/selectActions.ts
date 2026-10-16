@@ -1,6 +1,11 @@
 /** Selection edits shared by the Select tool's keys and the Inspector. */
 import { library } from '../../catalog';
-import { duplicateCommands, removeCommands, translateCommands } from '../../model/editCommands';
+import {
+  duplicateCommands,
+  removeCommands,
+  rotateCommands,
+  translateCommands,
+} from '../../model/editCommands';
 import { newId } from '../../model/newId';
 import { allItems, itemsLabel, type Selection } from '../../model/selection';
 import type { PlanCommand } from '../../model/commands';
@@ -67,5 +72,21 @@ export const duplicateSelection = (ctx: ToolContext): boolean => {
   if (commitCommands(ctx, itemsLabel('Duplicate', items), copy.cmds)) {
     ctx.set(selectionAtom, copy.items);
   }
+  return true;
+};
+
+/**
+ * Turns the props in `items` (the selection by default) by `deltaDeg` about their
+ * centres, as one entry; false when there are no props to turn.
+ */
+export const rotateItems = (
+  ctx: ToolContext,
+  deltaDeg: number,
+  items: Selection = ctx.get(selectionAtom)
+): boolean => {
+  const props = items.filter((item) => item.kind === 'prop');
+  const cmds = rotateCommands(ctx.plan.getPlan(), props, deltaDeg, library);
+  if (cmds.length === 0) return false;
+  commitCommands(ctx, itemsLabel('Rotate', props), cmds);
   return true;
 };

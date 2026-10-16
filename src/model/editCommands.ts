@@ -3,8 +3,11 @@
  * Pure, so the Select tool previews a gesture with exactly the commands it later
  * commits. Per-kind work is in `ITEM_KINDS`.
  */
+import { propRect } from '../catalog/propDefs';
+
 import { applyCommands, type PlanCommand } from './commands';
 import { samePoint } from './geometry/polyline';
+import { rotateAboutCentre } from './geometry/propGeometry';
 import { ITEM_KINDS, slidingOpeningIds, type EditScope } from './itemKinds';
 import { carryOpenings, openingsOf, slideOpenings } from './openings';
 import { itemExists, type Selection, type SelectionItem } from './selection';
@@ -68,6 +71,20 @@ export const duplicateCommands = (
   }
   return { cmds, items: copies };
 };
+
+/** The selected props turned by `deltaDeg`, each about its footprint's centre. */
+export const rotateCommands = (
+  plan: Plan,
+  items: Selection,
+  deltaDeg: number,
+  lib: EditLib
+): PlanCommand[] =>
+  items.flatMap((item): PlanCommand[] => {
+    const prop = item.kind === 'prop' ? plan.props[item.id] : undefined;
+    if (!prop) return [];
+    const changes = rotateAboutCentre(prop, propRect(lib.propDefs, prop.prefab), deltaDeg);
+    return [{ type: 'prop.patch', id: prop.id, changes }];
+  });
 
 const sameShape = (a: Pick<WallRun, 'points' | 'side'>, run: WallRun): boolean =>
   a.side === run.side &&

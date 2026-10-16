@@ -1,21 +1,26 @@
 /**
- * Display names for resource item ids. The catalogue extract has ids only, so this
- * is a small hand-kept map; unknown ids are shown as they are.
+ * Display names for resource item ids, parsed from the game-data extract in
+ * `research/valheim-items.json` (the only module that imports it; it is treated as
+ * `unknown` and validated). Unknown ids are shown as they are.
  */
-const ITEM_LABELS: Record<string, string> = {
-  Wood: 'Wood',
-  FineWood: 'Fine wood',
-  RoundLog: 'Core wood',
-  ElderBark: 'Ancient bark',
-  YggdrasilWood: 'Yggdrasil wood',
-  Blackwood: 'Ashwood',
-  Stone: 'Stone',
-  Grausten: 'Grausten',
-  BlackMarble: 'Black marble',
-  Iron: 'Iron',
-  Tar: 'Tar',
-  Gold: 'Gold',
-  FlametalNew: 'Flametal',
-};
+import rawItems from '../../research/valheim-items.json';
 
-export const itemLabel = (id: string): string => ITEM_LABELS[id] ?? id;
+import { asRecord, asString } from './parse';
+
+export interface ItemName {
+  name: string;
+  namePl: string;
+}
+
+export const parseItems = (raw: unknown): ReadonlyMap<string, ItemName> =>
+  new Map(
+    Object.entries(asRecord(raw, '$')).map(([id, value]) => {
+      const item = asRecord(value, `$.${id}`);
+      const name = asString(item.name, `$.${id}.name`);
+      return [id, { name, namePl: asString(item.namePl, `$.${id}.namePl`) }];
+    })
+  );
+
+const ITEMS = parseItems(rawItems);
+
+export const itemLabel = (id: string): string => ITEMS.get(id)?.name ?? id;

@@ -52,3 +52,55 @@
   color: var(--text);
   cursor: pointer;
 }
+
+.segment:disabled,
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stepperValue {
+  min-width: 24px;
+  padding: 1px 4px;
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+  color: var(--text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.number {
+  width: 72px;
+  padding: 2px 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.toggle {
+  padding: 1px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.pill {
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.toggle:hover {
+  background: var(--hover-bg);
+}
+
+.toggleOn,
+.toggleOn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -4,18 +4,24 @@
  * `SelectionItem` member, an entry here, and its own files.
  */
 import type { Library } from '../catalog/library';
+import { propRect } from '../catalog/propDefs';
 
 import type { PlanCommand } from './commands';
-import { boxOutline, type Polyline } from './geometry/box';
+import { boxOutline, type BoxMode, type Polyline, type WorldBox } from './geometry/box';
 import { dimensionLine } from './geometry/dimension';
 import { addVec } from './geometry/polyline';
+import { propBoxTest, propCorners } from './geometry/propGeometry';
 import { besideOpening, openingsOf, slideOpenings } from './openings';
+import { MAX_PROPS } from './props';
 import { isSelected, type Selection, type SelectionKind } from './selection';
 import type { OpeningId, Plan, Vec2, WallId } from './types';
 
+/** The catalogue data item kinds read. */
+export type KindLib = Pick<Library, 'wallFamilies' | 'openingDefs' | 'propDefs'>;
+
 /** What an edit spans: the catalogue, and every item it acts on together. */
 export interface EditScope {
-  lib: Pick<Library, 'wallFamilies' | 'openingDefs'>;
+  lib: KindLib;
   /** A wall's openings follow the wall, so an opening whose wall is here is left alone. */
   items: Selection;
 }
@@ -25,14 +31,16 @@ export interface ItemKind {
   noun: string;
   /** The plan record holding the kind's objects, by id. */
   collection(plan: Plan): Readonly<Record<string, unknown>>;
-  /** The item's drawn lines; box selection tests these. */
-  lines(plan: Plan, id: string): Polyline[];
+  /** The item's drawn lines; box selection tests these (unless the kind has `inBox`). */
+  lines(plan: Plan, id: string, lib: KindLib): Polyline[];
+  /** Box selection of an area (props: a rotated footprint the box may lie inside). */
+  inBox?(plan: Plan, id: string, box: WorldBox, mode: BoxMode, lib: KindLib): boolean;
   /**
    * Lines `SelectionHighlight` strokes (next to the item's pieces). Left out when the
    * kind shows its own selected state (dimensions recolour themselves, openings their
    * symbols).
    */
-  highlight?(plan: Plan, id: string): Polyline[];
+  highlight?(plan: Plan, id: string, lib: KindLib): Polyline[];
   translate(plan: Plan, id: string, d: Vec2, scope: EditScope): PlanCommand[];
   remove(plan: Plan, id: string, scope: EditScope): PlanCommand[];
   /** A copy of an existing item, moved by `d`, under `copyId` (none when it can't be). */
@@ -68,6 +76,18 @@ export const slidingOpeningIds = (plan: Plan, items: Selection): OpeningId[] =>
       ? [item.id]
       : []
   );
+
+const propOutline = (plan: Plan, id: string, lib: KindLib) => {
+  const prop = plan.props[id];
+  return prop
+    ? propCorners(prop.position, prop.rotation, propRect(lib.propDefs, prop.prefab))
+    : null;
+};
+
+const propLines = (plan: Plan, id: string, lib: KindLib): Polyline[] => {
+  const corners = propOutline(plan, id, lib);
+  return corners ? [{ points: corners, closed: true }] : [];
+};
 
 /** Key order is `allItems`' order. */
 export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
@@ -182,6 +202,31 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
       if (!dim) return [];
       const dimension = { ...dim, id: copy.id, a: addVec(dim.a, d), b: addVec(dim.b, d) };
       return [{ type: 'dimension.insert', dimension }];
+    },
+  },
+  prop: {
+    noun: 'item',
+    collection: (plan) => plan.props,
+    lines: propLines,
+    highlight: propLines,
+    inBox: (plan, id, box, mode, lib) => {
+      const corners = propOutline(plan, id, lib);
+      return corners !== null && propBoxTest(corners, box, mode);
+    },
+    translate: (plan, id, d) => {
+      const prop = plan.props[id];
+      return prop
+        ? [{ type: 'prop.patch', id, changes: { position: addVec(prop.position, d) } }]
+        : [];
+    },
+    remove: (_plan, id) => [{ type: 'prop.remove', id }],
+    // `plan` has the earlier copies in, so a full plan makes no more.
+    duplicate: (plan, id, copy, d) => {
+      const prop = plan.props[id];
+      if (!prop || Object.keys(plan.props).length >= MAX_PROPS) return [];
+      return [
+        { type: 'prop.insert', prop: { ...prop, id: copy.id, position: addVec(prop.position, d) } },
+      ];
     },
   },
 };

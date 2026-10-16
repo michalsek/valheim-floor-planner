@@ -1,21 +1,28 @@
 /**
  * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
- * throws on a bad shape. Collections added by later milestones default to `{}`, and a
- * missing name to "Untitled".
+ * throws on a bad shape. Collections added by later milestones default to `{}`, a
+ * missing underlay to null, and a missing name to "Untitled".
  */
 import { samePoint } from './geometry/polyline';
+import { normalizeDeg } from './geometry/propGeometry';
+import { MAX_PROPS, propProblem } from './props';
 import {
   DEFAULT_PLAN_NAME,
   type Dimension,
   type Floor,
   type Opening,
   type Plan,
+  type Prop,
+  type Underlay,
   type Vec2,
   type WallRun,
   type WallSide,
 } from './types';
+import { underlayProblem } from './underlay';
 
-export const serializePlan = (plan: Plan): string => JSON.stringify(plan);
+/** The plan as JSON; `extras` adds top-level fields (a file's embedded image). */
+export const serializePlan = (plan: Plan, extras: Record<string, unknown> = {}): string =>
+  JSON.stringify({ ...plan, ...extras });
 
 export class PlanParseError extends Error {
   constructor(path: string, expected: string) {
@@ -115,6 +122,44 @@ const parseOpening =
     };
   };
 
+/** Unknown prefabs load (the plan warns about them). Ranges are `propProblem`'s. */
+const parseProp = (value: unknown, key: string, path: string): Prop => {
+  const p = asRecord(value, path);
+  const id = asString(p.id, `${path}.id`);
+  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+  const prop = {
+    id,
+    prefab: asString(p.prefab, `${path}.prefab`),
+    position: asPoint(p.position, `${path}.position`),
+    rotation: normalizeDeg(asFinite(p.rotation, `${path}.rotation`)),
+    upgrades: p.upgrades === undefined ? 0 : asFinite(p.upgrades, `${path}.upgrades`),
+  };
+  const problem = propProblem(prop);
+  return problem ? fail(path, `an item where ${problem}`) : prop;
+};
+
+/** Shapes are checked here, ranges by `underlayProblem`. */
+const parseUnderlay = (value: unknown, path: string): Underlay | null => {
+  if (value === undefined || value === null) return null;
+  const u = asRecord(value, path);
+  const size = asRecord(u.pixelSize, `${path}.pixelSize`);
+  if (typeof u.locked !== 'boolean') fail(`${path}.locked`, 'a boolean');
+  const underlay = {
+    imageId: asString(u.imageId, `${path}.imageId`),
+    name: typeof u.name === 'string' ? u.name : '',
+    pixelSize: {
+      w: asFinite(size.w, `${path}.pixelSize.w`),
+      h: asFinite(size.h, `${path}.pixelSize.h`),
+    },
+    origin: asPoint(u.origin, `${path}.origin`),
+    metresPerPixel: asFinite(u.metresPerPixel, `${path}.metresPerPixel`),
+    opacity: asFinite(u.opacity, `${path}.opacity`),
+    locked: u.locked,
+  };
+  const problem = underlayProblem(underlay);
+  return problem ? fail(path, `an underlay where ${problem}`) : underlay;
+};
+
 /** Parses each entry of an optional keyed collection (missing → `{}`). */
 const parseCollection = <T>(
   value: unknown,
@@ -127,6 +172,12 @@ const parseCollection = <T>(
       parse(item, key, `${path}.${key}`),
     ])
   );
+
+const parseProps = (value: unknown): Plan['props'] => {
+  const props = parseCollection(value, '$.props', parseProp);
+  if (Object.keys(props).length > MAX_PROPS) fail('$.props', `at most ${MAX_PROPS} items`);
+  return props;
+};
 
 /** Lenient: files from before plans had names (or with a blank one) load as "Untitled". */
 const parseName = (value: unknown): string =>
@@ -143,5 +194,7 @@ export const parsePlan = (raw: unknown): Plan => {
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension),
     floors: parseCollection(root.floors, '$.floors', parseFloor),
     openings: parseCollection(root.openings, '$.openings', parseOpening(walls)),
+    props: parseProps(root.props),
+    underlay: parseUnderlay(root.underlay, '$.underlay'),
   };
 };

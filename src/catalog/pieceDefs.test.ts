@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import rawPieces from '../../research/valheim-pieces.json';
 
+import { itemLabel, parseItems } from './items';
 import { parseCatalog } from './pieceDefs';
 
 describe('parseCatalog', () => {
@@ -30,5 +31,13 @@ describe('parseCatalog', () => {
 
   it('throws on a malformed shape', () => {
     expect(() => parseCatalog({ meta: {}, pieces: 'nope' })).toThrow(/\$\.pieces/);
+  });
+});
+
+describe('items', () => {
+  it('names resources from the extract, falling back to the id', () => {
+    expect(itemLabel('RoundLog')).toBe('Corewood');
+    expect(itemLabel('NotAnItem')).toBe('NotAnItem');
+    expect(() => parseItems({ Wood: { name: 'Wood' } })).toThrow(/namePl/);
   });
 });

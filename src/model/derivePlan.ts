@@ -48,6 +48,21 @@ const deriveRooms = (
   return entry;
 };
 
+/** Props whose prefab isn't in the catalogue (from a hand-edited or newer file). */
+const propWarnings = (plan: Plan, lib: Library): PlanWarning[] =>
+  Object.values(plan.props).flatMap((prop): PlanWarning[] =>
+    lib.propDefs.has(prop.prefab)
+      ? []
+      : [
+          {
+            source: { kind: 'prop', id: prop.id },
+            segment: null,
+            message: `Unknown item ${prop.prefab}`,
+            level: 'warning',
+          },
+        ]
+  );
+
 export const derivePlan = (plan: Plan, lib: Library): Derived => {
   const walls = deriveWalls(plan, lib);
   const floors = deriveFloors(plan, lib);
@@ -55,8 +70,13 @@ export const derivePlan = (plan: Plan, lib: Library): Derived => {
   const pieces = [...floors.pieces, ...walls.pieces];
   return {
     pieces,
-    bom: computeBom(pieces, lib.catalog),
-    warnings: [...walls.warnings, ...rooms.warnings, ...floors.warnings],
+    bom: computeBom([...pieces, ...Object.values(plan.props)], lib.catalog),
+    warnings: [
+      ...walls.warnings,
+      ...rooms.warnings,
+      ...floors.warnings,
+      ...propWarnings(plan, lib),
+    ],
     rooms: rooms.rooms,
     buildings: rooms.buildings,
     summary: rooms.summary,

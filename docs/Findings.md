@@ -211,3 +211,46 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 12. **Floor seams sit in the overlay**, above the canvas, so they are masked by the wall
     footprints; opening gaps are not masked, so seams show through a doorway (as they
     should: the floor is there).
+
+## From M6 implementation
+
+1. **No stair helper.** `Prop.flights`, the "up" arrow and the rise/run readout were
+   skipped (optional); stairs are plain props in the Stairs chip. The plan's stair list
+   is used as is, so the Dvergr spiral stairs (category `building`) are not props.
+2. **`upgrades` is required on `Prop`** (files without it load as 0), rather than
+   optional, to keep `exactOptionalPropertyTypes` noise out of every reader.
+3. **Item kinds take the library in `lines`/`highlight`**, and may define `inBox`: a
+   prop's footprint needs its def, and a rotated footprint uses a SAT box test (a box
+   wholly inside a footprint still "touches" it). `itemsInBox` and `HitOptions` gained
+   `lib`/`propDefs` accordingly.
+4. **The underlay move and the opacity slider preview through `editPreviewAtom`**
+   (an `underlay.patch`), so `useDisplayPlan` draws them and release commits one entry;
+   no separate underlay preview atom.
+5. **The ghost needs no `onPointerLeave`**: it is derived from `cursorAtom`, which is
+   null once the pointer leaves the canvas.
+6. **Approximate footprints are an Inspector note, not a plan warning**, so the BOM
+   warning list isn't filled with every cauldron; unknown prefabs are plan warnings.
+7. **Start-up prune is per browser profile, not per tab**: a second tab with another
+   underlay would lose its image on the first tab's reload ("Image missing", relink).
+8. **"Save image in file" lives in the Underlay tool's options bar** (session-only
+   toggle, default off); the status strip has the Radii and Underlay visibility toggles.
+9. **Labels skip narrow props**: at 20 px/m a workbench (1.1 m deep) and beds get no
+   label (short side < 24 px or < 4 characters fit); room labels can sit on top of prop
+   footprints and labels.
+10. **Ring labels sit at the top of the ring**, often off-screen for 20–40 m rings at
+    working zoom; a label nearer the pivot (or along the visible arc) would read better.
+    Overlapping labels are hidden greedily (selected rings first).
+11. **Snap 1 m makes adjacent props collide**: placing 1.2 m beds a metre apart
+    overlaps them silently (by design, finding 7 of the plan); a prop-to-prop edge snap
+    would help furnishing.
+12. **Fix round:** commands now share `propProblem` / `underlayProblem` with
+    `parsePlan` (and `MAX_PROPS`), so anything a command accepts reloads. Images over
+    8 MB are re-encoded; a save whose embedded image would push the file past the 30 MB
+    open cap is written without it, with a warning.
+13. **The catalogue overlays the canvas's left edge** (outside `ToolHost`) instead of
+    taking a grid column, so the view doesn't jump; it covers 260 px of the plan while
+    the Prop tool is active.
+14. **Home / Shift+1 fit the view to the plan** (walls, dimensions, floors, props,
+    underlay), as Open does. `0` still resets to the origin.
+15. **Upgrades stepper and opacity arrows add one history entry per click / key press**
+    (not coalesced).

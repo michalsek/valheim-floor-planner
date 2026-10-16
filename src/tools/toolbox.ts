@@ -3,10 +3,12 @@ import { activeToolIdAtom } from '../store/session';
 import { dimensionTool } from './Dimension/dimensionTool';
 import { floorTool } from './Floor/floorTool';
 import { openingTool } from './Opening/openingTool';
+import { propTool } from './Prop/propTool';
 import { rulerTool } from './Ruler/rulerTool';
 import { selectTool } from './Select/selectTool';
 import { TOOL_IDS, type ToolId } from './toolIds';
 import type { Tool, ToolContext } from './types';
+import { underlayTool } from './Underlay/underlayTool';
 import { wallTool } from './Wall/wallTool';
 
 /** Every tool, by id. Adding an id to `TOOL_IDS` without a tool here fails to compile. */
@@ -15,8 +17,10 @@ const TOOLS_BY_ID: Record<ToolId, Tool> = {
   wall: wallTool,
   floor: floorTool,
   opening: openingTool,
+  prop: propTool,
   ruler: rulerTool,
   dimension: dimensionTool,
+  underlay: underlayTool,
 };
 
 /** Tools in ToolRail order. */

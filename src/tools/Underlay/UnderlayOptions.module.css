@@ -1,0 +1,26 @@
+.name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.metres {
+  width: 72px;
+  padding: 2px 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hint {
+  color: var(--warning);
+}

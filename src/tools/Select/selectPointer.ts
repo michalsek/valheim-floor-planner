@@ -41,9 +41,11 @@ const hitAt = (ctx: ToolContext, p: Vec2): Hit | null => {
   const plan = ctx.plan.getPlan();
   return hitTest(plan, p, hitTolerance(ctx), {
     families: library.wallFamilies,
+    propDefs: library.propDefs,
     openings: getDerived(plan).openings,
     handlesFor: handleWallId(ctx.get(selectionAtom)),
     handleTol: HANDLE_PX / ctx.get(viewportAtom).zoom,
+    selection: ctx.get(selectionAtom),
   });
 };
 
@@ -201,7 +203,7 @@ const click = (ctx: ToolContext, press: Gesture<'pressing'>): void => {
 
 const selectInBox = (ctx: ToolContext, g: Gesture<'box'>, end: Vec2): void => {
   const box = boxFromCorners(g.startWorld, end);
-  const items = itemsInBox(ctx.plan.getPlan(), box, boxMode(g.startWorld, end));
+  const items = itemsInBox(ctx.plan.getPlan(), box, boxMode(g.startWorld, end), library);
   ctx.set(selectionAtom, (s) => (g.additive ? unionItems(s, items) : items));
 };
 

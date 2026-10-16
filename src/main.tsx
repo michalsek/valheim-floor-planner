@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
 import { startAutosave } from './store/autosave';
+import { pruneImages } from './store/imageStore';
 import { planStorage, planStore } from './store/planInstance';
 import { startSelectionSync } from './store/selection';
 import { autosaveStatusAtom, sessionStore } from './store/session';
@@ -19,6 +20,10 @@ if (planStorage) {
 } else {
   sessionStore.set(autosaveStatusAtom, 'unavailable');
 }
+
+// Safe now only: history is empty, so no undo can bring back another underlay image.
+const underlay = planStore.getPlan().underlay;
+void pruneImages(new Set(underlay ? [underlay.imageId] : []));
 
 // Before the first render, so the selection is pruned before React reads it.
 startSelectionSync(planStore, sessionStore);

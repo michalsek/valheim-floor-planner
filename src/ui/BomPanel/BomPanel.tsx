@@ -21,7 +21,9 @@ export const BomPanel = () => {
       <div className={styles.body}>
         <BuildingSummary />
         {bom.pieces.length === 0 ? (
-          <p className={styles.empty}>Draw walls (W) or floors (B) to see what they cost.</p>
+          <p className={styles.empty}>
+            Draw walls (W) or floors (B), or place items (P), to see what they cost.
+          </p>
         ) : (
           <>
             <Section title="Pieces">

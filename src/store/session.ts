@@ -11,6 +11,7 @@ import type { Vec2, WallSide } from '../model/types';
 import type { ToolId } from '../tools/toolIds';
 import {
   DEFAULT_VIEWPORT,
+  fitViewport,
   panBy,
   screenCentre,
   screenToWorld,
@@ -18,6 +19,7 @@ import {
   type ScreenPoint,
   type Size,
   type Viewport,
+  type WorldRect,
 } from '../viewport/viewportMath';
 
 export type SessionStore = ReturnType<typeof createStore>;
@@ -78,6 +80,11 @@ export const openingFamilyAtom = atom<string>(DEFAULT_WALL_FAMILY_ID);
  */
 export const toolMinSnapAtom = atom<number>(0);
 
+/** The step the cursor snaps to: the grid step, or the active tool's minimum if larger. */
+export const effectiveSnapStepAtom = atom<number>((get) =>
+  Math.max(get(snapStepAtom), get(toolMinSnapAtom))
+);
+
 /**
  * The world point under the pointer. Derived (not stored), so it stays correct after
  * a pan, zoom or snap change without any pointer movement.
@@ -87,7 +94,7 @@ export const cursorAtom = atom<Cursor | null>((get) => {
   if (!screen) return null;
   const raw = screenToWorld(get(viewportAtom), get(viewportSizeAtom), screen);
   const snapping = !get(modifiersAtom).alt;
-  const step = Math.max(get(snapStepAtom), get(toolMinSnapAtom));
+  const step = get(effectiveSnapStepAtom);
   return { raw, snapped: snapping ? snapToGrid(raw, step) : raw, snapping };
 });
 
@@ -107,6 +114,12 @@ export const zoomViewportAt = (
   store.set(viewportAtom, (v) => zoomAt(v, size, point ?? screenCentre(size), factor));
 };
 
+/** Frames `box` (world metres) in the canvas, with a margin; no change for null. */
+export const fitViewTo = (store: SessionAccess, box: WorldRect | null): void => {
+  if (!box) return;
+  store.set(viewportAtom, fitViewport(store.get(viewportSizeAtom), box));
+};
+
 export const setModifier = (store: SessionAccess, key: keyof Modifiers, value: boolean): void => {
   if (store.get(modifiersAtom)[key] !== value) {
     store.set(modifiersAtom, (m) => ({ ...m, [key]: value }));
@@ -120,3 +133,10 @@ export const resetModifiers = (store: SessionAccess): void => {
 
 /** A cursor the active tool asks for over what it hovers (e.g. `move`); null for its default. */
 export const cursorStyleAtom = atom<string | null>(null);
+
+/** Show every station's and ward's ring, not just the selected ones (status strip). */
+export const showAllRadiiAtom = atom<boolean>(false);
+/** Whether the underlay image is drawn (session only; the plan keeps it either way). */
+export const underlayVisibleAtom = atom<boolean>(true);
+/** Whether Save puts the underlay image in the file (as a data URL). */
+export const embedUnderlayAtom = atom<boolean>(false);

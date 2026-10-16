@@ -1,11 +1,10 @@
 import { library } from '../../catalog';
 import { itemLabel } from '../../catalog/items';
 import { computeBom } from '../../model/bom';
-import type { PlacedPiece } from '../../model/types';
 import { Row, Section } from '../shared/PanelList';
 
-/** Piece counts and what they cost, for the pieces of the inspected item. */
-export const PieceCost = ({ pieces }: { pieces: readonly PlacedPiece[] }) => {
+/** Piece counts and what they cost, for the pieces (or prop) of the inspected item. */
+export const PieceCost = ({ pieces }: { pieces: readonly { prefab: string }[] }) => {
   const bom = computeBom(pieces, library.catalog);
   if (bom.pieces.length === 0) return null;
   return (

@@ -4,12 +4,15 @@
  */
 import { atom } from 'jotai';
 
+import { library } from '../catalog';
+import { planBounds } from '../model/planBounds';
 import { isPlanEmpty } from '../model/selection';
 import { DEFAULT_PLAN_NAME, emptyPlan } from '../model/types';
 
 import { pickPlanFile, readPlanFile, savePlanFile } from './files';
+import { getImage, putImage } from './imageStore';
 import type { PlanStore } from './planStore';
-import type { SessionAccess } from './session';
+import { embedUnderlayAtom, fitViewTo, type SessionAccess } from './session';
 
 interface FileStatus {
   tone: 'error' | 'info';
@@ -41,10 +44,23 @@ export const saveCurrentPlan = async (ctx: FileContext): Promise<void> => {
   if (saving) return;
   saving = true;
   try {
-    const result = await savePlanFile(ctx.plan.getPlan());
+    const plan = ctx.plan.getPlan();
+    const imageId = ctx.get(embedUnderlayAtom) ? plan.underlay?.imageId : undefined;
+    const result = await savePlanFile(
+      plan,
+      imageId ? { underlayImage: () => getImage(imageId) } : {}
+    );
     if (result) {
       const verb = result.via === 'picker' ? 'Saved' : 'Downloaded';
-      ctx.set(fileStatusAtom, { tone: 'info', message: `${verb} ${result.fileName}` });
+      ctx.set(
+        fileStatusAtom,
+        result.imageSkipped
+          ? {
+              tone: 'error',
+              message: `${verb} ${result.fileName} without the underlay image: it is too big to embed.`,
+            }
+          : { tone: 'info', message: `${verb} ${result.fileName}` }
+      );
     }
   } catch (error) {
     ctx.set(fileStatusAtom, { tone: 'error', message: `Couldn't save: ${messageOf(error)}` });
@@ -60,8 +76,11 @@ export const openPlanFile = async (ctx: FileContext): Promise<void> => {
   try {
     const file = await pickPlanFile();
     if (!file) return;
-    const plan = await readPlanFile(file);
+    const { plan, underlayImage } = await readPlanFile(file);
+    // Stored first, so the underlay doesn't flash "missing".
+    if (plan.underlay && underlayImage) await putImage(plan.underlay.imageId, underlayImage);
     ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Open ${file.name}` });
+    fitViewTo(ctx, planBounds(plan, library));
     ctx.set(fileStatusAtom, null);
   } catch (error) {
     ctx.set(fileStatusAtom, { tone: 'error', message: messageOf(error) });

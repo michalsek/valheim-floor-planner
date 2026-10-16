@@ -72,6 +72,18 @@ export const zoomAt = (v: Viewport, size: Size, s: ScreenPoint, factor: number):
   };
 };
 
+/** Share of the canvas `fitViewport` fills. */
+const FIT_FILL = 0.9;
+
+/** A viewport showing all of `box`, centred; the zoom is clamped. */
+export const fitViewport = (size: Size, box: WorldRect): Viewport => {
+  const w = Math.max(box.max.x - box.min.x, 1);
+  const h = Math.max(box.max.z - box.min.z, 1);
+  const zoom = clampZoom(FIT_FILL * Math.min(size.width / w, size.height / h));
+  const center = { x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2 };
+  return { center, zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_VIEWPORT.zoom };
+};
+
 export const visibleWorldRect = (v: Viewport, size: Size): WorldRect => ({
   min: screenToWorld(v, size, { x: 0, y: 0 }),
   max: screenToWorld(v, size, { x: size.width, y: size.height }),

@@ -1,5 +1,6 @@
 import { useAtomValue } from 'jotai';
 
+import { library } from '../catalog';
 import { hitItem } from '../model/hitTest';
 import { ITEM_KINDS } from '../model/itemKinds';
 import { isSelected, type SelectionItem } from '../model/selection';
@@ -40,7 +41,7 @@ export const SelectionHighlight = () => {
     <g>
       {items.map(({ item, tone }) => {
         const { piece, line } = TONES[tone];
-        const lines = ITEM_KINDS[item.kind].highlight?.(plan, item.id) ?? [];
+        const lines = ITEM_KINDS[item.kind].highlight?.(plan, item.id, library) ?? [];
         return (
           <g key={`${tone}:${item.kind}:${item.id}`}>
             <PieceFootprints

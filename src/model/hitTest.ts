@@ -1,9 +1,11 @@
 /**
  * What is under a point, and what lies in a box, for selection.
- * `hitTest` tries tiers in order (vertex handle, dimension, opening, wall, floor) and
- * the nearest object within the first tier that has one wins. A new kind adds a tier
- * to `TIERS` where it belongs (M6 puts small props before walls, large ones after).
+ * `hitTest` tries tiers in order (vertex handle, dimension, opening, small prop, wall,
+ * large prop, floor) and the nearest (or smallest) object within the first tier that
+ * has one wins. Large props (ships, kilns) come after walls, so walls inside them stay
+ * clickable.
  */
+import { propRect, type PropDef } from '../catalog/propDefs';
 import type { WallFamily } from '../catalog/wallFamilies';
 
 import {
@@ -17,10 +19,22 @@ import {
 import { dimensionLine } from './geometry/dimension';
 import { distanceToSegment } from './geometry/measure';
 import { dot, runSegments, sideNormal } from './geometry/polyline';
-import { ITEM_KINDS } from './itemKinds';
+import { pointInProp } from './geometry/propGeometry';
+import { ITEM_KINDS, type KindLib } from './itemKinds';
 import type { ResolvedOpening } from './openings';
-import { allItems, type SelectionItem } from './selection';
-import type { Dimension, DimId, FloorId, OpeningId, Plan, Vec2, WallId, WallRun } from './types';
+import { propArea, propsInDrawOrder } from './props';
+import { allItems, isSelected, type Selection, type SelectionItem } from './selection';
+import type {
+  Dimension,
+  DimId,
+  FloorId,
+  OpeningId,
+  Plan,
+  PropId,
+  Vec2,
+  WallId,
+  WallRun,
+} from './types';
 import { wallExtents, type WallExtents } from './wallGraph';
 
 export type Hit =
@@ -28,16 +42,20 @@ export type Hit =
   | { kind: 'dimension'; id: DimId; distance: number }
   | { kind: 'opening'; id: OpeningId; distance: number }
   | { kind: 'wall'; id: WallId; segment: number; distance: number }
-  | { kind: 'floor'; id: FloorId; area: number };
+  | { kind: 'floor'; id: FloorId; area: number }
+  | { kind: 'prop'; id: PropId; area: number };
 
 export interface HitOptions {
   families: ReadonlyMap<string, WallFamily>;
+  propDefs: ReadonlyMap<string, PropDef>;
   /** The plan's openings, as derived. */
   openings: readonly ResolvedOpening[];
   /** The wall whose vertices are drag handles (the single selected wall), if any. */
   handlesFor: WallId | null;
   /** Handle radius in metres. */
   handleTol: number;
+  /** Of overlapping props of equal area, a selected one wins. */
+  selection: Selection;
 }
 
 /** The selectable object a hit is on; a vertex handle belongs to its wall. */
@@ -191,7 +209,38 @@ const floorTier: Tier = (plan, p) => {
   return best;
 };
 
-const TIERS: readonly Tier[] = [vertexTier, dimensionTier, openingTier, wallTier, floorTier];
+/** Props of at most this footprint area (m²) are hit before walls; larger ones after. */
+const SMALL_PROP_AREA = 16;
+
+/**
+ * The prop under `p` among those `inTier` takes: the smallest; of equal areas, a
+ * selected one, then the one drawn on top.
+ */
+const propTier =
+  (inTier: (area: number) => boolean): Tier =>
+  (plan, p, tol, { propDefs, selection }) => {
+    let best: { hit: Hit; area: number; selected: boolean } | null = null;
+    for (const prop of propsInDrawOrder(plan, propDefs).reverse()) {
+      const area = propArea(propDefs, prop.prefab);
+      const rect = propRect(propDefs, prop.prefab);
+      if (!inTier(area) || !pointInProp(p, prop.position, prop.rotation, rect, tol)) continue;
+      const selected = isSelected(selection, { kind: 'prop', id: prop.id });
+      const better =
+        !best || area < best.area || (area === best.area && selected && !best.selected);
+      if (better) best = { hit: { kind: 'prop', id: prop.id, area }, area, selected };
+    }
+    return best?.hit ?? null;
+  };
+
+const TIERS: readonly Tier[] = [
+  vertexTier,
+  dimensionTier,
+  openingTier,
+  propTier((area) => area <= SMALL_PROP_AREA),
+  wallTier,
+  propTier((area) => area > SMALL_PROP_AREA),
+  floorTier,
+];
 
 /** The topmost thing under `p` (within `tol` metres), or null. */
 export const hitTest = (plan: Plan, p: Vec2, tol: number, opts: HitOptions): Hit | null => {
@@ -202,10 +251,17 @@ export const hitTest = (plan: Plan, p: Vec2, tol: number, opts: HitOptions): Hit
   return null;
 };
 
-/** Items whose drawn lines lie inside (or touch) the box, in plan order. */
-export const itemsInBox = (plan: Plan, box: WorldBox, mode: BoxMode): SelectionItem[] =>
+/** Items whose drawn lines (or areas) lie inside (or touch) the box, in plan order. */
+export const itemsInBox = (
+  plan: Plan,
+  box: WorldBox,
+  mode: BoxMode,
+  lib: KindLib
+): SelectionItem[] =>
   allItems(plan).filter((item) => {
-    const lines = ITEM_KINDS[item.kind].lines(plan, item.id);
+    const kind = ITEM_KINDS[item.kind];
+    if (kind.inBox) return kind.inBox(plan, item.id, box, mode, lib);
+    const lines = kind.lines(plan, item.id, lib);
     const test = (line: Polyline) => lineInBox(line, box, mode);
     return lines.length > 0 && (mode === 'contain' ? lines.every(test) : lines.some(test));
   });

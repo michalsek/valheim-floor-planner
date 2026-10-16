@@ -58,6 +58,38 @@ export interface Opening {
   at: Vec2;
 }
 
+export type PropId = string;
+
+/**
+ * A placed prop (station, furniture, ship…). `position` is the prefab's pivot, where
+ * the game centres its build or ward ring; the footprint is offset from it.
+ */
+export interface Prop {
+  id: PropId;
+  prefab: string;
+  position: Vec2;
+  /** Degrees, clockwise on screen, in [0, 360). */
+  rotation: number;
+  /** Station upgrades (extensions) counted towards the build radius. */
+  upgrades: number;
+}
+
+/**
+ * A reference image under the plan. The image itself lives in IndexedDB under
+ * `imageId` (and optionally in saved files); the plan holds where it goes.
+ */
+export interface Underlay {
+  imageId: string;
+  /** The image's file name. */
+  name: string;
+  pixelSize: { w: number; h: number };
+  /** World position of the image's top-left corner. */
+  origin: Vec2;
+  metresPerPixel: number;
+  opacity: number;
+  locked: boolean;
+}
+
 /** The plan document: everything the user draws, and the only thing in undo history. */
 export interface Plan {
   version: 1;
@@ -67,6 +99,8 @@ export interface Plan {
   dimensions: Record<DimId, Dimension>;
   floors: Record<FloorId, Floor>;
   openings: Record<OpeningId, Opening>;
+  props: Record<PropId, Prop>;
+  underlay: Underlay | null;
 }
 
 export const DEFAULT_PLAN_NAME = 'Untitled';
@@ -78,6 +112,8 @@ export const emptyPlan = (): Plan => ({
   dimensions: {},
   floors: {},
   openings: {},
+  props: {},
+  underlay: null,
 });
 
 /** One game piece, derived from the plan (never stored). */

@@ -16,6 +16,7 @@ import styles from './Inspector.module.css';
 import { InspectorTitle } from './InspectorTitle';
 import { FloorInspector } from './FloorInspector';
 import { OpeningInspector } from './OpeningInspector';
+import { PropInspector } from './PropInspector';
 import { WallInspector } from './WallInspector';
 
 const DimensionInspector = ({ id }: { id: DimId }) => {
@@ -40,6 +41,7 @@ const INSPECTORS: { readonly [K in SelectionKind]: ComponentType<{ id: string }>
   opening: OpeningInspector,
   floor: FloorInspector,
   dimension: DimensionInspector,
+  prop: PropInspector,
 };
 
 const ItemInspector = ({ item }: { item: SelectionItem }) => {

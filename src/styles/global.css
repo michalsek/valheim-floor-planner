@@ -20,6 +20,16 @@
   --overlay-danger: #ff7a6b;
   --overlay-pinned: #9fb4ff;
 
+  /* Prop footprints by group, and build / ward radius rings. */
+  --prop-crafting: #e0a03c;
+  --prop-furniture: #5fb3a1;
+  --prop-misc: #a58bd6;
+  --prop-ships: #5d9bd8;
+  --prop-stairs: #d07a8c;
+  --prop-fallback: #9aa3ad;
+  --ring-build: #f0b35c;
+  --ring-ward: #9fb4ff;
+
   --rail-width: 52px;
   --status-height: 30px;
   --side-width: 260px;

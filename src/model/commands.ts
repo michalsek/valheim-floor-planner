@@ -2,6 +2,7 @@
 import { produce } from 'immer';
 
 import { samePoint } from './geometry/polyline';
+import { MAX_PROPS, propProblem } from './props';
 import type {
   Dimension,
   DimId,
@@ -10,9 +11,13 @@ import type {
   Opening,
   OpeningId,
   Plan,
+  Prop,
+  PropId,
+  Underlay,
   WallId,
   WallRun,
 } from './types';
+import { underlayProblem } from './underlay';
 
 export type PlanCommand =
   | { type: 'wall.insert'; wall: WallRun }
@@ -27,6 +32,11 @@ export type PlanCommand =
   | { type: 'opening.insert'; opening: Opening }
   | { type: 'opening.patch'; id: OpeningId; changes: Partial<Omit<Opening, 'id'>> }
   | { type: 'opening.remove'; id: OpeningId }
+  | { type: 'prop.insert'; prop: Prop }
+  | { type: 'prop.patch'; id: PropId; changes: Partial<Omit<Prop, 'id'>> }
+  | { type: 'prop.remove'; id: PropId }
+  | { type: 'underlay.set'; underlay: Underlay | null }
+  | { type: 'underlay.patch'; changes: Partial<Underlay> }
   | { type: 'plan.rename'; name: string }
   | { type: 'plan.replace'; plan: Plan };
 
@@ -44,6 +54,11 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'opening.insert': 'Add opening',
   'opening.patch': 'Edit opening',
   'opening.remove': 'Delete opening',
+  'prop.insert': 'Add item',
+  'prop.patch': 'Edit item',
+  'prop.remove': 'Delete item',
+  'underlay.set': 'Set underlay',
+  'underlay.patch': 'Edit underlay',
   'plan.rename': 'Rename plan',
   'plan.replace': 'Replace plan',
 };
@@ -61,6 +76,17 @@ const checkFloor = ({ min, max }: Floor): void => {
 
 const checkWall = (plan: Plan, wallId: WallId): void => {
   if (!(wallId in plan.walls)) throw new PlanCommandError(`Wall "${wallId}" does not exist`);
+};
+
+// Commands accept only what `parsePlan` loads, so the autosave always reads back.
+const checkProp = (prop: Prop): void => {
+  const problem = propProblem(prop);
+  if (problem) throw new PlanCommandError(`Invalid item: ${problem}`);
+};
+
+const checkUnderlay = (underlay: Underlay): void => {
+  const problem = underlayProblem(underlay);
+  if (problem) throw new PlanCommandError(`Invalid underlay: ${problem}`);
 };
 
 /**
@@ -149,6 +175,36 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
         throw new PlanCommandError(`Opening "${cmd.id}" does not exist`);
       }
       delete draft.openings[cmd.id];
+      return undefined;
+    case 'prop.insert':
+      if (cmd.prop.id in draft.props) {
+        throw new PlanCommandError(`Item "${cmd.prop.id}" already exists`);
+      }
+      if (Object.keys(draft.props).length >= MAX_PROPS) {
+        throw new PlanCommandError(`A plan holds at most ${MAX_PROPS} items`);
+      }
+      checkProp(cmd.prop);
+      draft.props[cmd.prop.id] = cmd.prop;
+      return undefined;
+    case 'prop.patch': {
+      const prop = draft.props[cmd.id];
+      if (!prop) throw new PlanCommandError(`Item "${cmd.id}" does not exist`);
+      Object.assign(prop, cmd.changes);
+      checkProp(prop);
+      return undefined;
+    }
+    case 'prop.remove':
+      if (!(cmd.id in draft.props)) throw new PlanCommandError(`Item "${cmd.id}" does not exist`);
+      delete draft.props[cmd.id];
+      return undefined;
+    case 'underlay.set':
+      if (cmd.underlay) checkUnderlay(cmd.underlay);
+      draft.underlay = cmd.underlay;
+      return undefined;
+    case 'underlay.patch':
+      if (!draft.underlay) throw new PlanCommandError('There is no underlay');
+      Object.assign(draft.underlay, cmd.changes);
+      checkUnderlay(draft.underlay);
       return undefined;
     case 'plan.rename': {
       const name = cmd.name.trim();

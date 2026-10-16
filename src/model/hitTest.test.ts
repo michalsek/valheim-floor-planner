@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { wallFamilyById } from '../catalog';
+import { library, wallFamilyById } from '../catalog';
 import { emptyPlan, type Plan, type WallRun } from './types';
 
 import { boxFromCorners } from './geometry/box';
@@ -25,7 +25,14 @@ const planOf = (walls: WallRun[], dims: Plan['dimensions'] = {}): Plan => ({
 });
 
 const TOL = 0.1;
-const opts = { families: wallFamilyById, openings: [], handlesFor: null, handleTol: 0.2 };
+const opts = {
+  families: wallFamilyById,
+  propDefs: library.propDefs,
+  openings: [],
+  handlesFor: null,
+  handleTol: 0.2,
+  selection: [],
+};
 const at = (plan: Plan, x: number, z: number, handlesFor: string | null = null) =>
   hitTest(plan, { x, z }, TOL, { ...opts, handlesFor });
 
@@ -76,6 +83,44 @@ describe('hitTest', () => {
   });
 });
 
+describe('hitTest props', () => {
+  const prop = (id: string, prefab: string, x: number) => ({
+    id,
+    prefab,
+    position: { x, z: 0 },
+    rotation: 0,
+    upgrades: 0,
+  });
+  // A wall runs through a chest (small) and a longship (large).
+  const plan: Plan = {
+    ...planOf([
+      run('w', 'wood', [
+        [-20, 0],
+        [20, 0],
+      ]),
+    ]),
+    props: { c: prop('c', 'piece_chest_wood', -10), s: prop('s', 'VikingShip', 10) },
+  };
+
+  it('puts small props before walls and large ones after', () => {
+    expect(at(plan, -10, 0)).toMatchObject({ kind: 'prop', id: 'c' });
+    expect(at(plan, 10, 0)).toMatchObject({ kind: 'wall', id: 'w' });
+    expect(at(plan, 10, 2)).toMatchObject({ kind: 'prop', id: 's' });
+  });
+
+  it('of equal footprints prefers the selected one, then the one drawn on top', () => {
+    const stacked: Plan = {
+      ...emptyPlan(),
+      props: { a: prop('a', 'piece_chest_wood', 0), b: prop('b', 'piece_chest_wood', 0) },
+    };
+    expect(at(stacked, 0, 0)).toMatchObject({ id: 'b' });
+    const selection = [{ kind: 'prop' as const, id: 'a' }];
+    expect(hitTest(stacked, { x: 0, z: 0 }, TOL, { ...opts, selection })).toMatchObject({
+      id: 'a',
+    });
+  });
+});
+
 describe('itemsInBox', () => {
   const plan = planOf([
     run('w', 'wood', [
@@ -87,8 +132,8 @@ describe('itemsInBox', () => {
   const wholeBox = boxFromCorners({ x: -1, z: -1 }, { x: 5, z: 1 });
 
   it('contain needs the whole line inside; touch any part', () => {
-    expect(itemsInBox(plan, halfBox, 'contain')).toEqual([]);
-    expect(itemsInBox(plan, halfBox, 'touch')).toEqual([{ kind: 'wall', id: 'w' }]);
-    expect(itemsInBox(plan, wholeBox, 'contain')).toEqual([{ kind: 'wall', id: 'w' }]);
+    expect(itemsInBox(plan, halfBox, 'contain', library)).toEqual([]);
+    expect(itemsInBox(plan, halfBox, 'touch', library)).toEqual([{ kind: 'wall', id: 'w' }]);
+    expect(itemsInBox(plan, wholeBox, 'contain', library)).toEqual([{ kind: 'wall', id: 'w' }]);
   });
 });
