@@ -1,7 +1,7 @@
 /**
- * The building-piece catalogue, parsed from the game-data extract in
- * `research/valheim-pieces.json`. This is the only module that imports that file;
- * it treats the JSON as `unknown` and validates its shape.
+ * The building-piece catalogue, from raw game data in the shape of
+ * `research/valheim-pieces.json` (the install parser's output, or that fixture in
+ * tests). The data is treated as `unknown` and its shape validated.
  *
  * Axes are Unity local space in metres: x = length, y = height, z = thickness.
  */

@@ -1,9 +1,9 @@
-import { library } from '../catalog';
 import { groupVar } from '../catalog/groupColors';
 import { propRect } from '../catalog/propDefs';
 import { propCorners } from '../model/geometry/propGeometry';
 import { propsInDrawOrder } from '../model/props';
 import type { Prop } from '../model/types';
+import { getLibrary } from '../store/libraryInstance';
 import { useDisplayPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
@@ -19,12 +19,12 @@ interface PropFootprintProps {
  * data has no collider and the footprint is a 1 × 1 stand-in.
  */
 export const PropFootprint = ({ prop, className }: PropFootprintProps) => {
-  const def = library.propDefs.get(prop.prefab);
+  const def = getLibrary().propDefs.get(prop.prefab);
   const color = groupVar(def?.group);
   const corners = propCorners(
     prop.position,
     prop.rotation,
-    propRect(library.propDefs, prop.prefab)
+    propRect(getLibrary().propDefs, prop.prefab)
   );
   const approx = !def || def.approximate ? ` ${styles.propApprox}` : '';
   return (
@@ -42,7 +42,7 @@ export const PropFootprint = ({ prop, className }: PropFootprintProps) => {
  * ones first so smaller ones stay on top, as they are hit.
  */
 export const PropFootprints = () => {
-  const props = propsInDrawOrder(useDisplayPlan(), library.propDefs);
+  const props = propsInDrawOrder(useDisplayPlan(), getLibrary().propDefs);
   return (
     <g>
       {props.map((prop) => (

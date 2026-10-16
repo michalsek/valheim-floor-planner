@@ -1,4 +1,5 @@
 import { itemLabel } from '../../catalog/items';
+import { getLibrary } from '../../store/libraryInstance';
 import { useDerivedPlan, useUndoRedo } from '../../store/planHooks';
 import { Row, Section } from '../shared/PanelList';
 
@@ -33,7 +34,11 @@ export const BomPanel = () => {
             </Section>
             <Section title="Resources">
               {bom.resources.map((line) => (
-                <Row key={line.item} label={itemLabel(line.item)} value={line.amount} />
+                <Row
+                  key={line.item}
+                  label={itemLabel(getLibrary(), line.item)}
+                  value={line.amount}
+                />
               ))}
             </Section>
           </>

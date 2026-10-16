@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { catalog, propDefByPrefab, propDefs } from '.';
 import { APPROX_RECT, filterProps, type PropGroup } from './propDefs';
 import { propRadius } from './stations';
+import { testLibrary } from './testLibrary';
+
+const { catalog, propDefs: propDefByPrefab } = testLibrary;
+const propDefs = [...propDefByPrefab.values()];
 
 const NO_GROUPS = new Set<PropGroup>();
 const search = (query: string) => filterProps(propDefs, query, NO_GROUPS).map((d) => d.prefab);

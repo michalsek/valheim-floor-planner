@@ -1,7 +1,7 @@
 import { atom } from 'jotai';
 
-import { wallFamilyById } from '../../catalog';
 import { nearestWallHeight } from '../../catalog/wallFamilies';
+import { getLibrary } from '../../store/libraryInstance';
 import {
   wallFamilyIdAtom,
   wallHeightAtom,
@@ -43,7 +43,7 @@ export const wallSettingsAtom = atom<WallSettings>((get) => ({
 /** Applies settings changes; a family change also snaps the height to one it can build. */
 export const updateWallSettings = (ctx: SessionAccess, changes: Partial<WallSettings>): void => {
   if (changes.familyId !== undefined) {
-    const family = wallFamilyById.get(changes.familyId);
+    const family = getLibrary().wallFamilies.get(changes.familyId);
     if (!family) return;
     ctx.set(wallFamilyIdAtom, changes.familyId);
     ctx.set(wallHeightAtom, nearestWallHeight(family, changes.height ?? ctx.get(wallHeightAtom)));
@@ -55,7 +55,7 @@ export const updateWallSettings = (ctx: SessionAccess, changes: Partial<WallSett
 
 /** Flips a block wall's strip to the other side; returns false for panel families. */
 export const flipWallSide = (ctx: SessionAccess): boolean => {
-  if (wallFamilyById.get(ctx.get(wallFamilyIdAtom))?.snapKind !== 'face') return false;
+  if (getLibrary().wallFamilies.get(ctx.get(wallFamilyIdAtom))?.snapKind !== 'face') return false;
   ctx.set(wallSideAtom, (side) => (side === 'right' ? 'left' : 'right'));
   return true;
 };

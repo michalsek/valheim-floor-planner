@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { wallFamilyById } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import { orientClockwise, signedArea } from './geometry/polyline';
 import { splitWall, type WallCut } from './splitWall';
@@ -15,7 +15,7 @@ const run = (
 ): WallRun => ({ id: 'w', familyId, points, closed, side, height });
 
 const split = (r: WallRun, cuts: readonly WallCut[] = []) =>
-  splitWall(r, wallFamilyById.get(r.familyId)!, cuts).pieces;
+  splitWall(r, testLibrary.wallFamilies.get(r.familyId)!, cuts).pieces;
 
 const groundLength = (r: WallRun) =>
   split(r)

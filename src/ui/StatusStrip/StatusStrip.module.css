@@ -38,6 +38,100 @@
   font-size: 11px;
 }
 
-.debug {
+.install {
+  position: relative;
+}
+
+.installButton {
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
   font-size: 11px;
+  cursor: pointer;
+}
+
+.installButton:hover,
+.installButton[aria-expanded='true'] {
+  border-color: var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 10;
+  width: 300px;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  white-space: normal;
+}
+
+.menuList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menuNote,
+.menuError {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.menuNote {
+  color: var(--text-muted);
+}
+
+.menuError {
+  color: var(--danger);
+}
+
+.menuError p {
+  margin: 0 0 4px;
+}
+
+.menuError .menuDetail {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.menuLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.menuActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.menuButton {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.menuButton:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.menuButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

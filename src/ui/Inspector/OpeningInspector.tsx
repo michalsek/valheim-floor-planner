@@ -1,9 +1,9 @@
-import { library } from '../../catalog';
 import { Button } from '../../controls/Button';
 import { Field } from '../../controls/Field';
 import { Select } from '../../controls/Select';
 import { formatMetres, formatNumber, formatSize } from '../../format';
 import type { OpeningId } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayDerived, useDisplayPlan } from '../../store/planHooks';
 import { selectionAtom } from '../../store/selection';
 import { useToolContext } from '../../tools/toolContext';
@@ -14,10 +14,11 @@ import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
 import { PieceCost } from './PieceCost';
 
-const OPENING_OPTIONS = [...library.openingDefs.values()].map((d) => ({
-  value: d.prefab,
-  label: `${d.label} · ${formatSize(d.width, d.height)} m`,
-}));
+const openingOptions = () =>
+  [...getLibrary().openingDefs.values()].map((d) => ({
+    value: d.prefab,
+    label: `${d.label} · ${formatSize(d.width, d.height)} m`,
+  }));
 
 /**
  * An opening: which prefab (undoable; a wider one may no longer fit, which the
@@ -31,7 +32,7 @@ export const OpeningInspector = ({ id }: { id: OpeningId }) => {
   const resolved = openings.find((o) => o.id === id);
   if (!opening) return null;
   const wall = plan.walls[opening.wallId];
-  const family = wall && library.wallFamilies.get(wall.familyId);
+  const family = wall && getLibrary().wallFamilies.get(wall.familyId);
   const def = resolved?.def;
 
   return (
@@ -41,7 +42,7 @@ export const OpeningInspector = ({ id }: { id: OpeningId }) => {
         <Field label="Opening">
           <Select
             label="Change opening"
-            options={OPENING_OPTIONS}
+            options={openingOptions()}
             value={opening.prefab}
             onChange={(prefab) =>
               ctx.plan.dispatch(

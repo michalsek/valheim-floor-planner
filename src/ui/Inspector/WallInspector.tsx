@@ -1,7 +1,7 @@
-import { wallFamilyById } from '../../catalog';
 import { formatMetres } from '../../format';
 import { runSegments } from '../../model/geometry/polyline';
 import type { WallId, WallRun } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayDerived, useDisplayPlan } from '../../store/planHooks';
 import { useToolContext } from '../../tools/toolContext';
 import type { WallSettings } from '../../tools/Wall/wallDraft';
@@ -37,7 +37,7 @@ export const WallInspector = ({ id }: { id: WallId }) => {
   const { pieces } = useDisplayDerived();
   if (!wall) return null;
 
-  const family = wallFamilyById.get(wall.familyId);
+  const family = getLibrary().wallFamilies.get(wall.familyId);
   const segs = runSegments(wall);
   const total = segs.reduce((sum, s) => sum + s.length, 0);
   const own = (sourceId: string) => sourceId === id || plan.openings[sourceId]?.wallId === id;

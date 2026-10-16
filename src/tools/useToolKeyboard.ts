@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 
-import { library } from '../catalog';
 import { nextSnapStep } from '../model/geometry/snap';
 import { planBounds } from '../model/planBounds';
 import { openPlanFile, saveCurrentPlan } from '../store/fileActions';
+import { getLibrary } from '../store/libraryInstance';
 import {
   activeToolIdAtom,
   fitViewTo,
@@ -58,7 +58,7 @@ const KEYMAP: readonly KeyBinding[] = [
   {
     test: (e) =>
       !isMod(e) && !e.altKey && (e.key === 'Home' || (e.shiftKey && e.code === 'Digit1')),
-    run: (s) => fitViewTo(s, planBounds(s.plan.getPlan(), library)),
+    run: (s) => fitViewTo(s, planBounds(s.plan.getPlan(), getLibrary())),
   },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
   { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },

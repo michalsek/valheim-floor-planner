@@ -1,10 +1,8 @@
 /**
- * Display names for resource item ids, parsed from the game-data extract in
- * `research/valheim-items.json` (the only module that imports it; it is treated as
- * `unknown` and validated). Unknown ids are shown as they are.
+ * Display names for resource item ids, in the shape of `research/valheim-items.json`
+ * (treated as `unknown` and validated). Unknown ids are shown as they are.
  */
-import rawItems from '../../research/valheim-items.json';
-
+import type { Library } from './library';
 import { asRecord, asString } from './parse';
 
 export interface ItemName {
@@ -21,6 +19,5 @@ export const parseItems = (raw: unknown): ReadonlyMap<string, ItemName> =>
     })
   );
 
-const ITEMS = parseItems(rawItems);
-
-export const itemLabel = (id: string): string => ITEMS.get(id)?.name ?? id;
+export const itemLabel = (lib: Pick<Library, 'items'>, id: string): string =>
+  lib.items.get(id)?.name ?? id;

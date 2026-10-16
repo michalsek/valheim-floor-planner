@@ -1,6 +1,6 @@
-import { library } from '../../catalog';
 import { formatArea, formatMetres, formatSize } from '../../format';
 import type { FloorId } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayDerived, useDisplayPlan } from '../../store/planHooks';
 import { FloorSettingsFields } from '../../tools/Floor/FloorSettingsFields';
 import { useToolContext } from '../../tools/toolContext';
@@ -18,7 +18,7 @@ export const FloorInspector = ({ id }: { id: FloorId }) => {
   const { pieces, floors } = useDisplayDerived();
   const info = floors.find((f) => f.id === id);
   if (!floor || !info) return null;
-  const family = library.floorFamilies.get(floor.familyId);
+  const family = getLibrary().floorFamilies.get(floor.familyId);
 
   return (
     <>

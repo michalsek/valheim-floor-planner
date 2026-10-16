@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { wallFamilyById } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import { fillFace } from './fillFace';
 
 const fill = (familyId: string, length: number, height: number) => {
-  const { placed, unfilled } = fillFace(wallFamilyById.get(familyId)!.pieces, length, height);
+  const { placed, unfilled } = fillFace(
+    testLibrary.wallFamilies.get(familyId)!.pieces,
+    length,
+    height
+  );
   const counts: Record<string, number> = {};
   for (const { piece } of placed) counts[piece.prefab] = (counts[piece.prefab] ?? 0) + 1;
   return { counts, area: unfilled.reduce((sum, r) => sum + r.length * r.height, 0) };

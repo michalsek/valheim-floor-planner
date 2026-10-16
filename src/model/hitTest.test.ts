@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { library, wallFamilyById } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 import { emptyPlan, type Plan, type WallRun } from './types';
 
 import { boxFromCorners } from './geometry/box';
 import { hitTest, itemsInBox } from './hitTest';
 
-const wood = wallFamilyById.get('wood')!;
-const stone = wallFamilyById.get('stone')!;
+const wood = testLibrary.wallFamilies.get('wood')!;
+const stone = testLibrary.wallFamilies.get('stone')!;
 
 const run = (id: string, familyId: string, points: [number, number][]): WallRun => ({
   id,
@@ -26,8 +26,8 @@ const planOf = (walls: WallRun[], dims: Plan['dimensions'] = {}): Plan => ({
 
 const TOL = 0.1;
 const opts = {
-  families: wallFamilyById,
-  propDefs: library.propDefs,
+  families: testLibrary.wallFamilies,
+  propDefs: testLibrary.propDefs,
   openings: [],
   handlesFor: null,
   handleTol: 0.2,
@@ -132,8 +132,8 @@ describe('itemsInBox', () => {
   const wholeBox = boxFromCorners({ x: -1, z: -1 }, { x: 5, z: 1 });
 
   it('contain needs the whole line inside; touch any part', () => {
-    expect(itemsInBox(plan, halfBox, 'contain', library)).toEqual([]);
-    expect(itemsInBox(plan, halfBox, 'touch', library)).toEqual([{ kind: 'wall', id: 'w' }]);
-    expect(itemsInBox(plan, wholeBox, 'contain', library)).toEqual([{ kind: 'wall', id: 'w' }]);
+    expect(itemsInBox(plan, halfBox, 'contain', testLibrary)).toEqual([]);
+    expect(itemsInBox(plan, halfBox, 'touch', testLibrary)).toEqual([{ kind: 'wall', id: 'w' }]);
+    expect(itemsInBox(plan, wholeBox, 'contain', testLibrary)).toEqual([{ kind: 'wall', id: 'w' }]);
   });
 });

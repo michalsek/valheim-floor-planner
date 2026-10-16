@@ -3,7 +3,6 @@
  * move of the selection, a corner drag or a box select. Moves and corner drags are
  * previewed through `editPreviewAtom` and committed on release as one history entry.
  */
-import { library } from '../../catalog';
 import { refusedSlides, translateCommands, vertexDragCommands } from '../../model/editCommands';
 import { boxFromCorners } from '../../model/geometry/box';
 import { hitItem, hitTest, itemsInBox, type Hit } from '../../model/hitTest';
@@ -17,6 +16,7 @@ import {
 import { snapValue } from '../../model/geometry/snap';
 import type { Vec2 } from '../../model/types';
 import { clampVertexTarget } from '../../model/vertexDrag';
+import { getLibrary } from '../../store/libraryInstance';
 import { getDerived } from '../../store/planHooks';
 import { editPreviewAtom, hoverAtom, selectionAtom } from '../../store/selection';
 import { cursorStyleAtom, snapStepAtom, viewportAtom } from '../../store/session';
@@ -40,8 +40,8 @@ type Gesture<P extends SelectGesture['phase']> = Extract<SelectGesture, { phase:
 const hitAt = (ctx: ToolContext, p: Vec2): Hit | null => {
   const plan = ctx.plan.getPlan();
   return hitTest(plan, p, hitTolerance(ctx), {
-    families: library.wallFamilies,
-    propDefs: library.propDefs,
+    families: getLibrary().wallFamilies,
+    propDefs: getLibrary().propDefs,
     openings: getDerived(plan).openings,
     handlesFor: handleWallId(ctx.get(selectionAtom)),
     handleTol: HANDLE_PX / ctx.get(viewportAtom).zoom,
@@ -148,11 +148,11 @@ const dragCorner = (
 const moveSelection = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEvent): void => {
   const plan = ctx.plan.getPlan();
   const d = moveDelta(ctx, g, e);
-  const refused = refusedSlides(plan, g.items, d, library);
+  const refused = refusedSlides(plan, g.items, d, getLibrary());
   const kept = (ctx.get(editPreviewAtom) ?? []).filter(
     (cmd) => cmd.type === 'opening.patch' && refused.has(cmd.id)
   );
-  const cmds = [...translateCommands(plan, g.items, d, library), ...kept];
+  const cmds = [...translateCommands(plan, g.items, d, getLibrary()), ...kept];
   ctx.set(editPreviewAtom, cmds.length > 0 ? cmds : null);
 };
 
@@ -203,7 +203,7 @@ const click = (ctx: ToolContext, press: Gesture<'pressing'>): void => {
 
 const selectInBox = (ctx: ToolContext, g: Gesture<'box'>, end: Vec2): void => {
   const box = boxFromCorners(g.startWorld, end);
-  const items = itemsInBox(ctx.plan.getPlan(), box, boxMode(g.startWorld, end), library);
+  const items = itemsInBox(ctx.plan.getPlan(), box, boxMode(g.startWorld, end), getLibrary());
   ctx.set(selectionAtom, (s) => (g.additive ? unionItems(s, items) : items));
 };
 

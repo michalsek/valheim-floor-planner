@@ -1,5 +1,4 @@
 /** Selection edits shared by the Select tool's keys and the Inspector. */
-import { library } from '../../catalog';
 import {
   duplicateCommands,
   removeCommands,
@@ -9,6 +8,7 @@ import {
 import { newId } from '../../model/newId';
 import { allItems, itemsLabel, type Selection } from '../../model/selection';
 import type { PlanCommand } from '../../model/commands';
+import { getLibrary } from '../../store/libraryInstance';
 import { selectionAtom } from '../../store/selection';
 import { snapStepAtom } from '../../store/session';
 import type { ToolContext } from '../types';
@@ -47,7 +47,7 @@ export const selectAll = (ctx: ToolContext): void => {
 export const deleteSelection = (ctx: ToolContext): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  const cmds = removeCommands(ctx.plan.getPlan(), items, library);
+  const cmds = removeCommands(ctx.plan.getPlan(), items, getLibrary());
   commitCommands(ctx, itemsLabel('Delete', items), cmds);
   return true;
 };
@@ -58,7 +58,7 @@ export const nudgeSelection = (ctx: ToolContext, dx: number, dz: number): boolea
   if (items.length === 0) return false;
   const step = moveStep(items, ctx.get(snapStepAtom));
   const d = { x: dx * step, z: dz * step };
-  commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d, library));
+  commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d, getLibrary()));
   return true;
 };
 
@@ -68,7 +68,7 @@ export const duplicateSelection = (ctx: ToolContext): boolean => {
   if (items.length === 0) return false;
   const step = moveStep(items, ctx.get(snapStepAtom));
   const d = { x: step, z: step };
-  const copy = duplicateCommands(ctx.plan.getPlan(), items, d, newId, library);
+  const copy = duplicateCommands(ctx.plan.getPlan(), items, d, newId, getLibrary());
   if (commitCommands(ctx, itemsLabel('Duplicate', items), copy.cmds)) {
     ctx.set(selectionAtom, copy.items);
   }
@@ -85,7 +85,7 @@ export const rotateItems = (
   items: Selection = ctx.get(selectionAtom)
 ): boolean => {
   const props = items.filter((item) => item.kind === 'prop');
-  const cmds = rotateCommands(ctx.plan.getPlan(), props, deltaDeg, library);
+  const cmds = rotateCommands(ctx.plan.getPlan(), props, deltaDeg, getLibrary());
   if (cmds.length === 0) return false;
   commitCommands(ctx, itemsLabel('Rotate', props), cmds);
   return true;

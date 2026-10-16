@@ -295,3 +295,66 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     floors differ; the grid shows less through light floors as a result. Hovered pinned
     dimensions use the selection colour at 60 %. `SegmentedControl` now requires a
     `label` (group name), so new uses can't miss it.
+
+## From M8 implementation
+
+1. **Step 0 (the picker spike) was skipped**: an agent can't drive the native picker.
+   Still unverified: whether Chrome's `showDirectoryPicker` opens
+   `~/Library/Application Support/Steam/…` on macOS. The gate copy covers both outcomes,
+   and "Select with upload dialog" (`<input webkitdirectory>`) is always offered. The
+   handle path was exercised with an OPFS directory handle instead (same code:
+   `handleDir`, `queryPermission`, IndexedDB-stored handle, warm start).
+2. **The LZ4 decoder was the cold-parse bottleneck** at first (57 MB/s, ~31 s per scan
+   in node under load): a closure per byte and a template-literal message built on every
+   `check()`. It is now one flat loop (~300 MB/s), `check()` takes lazy messages, and
+   `ByteReader` uses prototype methods. Measured cold parse: 4.5–5.3 s in Chrome from
+   real disk files, 16–18 s while Valheim itself was running; ~2 s in node.
+3. **Block re-reads remain**: the walk decompresses ~10.3k blocks for ~2.7k distinct,
+   because each sweep (one per transform level, then all GameObjects, colliders, meshes)
+   touches more blocks than the 512-block (64 MB) LRU holds. A 4096-block LRU reads each
+   block once (~3× faster) at ~340 MB peak worker memory; merging sweeps (reading level
+   N's GameObjects with level N+1's transforms) is the cheaper-memory option.
+4. **The hierarchy walk differs from the plan**: transforms are walked level by level
+   (they hold the whole structure), then every GameObject, collider and mesh is read in
+   one sweep each. Walking each level's GameObjects/colliders too took ~40 sweeps.
+   Snap points come out breadth-first (the Python was depth-first); nothing depends on
+   their order and the golden test compares them as multisets.
+5. **The worker gets two files, not four**: the bundle and `resources.assets`. The main
+   thread already reads `manifest_extended` (to find the bundle) and `boot.config` (for
+   the fingerprint).
+6. **Extra modules beyond the plan's table**: `install/directory.ts` (`DirLike` and the
+   File System Access calls, which TypeScript's DOM lib doesn't type),
+   `install/fileErrors.ts` (DOMException → error code), `gameData/unity/values.ts`
+   (checked accessors for type-tree values), `ui/InstallGate/InstallPaths.tsx` and
+   `ui/shared/{installCopy, useFolderInput, useInstall}` (shared with the status-strip
+   menu). `installStore` has no `clear()`; `putHandle(null)` forgets the folder once a
+   scan from the upload dialog succeeds. Two error codes were added beyond the plan's
+   list: `moved` (the remembered folder is gone) and `workerFailed`.
+7. **`STATION_MAX_UPGRADES` stays in `catalog/stations.ts`** (the plan listed it under
+   `valheim/constants.ts`, whose header now points there).
+8. **Small output differences from the Python**: a missing Polish item name falls back
+   to English (Python wrote null, which `parseItems` rejects; never happens in 1.0.20);
+   pieces without a `Piece` component are skipped; an unknown material enum becomes
+   `material<N>`.
+9. **Bug found in browser testing, fixed**: clearing the folder input's `value` empties
+   its live `FileList`, so the files are copied to an array first.
+10. **Upload-dialog users get one extra click per visit**: with no stored handle, the gate
+    offers "Use the catalogue scanned on…" rather than opening it automatically (as the
+    plan decided). Re-scan is hidden for them; Change folder opens the upload dialog,
+    and the reload after it opens the new catalogue directly (a `sessionStorage` key
+    names the catalogue to open, so this works only within the tab).
+11. **Fix round**: the stored folder is replaced or forgotten only after a scan succeeds;
+    a moved or deleted folder reports `moved` (the picked folder is listed when a file
+    lookup misses); the dedicated-server check runs before the data-folder candidates; a
+    cycle in `m_Children` throws `corrupt`; a new parse with other files cancels the
+    running one, and a superseded scan no longer updates the gate. Scan dates are
+    formatted in English (`en-GB`). The metadata reader now stops after the object table
+    (scripts, externals and ref types were parsed but unused).
+12. **`@types/node` is now a dev dependency**, for the golden test's `node:fs` source (a
+    `/// <reference types="node" />` in that file only).
+13. **Still unverified**: Windows/Linux layouts (`valheim_Data`) and bundle names,
+    Safari's handling of `Valheim.app` in the upload dialog, and the dedicated-server
+    check (it looks for `valheim_server_Data/boot.config` or a folder of that name).
+14. **QA scripts**: in `pnpm dev`, modules updated by HMR load with `?t=` URLs, so a
+    script that does `import('/src/install/loadInstall.ts')` from the page can get a
+    second module instance; import the URL the page actually loaded.

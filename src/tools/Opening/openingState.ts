@@ -1,7 +1,7 @@
 import { atom } from 'jotai';
 
-import { openingChoices } from '../../catalog';
-import type { OpeningDef } from '../../catalog/openingDefs';
+import { openingChoicesFor, type OpeningDef } from '../../catalog/openingDefs';
+import { getLibrary } from '../../store/libraryInstance';
 import { openingFamilyAtom, openingPrefabAtom } from '../../store/session';
 
 import type { Placement } from './openingPlacement';
@@ -10,9 +10,10 @@ import type { Placement } from './openingPlacement';
 export const openingHoverAtom = atom<Placement | null>(null);
 
 /** The picker's list: the sticky family's openings, then the generic ones. */
-export const openingChoicesAtom = atom<OpeningDef[]>((get) =>
-  openingChoices(get(openingFamilyAtom))
-);
+export const openingChoicesAtom = atom<OpeningDef[]>((get) => {
+  const lib = getLibrary();
+  return openingChoicesFor(lib.openingDefs, lib.wallFamilies.get(get(openingFamilyAtom)));
+});
 
 /** The opening the tool places: the chosen one, or the list's first when it isn't listed. */
 export const openingDefAtom = atom<OpeningDef | null>((get) => {

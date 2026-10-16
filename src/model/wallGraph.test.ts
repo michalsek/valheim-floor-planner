@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { wallFamilyById } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import type { Vec2, WallRun } from './types';
 import { buildWallGraph } from './wallGraph';
@@ -18,7 +18,7 @@ const run = (points: Vec2[], closed = false): WallRun => ({
 });
 
 const graphOf = (...runs: WallRun[]) =>
-  buildWallGraph(Object.fromEntries(runs.map((r) => [r.id, r])), wallFamilyById);
+  buildWallGraph(Object.fromEntries(runs.map((r) => [r.id, r])), testLibrary.wallFamilies);
 
 describe('buildWallGraph', () => {
   it('splits a through-wall at a T-junction and at a crossing', () => {

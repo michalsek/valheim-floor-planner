@@ -1,4 +1,3 @@
-import { wallFamilies, wallFamilyById } from '../../catalog';
 import { nearestWallHeight, wallHeightOptions } from '../../catalog/wallFamilies';
 import { Button } from '../../controls/Button';
 import { Field } from '../../controls/Field';
@@ -6,6 +5,7 @@ import { SegmentedControl } from '../../controls/SegmentedControl';
 import { Select } from '../../controls/Select';
 import { formatNumber } from '../../format';
 import type { WallSide } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 
 import type { WallSettings } from './wallDraft';
 
@@ -13,7 +13,8 @@ import type { WallSettings } from './wallDraft';
 export const describeSide = (side: WallSide, loop: boolean): string =>
   loop ? (side === 'right' ? 'inside' : 'outside') : side;
 
-const FAMILY_OPTIONS = wallFamilies.map((f) => ({ value: f.id, label: f.label }));
+const familyOptions = () =>
+  [...getLibrary().wallFamilies.values()].map((f) => ({ value: f.id, label: f.label }));
 
 interface WallSettingsFieldsProps {
   value: WallSettings;
@@ -35,7 +36,7 @@ export const WallSettingsFields = ({
   loop,
   sideHint,
 }: WallSettingsFieldsProps) => {
-  const family = wallFamilyById.get(value.familyId);
+  const family = getLibrary().wallFamilies.get(value.familyId);
   const flipped: WallSide = value.side === 'right' ? 'left' : 'right';
 
   return (
@@ -43,10 +44,10 @@ export const WallSettingsFields = ({
       <Field label="Family">
         <Select
           label="Wall family"
-          options={FAMILY_OPTIONS}
+          options={familyOptions()}
           value={value.familyId}
           onChange={(familyId) => {
-            const next = wallFamilyById.get(familyId);
+            const next = getLibrary().wallFamilies.get(familyId);
             if (next) onChange({ familyId, height: nearestWallHeight(next, value.height) });
           }}
         />

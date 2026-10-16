@@ -1,6 +1,5 @@
 import { useAtom } from 'jotai';
 
-import { catalog, wallFamilies } from '../../catalog';
 import { ToggleButton } from '../../controls/ToggleButton';
 import { formatNumber, formatZoom } from '../../format';
 import type { Plan } from '../../model/types';
@@ -8,6 +7,7 @@ import { useCursor, useRendererBackend, useViewport } from '../../store/hooks';
 import { usePlanSelector } from '../../store/planHooks';
 import { showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
 
+import { InstallMenu } from './InstallMenu';
 import { SnapStepPicker } from './SnapStepPicker';
 import styles from './StatusStrip.module.css';
 import { ThemePicker } from './ThemePicker';
@@ -58,9 +58,7 @@ export const StatusStrip = () => {
       <LayerToggles />
       <span className={styles.spacer} />
       <ThemePicker />
-      <span className={styles.debug}>
-        {catalog.pieces.size} pieces · {wallFamilies.length} wall families
-      </span>
+      <InstallMenu />
       <span className={styles.badge}>{backend === 'pending' ? '…' : backend}</span>
     </footer>
   );

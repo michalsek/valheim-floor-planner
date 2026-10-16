@@ -4,6 +4,7 @@ import rawPieces from '../../research/valheim-pieces.json';
 
 import { itemLabel, parseItems } from './items';
 import { parseCatalog } from './pieceDefs';
+import { testLibrary } from './testLibrary';
 
 describe('parseCatalog', () => {
   const catalog = parseCatalog(rawPieces);
@@ -36,8 +37,8 @@ describe('parseCatalog', () => {
 
 describe('items', () => {
   it('names resources from the extract, falling back to the id', () => {
-    expect(itemLabel('RoundLog')).toBe('Corewood');
-    expect(itemLabel('NotAnItem')).toBe('NotAnItem');
+    expect(itemLabel(testLibrary, 'RoundLog')).toBe('Corewood');
+    expect(itemLabel(testLibrary, 'NotAnItem')).toBe('NotAnItem');
     expect(() => parseItems({ Wood: { name: 'Wood' } })).toThrow(/namePl/);
   });
 });

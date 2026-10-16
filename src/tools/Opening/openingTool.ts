@@ -1,7 +1,7 @@
-import { library } from '../../catalog';
 import { wallAt } from '../../model/hitTest';
 import { newId } from '../../model/newId';
 import type { Vec2 } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { getDerived } from '../../store/planHooks';
 import { openingFamilyAtom } from '../../store/session';
 import { hitTolerance } from '../hitTolerance';
@@ -20,7 +20,7 @@ const placementAt = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null
   if (!def) return null;
   const plan = ctx.plan.getPlan();
   const { openings } = getDerived(plan);
-  return placeOpening(plan, openings, library.wallFamilies, def, p, hitTolerance(ctx), free);
+  return placeOpening(plan, openings, getLibrary().wallFamilies, def, p, hitTolerance(ctx), free);
 };
 
 /**
@@ -29,8 +29,8 @@ const placementAt = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null
  */
 const hover = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null => {
   const plan = ctx.plan.getPlan();
-  const wall = wallAt(plan, p, hitTolerance(ctx), library.wallFamilies);
-  const family = wall && library.wallFamilies.get(plan.walls[wall.id]?.familyId ?? '');
+  const wall = wallAt(plan, p, hitTolerance(ctx), getLibrary().wallFamilies);
+  const family = wall && getLibrary().wallFamilies.get(plan.walls[wall.id]?.familyId ?? '');
   if (family && family.openings.length > 0) ctx.set(openingFamilyAtom, family.id);
   const placement = placementAt(ctx, p, free);
   ctx.set(openingHoverAtom, placement);

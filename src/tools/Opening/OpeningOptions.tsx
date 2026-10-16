@@ -1,15 +1,16 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 
-import { wallFamilies } from '../../catalog';
 import { Field } from '../../controls/Field';
 import { Select } from '../../controls/Select';
 import { formatSize } from '../../format';
 import { EPS } from '../../model/geometry/polyline';
+import { getLibrary } from '../../store/libraryInstance';
 import { openingFamilyAtom, openingPrefabAtom } from '../../store/session';
 
 import { openingChoicesAtom, openingDefAtom, openingHoverAtom } from './openingState';
 
-const FAMILY_OPTIONS = wallFamilies.map((f) => ({ value: f.id, label: f.label }));
+const familyOptions = () =>
+  [...getLibrary().wallFamilies.values()].map((f) => ({ value: f.id, label: f.label }));
 
 /**
  * The opening picker: which family's openings to list (it follows hovered walls that
@@ -28,7 +29,7 @@ export const OpeningOptions = () => {
       <Field label="For">
         <Select
           label="Wall family"
-          options={FAMILY_OPTIONS}
+          options={familyOptions()}
           value={familyId}
           onChange={setFamilyId}
         />

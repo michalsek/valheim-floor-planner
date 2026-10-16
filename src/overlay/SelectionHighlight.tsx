@@ -1,9 +1,9 @@
 import { useAtomValue } from 'jotai';
 
-import { library } from '../catalog';
 import { hitItem } from '../model/hitTest';
 import { ITEM_KINDS } from '../model/itemKinds';
 import { isSelected, type SelectionItem } from '../model/selection';
+import { getLibrary } from '../store/libraryInstance';
 import { useDisplayDerived, useDisplayPlan } from '../store/planHooks';
 import { hoverAtom, selectionAtom } from '../store/selection';
 
@@ -42,7 +42,7 @@ export const SelectionHighlight = () => {
     <g>
       {items.map(({ item, tone }) => {
         const { piece, line, halo } = TONES[tone];
-        const lines = ITEM_KINDS[item.kind].highlight?.(plan, item.id, library) ?? [];
+        const lines = ITEM_KINDS[item.kind].highlight?.(plan, item.id, getLibrary()) ?? [];
         return (
           <g key={`${tone}:${item.kind}:${item.id}`}>
             <PieceFootprints

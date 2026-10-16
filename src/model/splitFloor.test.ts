@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { library } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import { splitFloor } from './splitFloor';
 
 const split = (familyId: string, w: number, d: number) => {
   const { pieces, leftover } = splitFloor(
     { id: 'f', familyId, min: { x: 0, z: 0 }, max: { x: w, z: d } },
-    library.floorFamilies.get(familyId)!
+    testLibrary.floorFamilies.get(familyId)!
   );
   const counts: Record<string, number> = {};
   for (const { prefab } of pieces) counts[prefab] = (counts[prefab] ?? 0) + 1;

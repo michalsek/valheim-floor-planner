@@ -1,7 +1,6 @@
 import { useAtom } from 'jotai';
 import { useMemo, useRef } from 'react';
 
-import { library, propDefs } from '../../catalog';
 import { groupVar } from '../../catalog/groupColors';
 import {
   filterProps,
@@ -16,6 +15,7 @@ import { keepFocus } from '../../controls/keepFocus';
 import { ToggleButton } from '../../controls/ToggleButton';
 import { formatSize } from '../../format';
 import { useActiveToolId } from '../../store/hooks';
+import { getLibrary } from '../../store/libraryInstance';
 import { armedPrefabAtom, catalogGroupsAtom, catalogQueryAtom } from '../../tools/Prop/propState';
 
 import styles from './CatalogBrowser.module.css';
@@ -28,7 +28,7 @@ const toggled = (set: ReadonlySet<PropGroup>, group: PropGroup): ReadonlySet<Pro
 
 const CatalogRow = ({ def, armed, onArm }: { def: PropDef; armed: boolean; onArm(): void }) => {
   const size = rectSize(def.rect);
-  const radius = propRadius(def.prefab, 0, library.catalog);
+  const radius = propRadius(def.prefab, 0, getLibrary().catalog);
   return (
     <li>
       <button
@@ -69,7 +69,10 @@ export const CatalogBrowser = () => {
   const [groups, setGroups] = useAtom(catalogGroupsAtom);
   const [armed, setArmed] = useAtom(armedPrefabAtom);
   const inputRef = useRef<HTMLInputElement>(null);
-  const results = useMemo(() => filterProps(propDefs, query, groups), [query, groups]);
+  const results = useMemo(
+    () => filterProps([...getLibrary().propDefs.values()], query, groups),
+    [query, groups]
+  );
   if (!active) return null;
 
   const arm = (def: PropDef | undefined) => {

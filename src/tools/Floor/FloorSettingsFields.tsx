@@ -1,8 +1,9 @@
-import { floorFamilies } from '../../catalog';
 import { Field } from '../../controls/Field';
 import { Select } from '../../controls/Select';
+import { getLibrary } from '../../store/libraryInstance';
 
-const FAMILY_OPTIONS = floorFamilies.map((f) => ({ value: f.id, label: f.label }));
+const familyOptions = () =>
+  [...getLibrary().floorFamilies.values()].map((f) => ({ value: f.id, label: f.label }));
 
 interface FloorSettingsFieldsProps {
   familyId: string;
@@ -12,6 +13,6 @@ interface FloorSettingsFieldsProps {
 /** The floor family. Presentational: the floor tool and the Inspector bind it. */
 export const FloorSettingsFields = ({ familyId, onChange }: FloorSettingsFieldsProps) => (
   <Field label="Family">
-    <Select label="Floor family" options={FAMILY_OPTIONS} value={familyId} onChange={onChange} />
+    <Select label="Floor family" options={familyOptions()} value={familyId} onChange={onChange} />
   </Field>
 );

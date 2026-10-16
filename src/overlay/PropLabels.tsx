@@ -1,8 +1,8 @@
-import { library } from '../catalog';
 import { propRect, rectSize } from '../catalog/propDefs';
 import { propCentre } from '../model/geometry/propGeometry';
 import type { Prop } from '../model/types';
 import { useViewport } from '../store/hooks';
+import { getLibrary } from '../store/libraryInstance';
 import { useDisplayPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
@@ -42,10 +42,10 @@ const labelWidth = (size: { x: number; z: number }, rotation: number, zoom: numb
 
 const PropLabel = ({ prop, zoom }: { prop: Prop; zoom: number }) => {
   const toScreen = useWorldToScreen();
-  const rect = propRect(library.propDefs, prop.prefab);
+  const rect = propRect(getLibrary().propDefs, prop.prefab);
   const size = rectSize(rect);
   if (Math.min(size.x, size.z) * zoom < MIN_SIDE_PX) return null;
-  const name = library.propDefs.get(prop.prefab)?.name ?? prop.prefab;
+  const name = getLibrary().propDefs.get(prop.prefab)?.name ?? prop.prefab;
   const text = fitText(name, labelWidth(size, prop.rotation, zoom) - 2 * PADDING_PX);
   if (!text) return null;
   const { x, y } = toScreen(propCentre(prop.position, prop.rotation, rect));

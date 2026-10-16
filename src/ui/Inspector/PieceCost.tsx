@@ -1,11 +1,11 @@
-import { library } from '../../catalog';
 import { itemLabel } from '../../catalog/items';
 import { computeBom } from '../../model/bom';
+import { getLibrary } from '../../store/libraryInstance';
 import { Row, Section } from '../shared/PanelList';
 
 /** Piece counts and what they cost, for the pieces (or prop) of the inspected item. */
 export const PieceCost = ({ pieces }: { pieces: readonly { prefab: string }[] }) => {
-  const bom = computeBom(pieces, library.catalog);
+  const bom = computeBom(pieces, getLibrary().catalog);
   if (bom.pieces.length === 0) return null;
   return (
     <>
@@ -16,7 +16,7 @@ export const PieceCost = ({ pieces }: { pieces: readonly { prefab: string }[] })
       </Section>
       <Section title="Cost">
         {bom.resources.map((line) => (
-          <Row key={line.item} label={itemLabel(line.item)} value={line.amount} />
+          <Row key={line.item} label={itemLabel(getLibrary(), line.item)} value={line.amount} />
         ))}
       </Section>
     </>

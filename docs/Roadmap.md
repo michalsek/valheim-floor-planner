@@ -38,15 +38,19 @@ Game knowledge lives in [`research/README.md`](../research/README.md) and
 
 ```
 src/
-  catalog/   imports research/valheim-pieces.json, pieceDefs.ts, wallFamilies.ts, floorFamilies.ts, stations.ts
+  catalog/   pure: buildLibrary.ts (raw game data → Library), pieceDefs.ts, wallFamilies.ts, floorFamilies.ts,
+             stations.ts; testLibrary.ts (the research fixture, tests only)
+  gameData/  pure TS Unity parser (bytes/, unity/: UnityFS bundles, serialized files, type trees)
+             and valheim/ (extractCatalogue.ts); runs in a worker
+  install/   the install gate: locating the game folder, parser worker, IndexedDB cache, loadInstall.ts
   model/     pure TS: types.ts, geometry/, splitWall.ts, splitFloor.ts, wallGraph.ts, rooms.ts,
              bom.ts, derivePlan.ts, serialize.ts (+ *.test.ts)
-  store/     planStore.ts, commands.ts, hooks.ts, session.ts, autosave.ts
+  store/     planStore.ts, commands.ts, hooks.ts, session.ts, autosave.ts, libraryInstance.ts
   viewport/  viewportMath.ts, useViewportControls.ts
   scene/     PlanCanvas.tsx, GridPlane.tsx, WallMeshes.tsx, FloorMeshes.tsx, PropMeshes.tsx, Underlay.tsx
   overlay/   Overlay.tsx, DimensionLine.tsx, RoomLabels.tsx, RadiusRings.tsx, SnapCursor.tsx
   tools/     types.ts, toolbox.ts, ToolHost.tsx, Select/, Wall/, Floor/, Opening/, Ruler/, Prop/
-  ui/        ToolRail/, Inspector/, BomPanel/, CatalogBrowser/, StatusStrip/
+  ui/        InstallGate/, ToolRail/, Inspector/, BomPanel/, CatalogBrowser/, StatusStrip/
   theme/     themeTokens.ts (pure parser of the scene colour tokens)
   styles/    global.css (theme tokens for dark and light, base styles)
 ```

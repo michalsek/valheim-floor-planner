@@ -1,9 +1,9 @@
 import { atom } from 'jotai';
 
-import { library } from '../../catalog';
 import type { PropDef, PropGroup } from '../../catalog/propDefs';
 import { placementPosition } from '../../model/geometry/propGeometry';
 import type { Vec2 } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { cursorAtom, effectiveSnapStepAtom } from '../../store/session';
 
 /** The prefab the Prop tool places (null: nothing armed). */
@@ -13,7 +13,7 @@ export const propRotationAtom = atom<number>(0);
 
 export const armedDefAtom = atom<PropDef | null>((get) => {
   const prefab = get(armedPrefabAtom);
-  return prefab === null ? null : (library.propDefs.get(prefab) ?? null);
+  return prefab === null ? null : (getLibrary().propDefs.get(prefab) ?? null);
 });
 
 export interface PropGhost {

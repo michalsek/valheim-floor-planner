@@ -4,13 +4,13 @@
  */
 import { atom } from 'jotai';
 
-import { library } from '../catalog';
 import { planBounds } from '../model/planBounds';
 import { isPlanEmpty } from '../model/selection';
 import { DEFAULT_PLAN_NAME, emptyPlan } from '../model/types';
 
 import { pickPlanFile, readPlanFile, savePlanFile } from './files';
 import { getImage, putImage } from './imageStore';
+import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
 import { embedUnderlayAtom, fitViewTo, type SessionAccess } from './session';
 
@@ -80,7 +80,7 @@ export const openPlanFile = async (ctx: FileContext): Promise<void> => {
     // Stored first, so the underlay doesn't flash "missing".
     if (plan.underlay && underlayImage) await putImage(plan.underlay.imageId, underlayImage);
     ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Open ${file.name}` });
-    fitViewTo(ctx, planBounds(plan, library));
+    fitViewTo(ctx, planBounds(plan, getLibrary()));
     ctx.set(fileStatusAtom, null);
   } catch (error) {
     ctx.set(fileStatusAtom, { tone: 'error', message: messageOf(error) });

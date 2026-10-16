@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { library } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import { translateCommands } from './editCommands';
 import { orientClockwise } from './geometry/polyline';
@@ -28,7 +28,12 @@ const square8 = loop('wood', [
 const door = (id: string, at: Vec2): Opening => ({ id, wallId: 'w', prefab: 'wood_door', at });
 
 const resolve = (run: WallRun, ...openings: Opening[]) =>
-  resolveOpenings(run, library.wallFamilies.get(run.familyId), openings, library.openingDefs);
+  resolveOpenings(
+    run,
+    testLibrary.wallFamilies.get(run.familyId),
+    openings,
+    testLibrary.openingDefs
+  );
 
 describe('resolveOpenings', () => {
   it('keeps an anchor through loop reversal, with a new segment index', () => {
@@ -92,7 +97,7 @@ describe('sliding openings', () => {
       { kind: 'opening', id: 'b' },
     ] as const;
     const ats = (dx: number) =>
-      translateCommands(plan, items, { x: dx, z: 0 }, library).map((c) =>
+      translateCommands(plan, items, { x: dx, z: 0 }, testLibrary).map((c) =>
         c.type === 'opening.patch' ? [c.id, c.changes.at] : null
       );
     expect(ats(1)).toEqual([

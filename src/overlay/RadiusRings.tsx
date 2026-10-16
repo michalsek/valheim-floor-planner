@@ -1,11 +1,11 @@
 import { useAtomValue } from 'jotai';
 
-import { library } from '../catalog';
 import { propRadius, type PropRadius } from '../catalog/stations';
 import { formatCompact } from '../format';
 import { isSelected } from '../model/selection';
 import type { Prop } from '../model/types';
 import { useViewport } from '../store/hooks';
+import { getLibrary } from '../store/libraryInstance';
 import { useDisplayPlan } from '../store/planHooks';
 import { selectionAtom } from '../store/selection';
 import { showAllRadiiAtom } from '../store/session';
@@ -39,11 +39,11 @@ const ringOf = (
   zoom: number,
   toScreen: (p: Prop['position']) => ScreenPoint
 ): Ring | null => {
-  const radius = propRadius(prop.prefab, prop.upgrades, library.catalog);
+  const radius = propRadius(prop.prefab, prop.upgrades, getLibrary().catalog);
   if (!radius) return null;
   const centre = toScreen(prop.position);
   const r = radius.radius * zoom;
-  const name = library.propDefs.get(prop.prefab)?.name ?? prop.prefab;
+  const name = getLibrary().propDefs.get(prop.prefab)?.name ?? prop.prefab;
   const text = `${name} ${formatCompact(radius.radius)} m`;
   const label =
     r >= LABEL_MIN_RADIUS_PX

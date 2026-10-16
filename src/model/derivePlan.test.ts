@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { library } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import { derivePlan } from './derivePlan';
 import { emptyPlan, type Plan, type WallRun } from './types';
@@ -21,7 +21,7 @@ const wall = (familyId: string): WallRun => ({
 
 const derive = (...walls: WallRun[]) => {
   const plan: Plan = { ...emptyPlan(), walls: Object.fromEntries(walls.map((w) => [w.id, w])) };
-  return derivePlan(plan, library);
+  return derivePlan(plan, testLibrary);
 };
 
 describe('derivePlan', () => {

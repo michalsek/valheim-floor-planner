@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { wallFamilyById } from '../catalog';
+import { testLibrary } from '../catalog/testLibrary';
 
 import { findRooms } from './rooms';
 import type { Vec2, WallRun, WallSide } from './types';
@@ -19,7 +19,9 @@ const square = (x: number, z: number, size: number) =>
   pts([x, z], [x + size, z], [x + size, z + size], [x, z + size]);
 
 const roomsOf = (...runs: WallRun[]) =>
-  findRooms(buildWallGraph(Object.fromEntries(runs.map((r) => [r.id, r])), wallFamilyById));
+  findRooms(
+    buildWallGraph(Object.fromEntries(runs.map((r) => [r.id, r])), testLibrary.wallFamilies)
+  );
 
 describe('findRooms', () => {
   it('measures a wood 8 × 8 room', () => {

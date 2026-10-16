@@ -6,6 +6,11 @@ Full machine-readable catalogue: [`valheim-pieces.json`](valheim-pieces.json)
 (398 hammer pieces: names EN/PL, category, crafting station, material, HP, cost,
 snap points, collider bounds).
 
+Since M8 the app no longer ships this JSON: it parses the same data from the user's
+install in the browser (`src/gameData/`, a TypeScript port of `extract/*.py`). The
+JSON files stay as the fixture for tests, and `pnpm test:install` checks the parser
+against them on a real install.
+
 Axes in the data are Unity local space, metres: `x` = length along the piece,
 `y` = up, `z` = thickness/depth. In a top-down plan we use `x` and `z`.
 

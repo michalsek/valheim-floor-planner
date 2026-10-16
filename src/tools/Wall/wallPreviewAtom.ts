@@ -1,9 +1,9 @@
 import { atom } from 'jotai';
 
-import { wallFamilyById } from '../../catalog';
 import type { WallFamily } from '../../catalog/wallFamilies';
 import { splitWall } from '../../model/splitWall';
 import type { PlacedPiece, Vec2, WallRun } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { cursorAtom } from '../../store/session';
 
 import { draftToRun, nextDraftAction, type DraftPoints } from './wallDraft';
@@ -31,7 +31,7 @@ export const wallPreviewAtom = atom<WallPreviewState | null>((get) => {
   if (!draft) return null;
   const cursor = get(cursorAtom);
   const settings = get(wallSettingsAtom);
-  const family = wallFamilyById.get(settings.familyId);
+  const family = getLibrary().wallFamilies.get(settings.familyId);
 
   const action = cursor ? nextDraftAction(draft.points, cursor.snapped) : null;
   const first = draft.points[0];

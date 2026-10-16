@@ -1,10 +1,10 @@
 import { useAtomValue } from 'jotai';
 
-import { library } from '../../catalog';
 import { formatArea, formatSize } from '../../format';
 import { boxArea, boxSize } from '../../model/geometry/box';
 import styles from '../../overlay/Overlay.module.css';
 import { useWorldToScreen } from '../../overlay/useWorldToScreen';
+import { getLibrary } from '../../store/libraryInstance';
 
 import { floorPreviewAtom } from './floorState';
 
@@ -17,7 +17,7 @@ const tileSummary = (prefabs: readonly string[]): string => {
   const counts = new Map<string, number>();
   for (const prefab of prefabs) counts.set(prefab, (counts.get(prefab) ?? 0) + 1);
   return [...counts]
-    .map(([prefab, n]) => `${n}× ${library.catalog.pieces.get(prefab)?.name ?? prefab}`)
+    .map(([prefab, n]) => `${n}× ${getLibrary().catalog.pieces.get(prefab)?.name ?? prefab}`)
     .join(' · ');
 };
 

@@ -1,4 +1,3 @@
-import { library } from '../../catalog';
 import { propRect, rectSize } from '../../catalog/propDefs';
 import { propRadius, type PropRadius } from '../../catalog/stations';
 import { Button } from '../../controls/Button';
@@ -8,6 +7,7 @@ import { Stepper } from '../../controls/Stepper';
 import { formatCompact, formatSize } from '../../format';
 import { normalizeDeg } from '../../model/geometry/propGeometry';
 import type { PropId } from '../../model/types';
+import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayPlan } from '../../store/planHooks';
 import { rotateItems } from '../../tools/Select/selectActions';
 import { useToolContext } from '../../tools/toolContext';
@@ -35,9 +35,9 @@ export const PropInspector = ({ id }: { id: PropId }) => {
   const ctx = useToolContext();
   const prop = useDisplayPlan().props[id];
   if (!prop) return null;
-  const def = library.propDefs.get(prop.prefab);
-  const size = rectSize(propRect(library.propDefs, prop.prefab));
-  const radius = propRadius(prop.prefab, prop.upgrades, library.catalog);
+  const def = getLibrary().propDefs.get(prop.prefab);
+  const size = rectSize(propRect(getLibrary().propDefs, prop.prefab));
+  const radius = propRadius(prop.prefab, prop.upgrades, getLibrary().catalog);
 
   // A turn that ends where it started (360°, or the same angle typed) adds no entry.
   const rotateBy = (delta: number) => {

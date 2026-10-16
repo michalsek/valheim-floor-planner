@@ -1,0 +1,176 @@
+.gate {
+  height: 100%;
+  overflow-y: auto;
+  padding: 48px 16px;
+  background: var(--surface-sunken);
+}
+
+.card {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-panel);
+  box-shadow: var(--shadow);
+  line-height: 1.5;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.lead {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.section {
+  margin-top: 24px;
+}
+
+.heading {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status {
+  margin: 20px 0 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.primary,
+.secondary {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-sunken);
+  font-weight: 600;
+}
+
+.primary:hover {
+  filter: brightness(1.08);
+}
+
+.secondary {
+  background: transparent;
+}
+
+.secondary:hover {
+  background: var(--surface-hover);
+}
+
+.note {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.error {
+  padding: 8px 12px;
+  border-left: 3px solid var(--danger);
+  border-radius: 4px;
+  background: var(--warning-soft);
+}
+
+.error p {
+  margin: 0;
+}
+
+.error .detail {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.phases {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.done {
+  color: var(--text-muted);
+}
+
+.done::marker {
+  content: '✓  ';
+  color: var(--success);
+}
+
+.current {
+  font-weight: 600;
+}
+
+.current::marker {
+  color: var(--accent);
+}
+
+.pending {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.paths {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.path {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.platform {
+  color: var(--text-muted);
+}
+
+.code,
+.note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.copy {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.copy:hover {
+  background: var(--surface-hover);
+}
+
+.note kbd {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+}
