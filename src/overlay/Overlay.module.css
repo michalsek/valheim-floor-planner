@@ -52,3 +52,44 @@
 .marker {
   fill: var(--overlay-accent);
 }
+
+.closeRing {
+  fill: none;
+  stroke: var(--overlay-accent);
+  stroke-width: 2px;
+}
+
+.vertex {
+  fill: var(--canvas-bg);
+  stroke: var(--overlay-accent);
+  stroke-width: 1.5px;
+}
+
+.piece {
+  fill-opacity: 0.45;
+  stroke: var(--overlay-ink);
+  stroke-opacity: 0.8;
+  stroke-width: 1px;
+}
+
+.runLine {
+  fill: none;
+  stroke: var(--overlay-accent);
+  stroke-width: 1.5px;
+}
+
+.runLineDashed {
+  stroke-dasharray: 6 4;
+}
+
+.wallLine {
+  fill: none;
+  stroke: var(--overlay-muted);
+  stroke-opacity: 0.7;
+  stroke-width: 1px;
+}
+
+.pieceFar {
+  stroke-width: 2px;
+  stroke-linejoin: miter;
+}

@@ -56,3 +56,45 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 13. **No 50/100 m grid level.** At the minimum zoom (2 px/m) the 10 m lines are still
     20 px apart, which reads fine, and a fifth level would need a second uniform. Revisit
     if `MIN_ZOOM` drops.
+
+## From M2 implementation
+
+1. **Tools still see every key first, Cmd/Ctrl included.** The wall tool filters
+   modified keys itself (only Mod+Z gets through, while drawing). A per-binding
+   "tool may claim this" rule in `useToolKeyboard` would save each tool the check.
+2. **Item labels are a hand-kept map** (`catalog/items.ts`). The extract has no item
+   display names. `Blackwood` is shown as "Ashwood" (its in-game name, worth checking),
+   and `Frostwood` (timber and scalewood) is shown as its raw id. The extractor could
+   export item names.
+3. **Alt gives off-grid wall points.** That's consistent with the rest of the app, and
+   the leftover shows up as an unfilled-area warning. Decide whether walls should ignore
+   Alt.
+4. **Crossing walls and T-junctions are double-counted.** Each run is split on its own;
+   that's the wall graph's job in M3. The L-house is drawn as one closed outline for now.
+5. **Warnings say "Segment N" but not which wall.** There is no way to find the wall
+   until selection exists (M4); the warning could then select or highlight it.
+6. **Corrupt storage is re-reported on every reload until the next edit.** The bad value
+   stays under the main key, and each start-up overwrites `KEY.corrupt` with it (same
+   content, so nothing is lost). Could clear the main key after the backup.
+7. **One mesh per ground-course piece.** Fine for house-sized plans (a 500 m wall is
+   ~250 meshes). Switch `WallMeshes` to an `InstancedMesh` per material if big plans get
+   slow.
+8. **Seams are hard to see when zoomed out.** `SEAM = 0.06` m is 1.5 px at 26 px/m.
+   *(Fix round: at ≤ 12 px/m `WallLines` now draws solid footprints with a 2 px stroke;
+   seams disappear there by design. Between 12 and ~30 px/m they're still faint.)*
+9. **QA tooling note:** the browser pane's `key "minus"` / `type "-"` did not reach the
+   app's `+`/`-` zoom bindings (the app zooms fine on a real `-` keydown). Likely a tool
+   artefact; worth a quick check with a real keyboard.
+10. **Double-click guard after closing a loop.** A draft started by the click right after
+    a loop was closed isn't cancelled by a double-click. Side effect: closing a loop, then
+    double-clicking somewhere else much later leaves a 1-point draft (Esc clears it).
+    Using the event time would remove that, but `ToolPointerEvent` has no timestamp.
+11. **`plan.replace` now returns the replacement from `applyCommand`.** M4's preview
+    recipe `d => cmds.forEach(c => applyCommand(d, c))` would drop that return value.
+    Either reduce over the commands, or keep `plan.replace` out of gesture command lists.
+12. **The side label after closing.** Closing an anticlockwise loop and flipping it to
+    "inside" leaves the session side on `left`, so the bar then reads "Strip: left" for
+    the next open run. That's correct but may surprise; a per-loop side reset is an option.
+13. **Shared controls live in `src/controls/`.** Both `tools/` and `ui/` use them, which
+    avoids a `tools` ↔ `ui` import cycle (`ui` already imports `tools`). The snap picker
+    now uses `SegmentedControl` too, so its buttons got a 28 px minimum width.

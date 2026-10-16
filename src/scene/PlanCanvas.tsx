@@ -10,6 +10,7 @@ import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 import { CameraRig } from './CameraRig';
 import { createRenderer } from './createRenderer';
 import { GridPlane } from './GridPlane';
+import { WallMeshes } from './WallMeshes';
 
 /**
  * The 3D layer: an orthographic camera looking straight down (screen right = +x,
@@ -40,6 +41,7 @@ export const PlanCanvas = () => {
     >
       <CameraRig />
       <GridPlane />
+      <WallMeshes />
     </Canvas>
   );
 };

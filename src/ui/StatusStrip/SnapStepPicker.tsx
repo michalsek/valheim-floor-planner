@@ -1,5 +1,6 @@
 import { useSetAtom } from 'jotai';
 
+import { SegmentedControl } from '../../controls/SegmentedControl';
 import { SNAP_STEPS } from '../../model/geometry/snap';
 import { useModifiers, useSnapStep } from '../../store/hooks';
 import { snapStepAtom } from '../../store/session';
@@ -17,20 +18,11 @@ export const SnapStepPicker = () => {
   return (
     <div className={styles.picker} title="Snap step (G)">
       <span>Snap</span>
-      <div className={styles.segments}>
-        {SNAP_STEPS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={s === step ? `${styles.segment} ${styles.segmentActive}` : styles.segment}
-            aria-pressed={s === step}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setStep(s)}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        options={SNAP_STEPS.map((s) => ({ value: s, label: String(s) }))}
+        value={step}
+        onChange={(s) => setStep(s)}
+      />
       <span>m</span>
     </div>
   );

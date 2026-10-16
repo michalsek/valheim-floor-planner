@@ -19,6 +19,7 @@
     "@react-three/fiber": "9.8.2",
     "@typegpu/gl": "0.12.6",
     "@typegpu/three": "0.12.1",
+    "immer": "^11.1.21",
     "jotai": "^2.20.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",

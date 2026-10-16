@@ -1,0 +1,54 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.select {
+  padding: 2px 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.segments {
+  display: flex;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segment {
+  min-width: 28px;
+  padding: 1px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--panel-border);
+}
+
+.segment:hover,
+.button:hover {
+  background: var(--hover-bg);
+}
+
+.segmentActive,
+.segmentActive:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.button {
+  padding: 1px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}

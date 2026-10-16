@@ -5,8 +5,9 @@
  */
 import { atom, createStore } from 'jotai';
 
+import { DEFAULT_WALL_FAMILY_ID } from '../catalog';
 import { snapToGrid, type SnapStep } from '../model/geometry/snap';
-import type { Vec2 } from '../model/types';
+import type { Vec2, WallSide } from '../model/types';
 import type { ToolId } from '../tools/toolIds';
 import {
   DEFAULT_VIEWPORT,
@@ -47,6 +48,16 @@ export const modifiersAtom = atom<Modifiers>({ alt: false, space: false });
 export const pointerScreenAtom = atom<ScreenPoint | null>(null);
 export const activeToolIdAtom = atom<ToolId>('select');
 export const rendererBackendAtom = atom<RendererBackend>('pending');
+
+/** 'failed' after a save threw (e.g. quota); 'unavailable' when storage is blocked. */
+export type AutosaveStatus = 'ok' | 'failed' | 'unavailable';
+export const autosaveStatusAtom = atom<AutosaveStatus>('ok');
+
+// Wall tool settings (session state: they never enter undo history).
+export const wallFamilyIdAtom = atom<string>(DEFAULT_WALL_FAMILY_ID);
+/** 'right' is inside for a loop drawn clockwise on screen. */
+export const wallSideAtom = atom<WallSide>('right');
+export const wallHeightAtom = atom<number>(2);
 
 /**
  * The world point under the pointer. Derived (not stored), so it stays correct after

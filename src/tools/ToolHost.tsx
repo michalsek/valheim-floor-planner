@@ -1,9 +1,9 @@
-import { useStore } from 'jotai';
 import {
   useCallback,
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
@@ -22,12 +22,14 @@ import { useViewportControls } from '../viewport/useViewportControls';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
 import { MIDDLE_BUTTON, PRIMARY_BUTTON } from './pointerButtons';
+import { useToolContext } from './toolContext';
 import { getTool } from './toolbox';
 import styles from './ToolHost.module.css';
 import type { ToolPointerEvent } from './types';
 import { useToolKeyboard } from './useToolKeyboard';
 
 type HostPointerEvent = ReactPointerEvent<HTMLDivElement>;
+type HostMouseEvent = ReactMouseEvent<HTMLDivElement>;
 
 /** The pointer this host is tracking: a pan, or a pointer sequence owned by the tool. */
 type Gesture =
@@ -40,7 +42,7 @@ type Gesture =
  * pointer is captured until it is released or cancelled.
  */
 export const ToolHost = ({ children }: { children: ReactNode }) => {
-  const store = useStore();
+  const ctx = useToolContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -50,7 +52,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
   useViewportControls(containerRef);
   useToolKeyboard();
 
-  const activeTool = () => getTool(store.get(activeToolIdAtom));
+  const activeTool = () => getTool(ctx.get(activeToolIdAtom));
 
   /** Ends the current gesture; a tool sequence that didn't finish is cancelled. */
   const endGesture = useCallback(
@@ -59,10 +61,10 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       gestureRef.current = null;
       if (gesture?.kind === 'pan') setIsPanning(false);
       if (gesture?.kind === 'tool' && cancelled) {
-        getTool(store.get(activeToolIdAtom)).onPointerCancel?.(store);
+        getTool(ctx.get(activeToolIdAtom)).onPointerCancel?.(ctx);
       }
     },
-    [store]
+    [ctx]
   );
 
   // A gesture must not survive the window losing focus (the release may never arrive).
@@ -75,13 +77,13 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
   /** Records the pointer (and Alt, which may change while the window is unfocused). */
   const trackPointer = (e: HostPointerEvent): ScreenPoint => {
     const screen = localPoint(e.currentTarget, e);
-    store.set(pointerScreenAtom, screen);
-    setModifier(store, 'alt', e.altKey);
+    ctx.set(pointerScreenAtom, screen);
+    setModifier(ctx, 'alt', e.altKey);
     return screen;
   };
 
-  const toToolEvent = (e: HostPointerEvent, screen: ScreenPoint): ToolPointerEvent | null => {
-    const cursor = store.get(cursorAtom);
+  const toToolEvent = (e: HostMouseEvent, screen: ScreenPoint): ToolPointerEvent | null => {
+    const cursor = ctx.get(cursorAtom);
     if (!cursor) return null;
     return {
       screen,
@@ -99,7 +101,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     const current = activeTool();
     const startsPan =
       e.button === MIDDLE_BUTTON ||
-      (e.button === PRIMARY_BUTTON && (store.get(modifiersAtom).space || current.panOnPrimaryDrag));
+      (e.button === PRIMARY_BUTTON && (ctx.get(modifiersAtom).space || current.panOnPrimaryDrag));
 
     e.currentTarget.setPointerCapture(e.pointerId);
     if (startsPan) {
@@ -109,7 +111,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     }
     gestureRef.current = { kind: 'tool', pointerId: e.pointerId };
     const event = toToolEvent(e, screen);
-    if (event) current.onPointerDown?.(event, store);
+    if (event) current.onPointerDown?.(event, ctx);
   };
 
   const onPointerMove = (e: HostPointerEvent) => {
@@ -119,12 +121,12 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       if (gesture.pointerId !== e.pointerId) return;
       // The release happened somewhere we never heard about.
       if (e.buttons === 0) return endGesture(false);
-      panViewport(store, screen.x - gesture.last.x, screen.y - gesture.last.y);
+      panViewport(ctx, screen.x - gesture.last.x, screen.y - gesture.last.y);
       gesture.last = screen;
       return;
     }
     const event = toToolEvent(e, screen);
-    if (event) activeTool().onPointerMove?.(event, store);
+    if (event) activeTool().onPointerMove?.(event, ctx);
   };
 
   const onPointerUp = (e: HostPointerEvent) => {
@@ -134,13 +136,21 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     endGesture(false);
     if (gesture.kind === 'tool') {
       const event = toToolEvent(e, screen);
-      if (event) activeTool().onPointerUp?.(event, store);
+      if (event) activeTool().onPointerUp?.(event, ctx);
     }
   };
 
   // Fires after a normal pointer-up too, but by then the gesture is already over.
   const onPointerLost = (e: HostPointerEvent) => {
     if (gestureRef.current?.pointerId === e.pointerId) endGesture(true);
+  };
+
+  const onDoubleClick = (e: HostMouseEvent) => {
+    if (e.button !== PRIMARY_BUTTON || ctx.get(modifiersAtom).space) return;
+    const current = activeTool();
+    if (current.panOnPrimaryDrag) return;
+    const event = toToolEvent(e, localPoint(e.currentTarget, e));
+    if (event) current.onDoubleClick?.(event, ctx);
   };
 
   const cursor = isPanning ? 'grabbing' : space ? 'grab' : tool.cursor;
@@ -153,9 +163,10 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onDoubleClick={onDoubleClick}
       onPointerCancel={onPointerLost}
       onLostPointerCapture={onPointerLost}
-      onPointerLeave={() => store.set(pointerScreenAtom, null)}
+      onPointerLeave={() => ctx.set(pointerScreenAtom, null)}
       // Middle-button mousedown would start the browser's autoscroll.
       onMouseDown={(e) => e.button === MIDDLE_BUTTON && e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}

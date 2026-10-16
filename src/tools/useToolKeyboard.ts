@@ -1,4 +1,3 @@
-import { useStore } from 'jotai';
 import { useEffect } from 'react';
 
 import { nextSnapStep } from '../model/geometry/snap';
@@ -9,24 +8,28 @@ import {
   snapStepAtom,
   viewportAtom,
   zoomViewportAt,
-  type SessionAccess,
 } from '../store/session';
 import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
+import { isRedoKey, isUndoKey } from './keys';
+import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, TOOLS } from './toolbox';
+import type { ToolContext } from './types';
 
 const KEY_ZOOM_FACTOR = 1.25;
 
 interface KeyBinding {
   /** `KeyboardEvent.key` values, lower-case. */
-  keys: readonly string[];
-  /** Whether Ctrl/Cmd must be held (e.g. Mod+Z later). Alt never matches. */
+  keys?: readonly string[];
+  /** A custom test for chords; replaces `keys`, `mod` and `shift`. */
+  test?: (e: KeyboardEvent) => boolean;
+  /** Whether Ctrl/Cmd must be held. Alt never matches. */
   mod?: boolean;
   /** Allow Shift (for keys that need it, like `+`); otherwise Shift blocks the binding. */
   shift?: boolean;
   /** Fire on auto-repeat too. */
   repeat?: boolean;
-  run(store: SessionAccess): void;
+  run(ctx: ToolContext): void;
 }
 
 const KEYMAP: readonly KeyBinding[] = [
@@ -48,14 +51,18 @@ const KEYMAP: readonly KeyBinding[] = [
   },
   { keys: ['0'], run: (s) => s.set(viewportAtom, DEFAULT_VIEWPORT) },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
+  { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },
+  { test: isRedoKey, repeat: true, run: (s) => s.plan.redo() },
 ];
 
-const matches = (binding: KeyBinding, e: KeyboardEvent): boolean =>
-  binding.keys.includes(e.key.toLowerCase()) &&
+const matchesKeys = (binding: KeyBinding, e: KeyboardEvent): boolean =>
+  (binding.keys ?? []).includes(e.key.toLowerCase()) &&
   (e.ctrlKey || e.metaKey) === (binding.mod ?? false) &&
   !e.altKey &&
-  (binding.shift || !e.shiftKey) &&
-  (binding.repeat || !e.repeat);
+  (binding.shift || !e.shiftKey);
+
+const matches = (binding: KeyBinding, e: KeyboardEvent): boolean =>
+  (binding.test ? binding.test(e) : matchesKeys(binding, e)) && (binding.repeat || !e.repeat);
 
 const isEditableTarget = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
@@ -66,7 +73,7 @@ const isEditableTarget = (target: EventTarget | null): boolean =>
  * tool (every key, modified ones included), then `KEYMAP`.
  */
 export const useToolKeyboard = (): void => {
-  const store = useStore();
+  const ctx = useToolContext();
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -74,27 +81,27 @@ export const useToolKeyboard = (): void => {
       if (e.key === ' ' || e.key === 'Alt') {
         // Space would scroll or re-click a focused button; Alt would focus the menu bar.
         e.preventDefault();
-        setModifier(store, e.key === 'Alt' ? 'alt' : 'space', true);
+        setModifier(ctx, e.key === 'Alt' ? 'alt' : 'space', true);
         return;
       }
-      if (getTool(store.get(activeToolIdAtom)).onKeyDown?.(e, store)) {
+      if (getTool(ctx.get(activeToolIdAtom)).onKeyDown?.(e, ctx)) {
         e.preventDefault();
         return;
       }
       const binding = KEYMAP.find((b) => matches(b, e));
       if (binding) {
         e.preventDefault();
-        binding.run(store);
+        binding.run(ctx);
       }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === ' ') setModifier(store, 'space', false);
-      if (e.key === 'Alt') setModifier(store, 'alt', false);
+      if (e.key === ' ') setModifier(ctx, 'space', false);
+      if (e.key === 'Alt') setModifier(ctx, 'alt', false);
     };
 
     // Keys released while the window is in the background never reach us.
-    const onBlur = () => resetModifiers(store);
+    const onBlur = () => resetModifiers(ctx);
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -104,5 +111,5 @@ export const useToolKeyboard = (): void => {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [store]);
+  }, [ctx]);
 };

@@ -148,3 +148,29 @@ const toOpening = (piece: PieceDef): WallOpeningDef => ({
   width: round2(snapExtent(piece, 'x') || (piece.colliderSize?.[0] ?? 0)),
   height: round2(snapExtent(piece, 'y') || (piece.colliderSize?.[1] ?? 0)),
 });
+
+export const MAX_WALL_HEIGHT = 4;
+
+/** The family's course height: its shortest piece. */
+export const minPieceHeight = (family: WallFamily): number =>
+  Math.min(...family.pieces.map((p) => p.height));
+
+/**
+ * Heights a family's walls can be drawn at: its smallest piece height, plus every
+ * whole number of metres up to `MAX_WALL_HEIGHT` that is a multiple of it.
+ */
+export const wallHeightOptions = (family: WallFamily): number[] => {
+  const min = minPieceHeight(family);
+  const options = new Set([min]);
+  for (let h = 1; h <= MAX_WALL_HEIGHT; h++) {
+    const ratio = h / min;
+    if (h >= min && Math.abs(ratio - Math.round(ratio)) < SNAP_EPSILON) options.add(h);
+  }
+  return [...options].sort((a, b) => a - b);
+};
+
+/** The valid height closest to `height`; a tie goes to the taller one. */
+export const nearestWallHeight = (family: WallFamily, height: number): number =>
+  wallHeightOptions(family).reduce((best, h) =>
+    Math.abs(h - height) <= Math.abs(best - height) ? h : best
+  );

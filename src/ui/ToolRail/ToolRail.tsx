@@ -1,12 +1,12 @@
-import { useStore } from 'jotai';
-
+import { keepFocus } from '../../controls/keepFocus';
 import { useActiveToolId } from '../../store/hooks';
+import { useToolContext } from '../../tools/toolContext';
 import { setActiveTool, TOOLS } from '../../tools/toolbox';
 
 import styles from './ToolRail.module.css';
 
 export const ToolRail = () => {
-  const store = useStore();
+  const ctx = useToolContext();
   const activeId = useActiveToolId();
 
   return (
@@ -19,9 +19,8 @@ export const ToolRail = () => {
           title={`${label} (${shortcut.toUpperCase()})`}
           aria-label={label}
           aria-pressed={id === activeId}
-          // Never take focus: a focused button would be re-clicked by Space (pan).
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setActiveTool(store, id)}
+          onMouseDown={keepFocus}
+          onClick={() => setActiveTool(ctx, id)}
         >
           <Icon />
         </button>

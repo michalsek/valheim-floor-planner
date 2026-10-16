@@ -12,10 +12,12 @@ const LABEL_OFFSET = 14;
 interface DimensionLineProps {
   a: Vec2;
   b: Vec2;
+  /** Show Δx/Δz below the line (noise for axis-aligned lines). */
+  showDelta?: boolean;
 }
 
 /** Dimension line from `a` to `b` with end ticks, a length label above and Δx/Δz below. */
-export const DimensionLine = ({ a, b }: DimensionLineProps) => {
+export const DimensionLine = ({ a, b, showDelta = true }: DimensionLineProps) => {
   const toScreen = useWorldToScreen();
   const sa = toScreen(a);
   const sb = toScreen(b);
@@ -42,12 +44,14 @@ export const DimensionLine = ({ a, b }: DimensionLineProps) => {
         deg={textDeg}
         text={formatMetres(length)}
       />
-      <Label
-        className={styles.labelSecondary}
-        at={offset(mid, up, -LABEL_OFFSET)}
-        deg={textDeg}
-        text={formatDelta(dx, dz)}
-      />
+      {showDelta && (
+        <Label
+          className={styles.labelSecondary}
+          at={offset(mid, up, -LABEL_OFFSET)}
+          deg={textDeg}
+          text={formatDelta(dx, dz)}
+        />
+      )}
     </g>
   );
 };

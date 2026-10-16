@@ -27,35 +27,6 @@
   gap: 6px;
 }
 
-.segments {
-  display: flex;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.segment {
-  padding: 1px 8px;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.segment + .segment {
-  border-left: 1px solid var(--panel-border);
-}
-
-.segment:hover {
-  background: var(--hover-bg);
-}
-
-.segmentActive,
-.segmentActive:hover {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .snapOff {
   color: var(--overlay-warning);
 }

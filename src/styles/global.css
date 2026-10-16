@@ -10,6 +10,7 @@
   --accent: #e3a34a;
   --accent-soft: rgb(227 163 74 / 0.16);
   --hover-bg: #212730;
+  --warning: #ef9a6e;
 
   --overlay-accent: #f0b35c;
   --overlay-ink: #f3f5f8;
@@ -18,6 +19,7 @@
 
   --rail-width: 52px;
   --status-height: 30px;
+  --bom-width: 260px;
 
   font-family:
     Inter,

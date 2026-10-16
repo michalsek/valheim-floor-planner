@@ -1,10 +1,10 @@
 .app {
   display: grid;
-  grid-template-columns: var(--rail-width) 1fr;
+  grid-template-columns: var(--rail-width) 1fr var(--bom-width);
   grid-template-rows: 1fr var(--status-height);
   grid-template-areas:
-    'rail canvas'
-    'status status';
+    'rail canvas bom'
+    'status status status';
   height: 100%;
 }
 
@@ -14,8 +14,14 @@
 
 .canvas {
   grid-area: canvas;
+  position: relative;
   display: grid;
   min-width: 0;
+  min-height: 0;
+}
+
+.bom {
+  grid-area: bom;
   min-height: 0;
 }
 

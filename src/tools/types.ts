@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 
 import type { Vec2 } from '../model/types';
+import type { PlanStore } from '../store/planStore';
 import type { SessionAccess } from '../store/session';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
@@ -19,8 +20,13 @@ export interface ToolPointerEvent {
   shiftKey: boolean;
 }
 
-/** What a tool may touch: the session store's `get` and `set`. */
-export type ToolContext = SessionAccess;
+/**
+ * What a tool may touch: the session store's `get` and `set`, and the plan store.
+ * (Jotai's store methods close over the store, so they work detached.)
+ */
+export interface ToolContext extends SessionAccess {
+  plan: PlanStore;
+}
 
 /**
  * A tool is a plain object; `ToolHost` routes pointer and key events to the active
@@ -45,10 +51,14 @@ export interface Tool {
   onPointerUp?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** The pointer sequence ended without a pointer-up (cancel or lost capture). */
   onPointerCancel?(ctx: ToolContext): void;
+  /** A double-click; its two pointer-downs have already reached `onPointerDown`. */
+  onDoubleClick?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** Receives every key first (modified ones too); returns true when handled. */
   onKeyDown?(e: KeyboardEvent, ctx: ToolContext): boolean;
   /** Overlay content in screen CSS px. */
   Preview?: ComponentType;
   /** Overlay content in world metres (strokes need `vector-effect="non-scaling-stroke"`). */
   WorldPreview?: ComponentType;
+  /** Tool settings, shown in a bar over the top of the canvas. */
+  Options?: ComponentType;
 }

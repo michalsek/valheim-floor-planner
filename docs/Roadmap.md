@@ -122,3 +122,14 @@ largest-first, around openings.
   - `packages/engine/tests/shaders.test.ts`
   - version pins in `packages/engine/package.json`
   - the "engine has no DOM/React" layering rule
+
+## Follow-up: theme pass (after M6)
+
+The user wants a less black UI: a neutral grey dark theme, with a light theme as a
+separate option.
+
+- Base the palette on editor tools: Blender, Figma, Unity, Godot, Photoshop. They use
+  panels around #2b–#3a with a slightly darker canvas, not near-black.
+- Move every colour into CSS variable tokens with `[data-theme]` light/dark sets that
+  follow `prefers-color-scheme`.
+- Feed the canvas background and the grid/material colours from the same tokens.

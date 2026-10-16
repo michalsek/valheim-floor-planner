@@ -2,6 +2,7 @@ import { useAtomValue } from 'jotai';
 
 import {
   activeToolIdAtom,
+  autosaveStatusAtom,
   cursorAtom,
   modifiersAtom,
   rendererBackendAtom,
@@ -17,3 +18,4 @@ export const useModifiers = () => useAtomValue(modifiersAtom);
 export const useCursor = () => useAtomValue(cursorAtom);
 export const useActiveToolId = () => useAtomValue(activeToolIdAtom);
 export const useRendererBackend = () => useAtomValue(rendererBackendAtom);
+export const useAutosaveStatus = () => useAtomValue(autosaveStatusAtom);
