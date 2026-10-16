@@ -1,6 +1,6 @@
 /**
- * The theme values that don't reach the page through CSS: the grid shader uniforms and
- * the slab mesh colours. Parsed from the CSS custom properties in `global.css` through
+ * The theme values that don't reach the page through CSS: the grid shader uniforms, the
+ * slab mesh colours and the 3D view's colours. Parsed from the CSS custom properties in `global.css` through
  * a getter, so this module stays pure and testable; `store/theme.ts` feeds it
  * `getComputedStyle`.
  */
@@ -10,6 +10,9 @@ import {
   type MaterialPalette,
   type PaletteMaterial,
 } from '../catalog/materialColors';
+import { PROP_GROUPS, type PropGroup } from '../catalog/propDefs';
+
+export type PropGroupColors = Readonly<Record<PropGroup | 'fallback', string>>;
 
 export interface ThemeTokens {
   /** Grid line colour, `#rrggbb`. */
@@ -19,6 +22,12 @@ export interface ThemeTokens {
   /** Floor slab opacity (0–1). */
   floorOpacity: number;
   palette: MaterialPalette;
+  /** Selected and hovered items (the 3D view mixes it into their colour). */
+  selection: string;
+  /** Prop colours by group (3D boxes; the overlay reads the same `--prop-*` tokens). */
+  propGroups: PropGroupColors;
+  /** Darkness of the 3D view's ground shadows (0–1). */
+  shadowAlpha: number;
 }
 
 /** Used for missing or unparsable tokens; a missing material takes the fallback. */
@@ -26,6 +35,8 @@ const FALLBACK = '#b06ab3';
 
 const uniformMaterials = (color: string): Record<PaletteMaterial, string> =>
   Object.fromEntries(PALETTE_MATERIALS.map((m) => [m, color])) as Record<PaletteMaterial, string>;
+
+const PROP_KEYS = [...PROP_GROUPS, 'fallback'] as const;
 
 export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   gridLine: '#b4c2d0',
@@ -37,6 +48,9 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
     floorBase: '#3d424a',
     floorShare: 0.4,
   },
+  selection: '#ff5ad2',
+  propGroups: Object.fromEntries(PROP_KEYS.map((g) => [g, '#9aa3ad'])) as PropGroupColors,
+  shadowAlpha: 0.4,
 };
 
 /** `#rgb` or `#rrggbb` (any case) as lowercase `#rrggbb`, or null. */
@@ -77,5 +91,10 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
       floorBase: color('--floor-base', def.palette.floorBase),
       floorShare: number('--floor-material-share', def.palette.floorShare, 1),
     },
+    selection: color('--selection', def.selection),
+    propGroups: Object.fromEntries(
+      PROP_KEYS.map((g) => [g, color(`--prop-${g}`, def.propGroups[g])])
+    ) as PropGroupColors,
+    shadowAlpha: number('--shadow-alpha', def.shadowAlpha, 1),
   };
 };

@@ -2,6 +2,7 @@ import { useStore } from 'jotai';
 import { useEffect, type RefObject } from 'react';
 
 import { panViewport, viewportSizeAtom, zoomViewportAt } from '../store/session';
+import { viewModeAtom } from '../store/view3d';
 
 import { localPoint } from './localPoint';
 import { classifyWheel, isPinch, normalizeWheelDelta, zoomFactor } from './wheel';
@@ -22,7 +23,8 @@ const preventBrowserZoom = (e: WheelEvent) => {
  * Wheel/trackpad pan and zoom, Safari pinch, and size tracking for the canvas
  * container. The wheel listener is native and non-passive (React's `onWheel` is
  * passive), so `preventDefault` stops page scroll and ctrl+wheel browser zoom. A
- * window-level guard also stops browser zoom over the rest of the UI.
+ * window-level guard also stops browser zoom over the rest of the UI. In 3D the orbit
+ * controls take the wheel and pinch instead; only the size tracking stays.
  */
 export const useViewportControls = (containerRef: RefObject<HTMLElement | null>): void => {
   const store = useStore();
@@ -31,8 +33,11 @@ export const useViewportControls = (containerRef: RefObject<HTMLElement | null>)
     const el = containerRef.current;
     if (!el) return;
 
+    const in3d = () => store.get(viewModeAtom) === '3d';
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (in3d()) return;
       if (classifyWheel(e) === 'pan') {
         panViewport(store, -e.deltaX, -e.deltaY);
         return;
@@ -48,6 +53,7 @@ export const useViewportControls = (containerRef: RefObject<HTMLElement | null>)
     };
     const onGestureChange = (e: Event) => {
       e.preventDefault();
+      if (in3d()) return;
       const gesture = e as GestureEvent;
       zoomViewportAt(store, localPoint(el, gesture), gesture.scale / lastGestureScale);
       lastGestureScale = gesture.scale;

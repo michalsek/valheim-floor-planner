@@ -1,6 +1,6 @@
 # Valheim Floor Planner
 
-A 2D top-down planner for Valheim builds. Every piece size, snap rule, cost and build radius comes from the game's own files, so a plan here matches what you can build in the game.
+A 2D top-down planner for Valheim builds, with a 3D view of the same plan. Every piece size, snap rule, cost and build radius comes from the game's own files, so a plan here matches what you can build in the game.
 
 The planner needs your own Valheim install. On first visit it asks for the game folder (Steam's `steamapps/common/Valheim`) and reads the building pieces from it in a Web Worker, in a few seconds. Nothing is uploaded. The result is cached in the browser (IndexedDB), so later visits open the editor at once; the status-strip menu (`398 pieces · Unity …`) re-scans after a game update or switches to another install. Chrome and Edge remember the folder; other browsers use an upload-style folder dialog and can reuse the cached catalogue.
 
@@ -34,6 +34,15 @@ Other keys:
 - Alt turns snapping off.
 - Mod+Z / Mod+Shift+Z undo and redo.
 - Mod+S / Mod+O save and open a `.valheimplan.json` file.
+
+## 3D view
+
+Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by course, floors at their real thickness, doors and gates as see-through panels, and items as their collider boxes. Editing stays in 2D, but the selection is shared: in 3D, click selects (Shift+click toggles, clicking empty ground clears) and Delete, arrows, Mod+A and undo work as in 2D. Any drawing tool's key goes back to 2D with that tool.
+
+- Right drag orbits.
+- Middle drag, Shift/Ctrl/⌘ + right drag, or Space + drag pans along the ground.
+- The wheel zooms towards the cursor.
+- Home or Shift+1 fits the plan; 0 resets the view direction.
 
 ## Docs
 

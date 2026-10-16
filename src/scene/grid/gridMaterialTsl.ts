@@ -6,6 +6,7 @@ import {
   Fn,
   abs,
   clamp,
+  distance,
   float,
   fract,
   fwidth,
@@ -13,12 +14,17 @@ import {
   min,
   positionWorld,
   round,
+  smoothstep,
   uniform,
 } from 'three/tsl';
-import { MeshBasicNodeMaterial, Vector4, type Node } from 'three/webgpu';
+import { MeshBasicNodeMaterial, Vector2, Vector4, type Node } from 'three/webgpu';
 
-import { GRID_LEVELS } from './gridLevels';
-import type { GridMaterialHandle, GridUniformValues } from './gridMaterialTypes';
+import { FADE_END_PX, FADE_START_PX, GRID_LEVELS } from './gridLevels';
+import type {
+  GridMaterialHandle,
+  GridMaterialOptions,
+  GridUniformValues,
+} from './gridMaterialTypes';
 
 type FloatNode = Node<'float'>;
 
@@ -35,9 +41,17 @@ const lineCoverage = (c: FloatNode, widthPx: FloatNode): FloatNode => {
   return widthPx.div(drawn).mul(overlap(dist, drawn.mul(-0.5), drawn.mul(0.5)));
 };
 
-export const createGridMaterialTsl = (): GridMaterialHandle => {
+export const createGridMaterialTsl = ({
+  perspective = false,
+}: GridMaterialOptions = {}): GridMaterialHandle => {
   const levelAlpha = uniform(new Vector4());
   const dpr = uniform(1);
+  const target = uniform(new Vector2());
+  const fadeRadius = uniform(1);
+
+  /** Perspective: how much of a level shows along an axis, from its spacing (CSS px) there. */
+  const spacingFade = (c: FloatNode, spacing: number): FloatNode =>
+    smoothstep(FADE_START_PX, FADE_END_PX, max(fwidth(c), 1e-6).mul(dpr).reciprocal().mul(spacing));
 
   const opacity = Fn(() => {
     const p = positionWorld.xz;
@@ -45,14 +59,19 @@ export const createGridMaterialTsl = (): GridMaterialHandle => {
     let transmitted: FloatNode = float(1);
     GRID_LEVELS.forEach((level, i) => {
       const width = dpr.mul(level.widthPx);
-      const coverage = max(
-        lineCoverage(p.x.div(level.spacing), width),
-        lineCoverage(p.y.div(level.spacing), width)
-      );
+      let across = lineCoverage(p.x.div(level.spacing), width);
+      let along = lineCoverage(p.y.div(level.spacing), width);
+      if (perspective) {
+        // Each axis fades by its own spacing, so at a grazing angle one set of lines stays.
+        across = across.mul(spacingFade(p.x, level.spacing));
+        along = along.mul(spacingFade(p.y, level.spacing));
+      }
       // Levels share lines (every 10 m line is also a 2 m line); composite them "over".
-      transmitted = transmitted.mul(float(1).sub(alphas[i]!.mul(coverage)));
+      transmitted = transmitted.mul(float(1).sub(alphas[i]!.mul(max(across, along))));
     });
-    return float(1).sub(transmitted);
+    const ink = float(1).sub(transmitted);
+    if (!perspective) return ink;
+    return ink.mul(float(1).sub(smoothstep(fadeRadius.mul(0.5), fadeRadius, distance(p, target))));
   });
 
   const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
@@ -64,6 +83,8 @@ export const createGridMaterialTsl = (): GridMaterialHandle => {
       levelAlpha.value.set(...values.levelAlpha);
       dpr.value = values.dpr;
       material.color.set(values.color);
+      if (values.target) target.value.set(values.target.x, values.target.z);
+      if (values.fadeRadius !== undefined) fadeRadius.value = values.fadeRadius;
     },
     dispose() {
       material.dispose();

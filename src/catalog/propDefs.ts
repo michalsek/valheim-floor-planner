@@ -36,7 +36,9 @@ export interface PropDef {
   namePl: string;
   group: PropGroup;
   rect: LocalRect;
-  /** The game data has no collider, so `rect` is a 1 × 1 stand-in. */
+  /** The collider's height span above the pivot (metres); 0–1 when approximate. */
+  heightRange: { minY: number; maxY: number };
+  /** The game data has no collider, so `rect` (and `heightRange`) is a 1 × 1 stand-in. */
   approximate: boolean;
   comfort: number;
   /** Normalised EN name, PL name and prefab, for `filterProps`. */
@@ -45,6 +47,8 @@ export interface PropDef {
 
 /** The stand-in footprint for pieces without a collider (and unknown prefabs). */
 export const APPROX_RECT: LocalRect = { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5 };
+/** The stand-in height span: a 1 m cube standing on the pivot. */
+export const APPROX_HEIGHT = { minY: 0, maxY: 1 } as const;
 
 const SHIPS = new Set(['Raft', 'Karve', 'VikingShip', 'VikingShip_Ashlands']);
 
@@ -95,6 +99,9 @@ export const buildPropDefs = (catalog: Catalog): PropDef[] =>
         namePl: piece.namePl,
         group,
         rect: rect ?? APPROX_RECT,
+        heightRange: piece.colliderBounds
+          ? { minY: piece.colliderBounds[0][1], maxY: piece.colliderBounds[1][1] }
+          : APPROX_HEIGHT,
         approximate: rect === null,
         comfort: piece.comfort,
         search: normalizeSearch(`${piece.name} ${piece.namePl} ${piece.prefab}`),

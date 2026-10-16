@@ -18,6 +18,9 @@ describe('readThemeTokens', () => {
         '--floor-base': '#ccc',
         '--mat-stone': ' #85857b',
         '--mat-fallback': '#123456',
+        '--selection': '#C2179B',
+        '--prop-crafting': '#b8761a',
+        '--shadow-alpha': '0.3',
       })
     );
     expect(tokens.gridLine).toBe('#3b4350');
@@ -28,6 +31,10 @@ describe('readThemeTokens', () => {
     expect(tokens.palette.fallback).toBe('#123456');
     expect(tokens.palette.materials.stone).toBe('#85857b');
     expect(tokens.palette.materials.wood).toBe('#123456');
+    expect(tokens.selection).toBe('#c2179b');
+    expect(tokens.propGroups.crafting).toBe('#b8761a');
+    expect(tokens.propGroups.ships).toBe(DEFAULT_THEME_TOKENS.propGroups.ships);
+    expect(tokens.shadowAlpha).toBe(0.3);
   });
 
   it('keeps the defaults for missing or invalid values', () => {
@@ -37,6 +44,7 @@ describe('readThemeTokens', () => {
         '--grid-alpha-scale': 'loud',
         '--floor-material-share': '1.5',
         '--mat-wood': 'rgb(1 2 3)',
+        '--shadow-alpha': '2',
       })
     );
     expect(tokens).toEqual(DEFAULT_THEME_TOKENS);

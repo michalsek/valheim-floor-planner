@@ -3,20 +3,21 @@ import './threeSetup';
 import { Canvas } from '@react-three/fiber';
 import { useSetAtom } from 'jotai';
 import { useMemo } from 'react';
+import { PCFShadowMap } from 'three/webgpu';
 
+import { useViewMode } from '../store/hooks';
 import { rendererBackendAtom } from '../store/session';
 import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
-import { CameraRig } from './CameraRig';
 import { createRenderer } from './createRenderer';
-import { FloorMeshes } from './FloorMeshes';
-import { GridPlane } from './GridPlane';
-import { WallMeshes } from './WallMeshes';
+import { Plan2d } from './Plan2d';
+import { View3d } from './view3d/View3d';
 
 /**
- * The 3D layer: an orthographic camera looking straight down (screen right = +x,
- * screen down = +z). Renders on demand onto a transparent canvas; pointer input is
- * handled by `ToolHost`.
+ * The one canvas and renderer for both views. In 2D an orthographic camera looks
+ * straight down (screen right = +x, screen down = +z) and pointer input is handled by
+ * `ToolHost`; in 3D `View3d` puts in its own perspective camera and controls. Renders
+ * on demand onto a transparent canvas.
  */
 export const PlanCanvas = () => {
   const setBackend = useSetAtom(rendererBackendAtom);
@@ -27,9 +28,9 @@ export const PlanCanvas = () => {
       orthographic
       frameloop="demand"
       dpr={[1, 2]}
-      // An object (not `false`) keeps r3f from setting PCFSoftShadowMap, which
-      // WebGPURenderer no longer supports and warns about.
-      shadows={{ enabled: false }}
+      // Set once with the renderer (switching later rebuilds every material). An
+      // object keeps r3f from setting PCFSoftShadowMap, which WebGPURenderer dropped.
+      shadows={{ enabled: true, type: PCFShadowMap }}
       gl={gl}
       camera={{
         position: [0, 100, 0],
@@ -40,10 +41,7 @@ export const PlanCanvas = () => {
       }}
       onCreated={(state) => state.invalidate()}
     >
-      <CameraRig />
-      <GridPlane />
-      <FloorMeshes />
-      <WallMeshes />
+      {useViewMode() === '3d' ? <View3d /> : <Plan2d />}
     </Canvas>
   );
 };

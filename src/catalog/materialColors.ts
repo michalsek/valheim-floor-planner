@@ -68,6 +68,14 @@ const toHex = (rgb: Rgb): string =>
     )
     .join('')}`;
 
+/** `a` mixed towards `b` by `t` (0 = a, 1 = b), both `#rrggbb`. */
+export const mixHex = (a: string, b: string, t: number): string => {
+  const from = toRgb(a);
+  const to = toRgb(b);
+  const mix = (i: 0 | 1 | 2) => from[i] * (1 - t) + to[i] * t;
+  return toHex([mix(0), mix(1), mix(2)]);
+};
+
 /**
  * A floor tile's colour: the material tinted towards the floor base, so floors never
  * read as one block with the (opaque, full-colour) walls on them. `odd` tiles of the

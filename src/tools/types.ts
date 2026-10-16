@@ -41,6 +41,8 @@ export interface Tool {
   icon: ComponentType;
   /** CSS cursor shown over the canvas while the tool is active (see `cursorStyleAtom`). */
   cursor: string;
+  /** Works in the 3D view; activating any other tool goes back to 2D. */
+  in3d?: boolean;
   onActivate?(ctx: ToolContext): void;
   onDeactivate?(ctx: ToolContext): void;
   /** The pointer is captured from here until pointer-up or cancel. */

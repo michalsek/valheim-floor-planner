@@ -21,8 +21,9 @@ export const GRID_LEVELS = [
 
 export type GridLevelAlphas = readonly [number, number, number, number];
 
-const FADE_START_PX = 8;
-const FADE_END_PX = 20;
+/** On-screen spacing (CSS px) over which a level fades in. */
+export const FADE_START_PX = 8;
+export const FADE_END_PX = 20;
 
 const smoothstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));

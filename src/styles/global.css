@@ -2,8 +2,9 @@
  * Theme tokens. `index.html` sets `<html data-theme>` before the first paint and
  * `store/theme.ts` keeps it in sync; dark is also the default without the attribute.
  * Scene colours (grid, floors, walls) are read from here by `theme/themeTokens.ts`,
- * so `--grid-line`, `--floor-base` and `--mat-*` must stay `#rgb` / `#rrggbb` hex, and
- * `--grid-alpha-scale` / `--floor-material-share` / `--floor-opacity` plain numbers.
+ * so `--grid-line`, `--floor-base`, `--selection`, `--mat-*` and `--prop-*` must stay
+ * `#rgb` / `#rrggbb` hex, and `--grid-alpha-scale` / `--floor-material-share` /
+ * `--floor-opacity` / `--shadow-alpha` plain numbers.
  */
 :root,
 :root[data-theme='dark'] {
@@ -58,8 +59,11 @@
   --prop-furniture: #5fb3a1;
   --prop-misc: #a58bd6;
   --prop-ships: #5d9bd8;
-  --prop-stairs: #d07a8c;
+  --prop-stairs: #9cc35a;
   --prop-fallback: #9aa3ad;
+
+  /* 3D view: ground shadow darkness. */
+  --shadow-alpha: 0.45;
 }
 
 :root[data-theme='light'] {
@@ -110,8 +114,10 @@
   --prop-furniture: #2f8a78;
   --prop-misc: #7a5cb8;
   --prop-ships: #2f6fb0;
-  --prop-stairs: #b04f66;
+  --prop-stairs: #5e8a1f;
   --prop-fallback: #7d858f;
+
+  --shadow-alpha: 0.28;
 }
 
 :root {

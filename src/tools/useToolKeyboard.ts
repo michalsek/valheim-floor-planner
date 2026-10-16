@@ -13,6 +13,7 @@ import {
   viewportAtom,
   zoomViewportAt,
 } from '../store/session';
+import { requestOrbit, toggleViewMode, viewModeAtom } from '../store/view3d';
 import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
 import { isMod, isRedoKey, isUndoKey } from './keys';
@@ -36,6 +37,16 @@ interface KeyBinding {
   run(ctx: ToolContext): void;
 }
 
+const in3d = (ctx: ToolContext): boolean => ctx.get(viewModeAtom) === '3d';
+
+/** Zooms the 2D view; the 3D view zooms with the wheel only. */
+const zoomKey = (ctx: ToolContext, factor: number): void => {
+  if (!in3d(ctx)) zoomViewportAt(ctx, null, factor);
+};
+
+const isPlainDigit = (e: KeyboardEvent, code: string): boolean =>
+  e.code === code && !isMod(e) && !e.altKey && !e.shiftKey;
+
 const KEYMAP: readonly KeyBinding[] = [
   ...TOOLS.map((tool): KeyBinding => ({
     keys: [tool.shortcut],
@@ -45,21 +56,29 @@ const KEYMAP: readonly KeyBinding[] = [
     keys: ['+', '='],
     shift: true,
     repeat: true,
-    run: (s) => zoomViewportAt(s, null, KEY_ZOOM_FACTOR),
+    run: (s) => zoomKey(s, KEY_ZOOM_FACTOR),
   },
   {
     keys: ['-', '_'],
     shift: true,
     repeat: true,
-    run: (s) => zoomViewportAt(s, null, 1 / KEY_ZOOM_FACTOR),
+    run: (s) => zoomKey(s, 1 / KEY_ZOOM_FACTOR),
   },
-  { keys: ['0'], run: (s) => s.set(viewportAtom, DEFAULT_VIEWPORT) },
+  // 0 resets the 2D view, or the 3D camera's direction.
+  {
+    keys: ['0'],
+    run: (s) => (in3d(s) ? requestOrbit(s, 'reset') : s.set(viewportAtom, DEFAULT_VIEWPORT)),
+  },
   // Home or Shift+1 frames the whole plan (F is the wall tool's flip).
   {
     test: (e) =>
       !isMod(e) && !e.altKey && (e.key === 'Home' || (e.shiftKey && e.code === 'Digit1')),
-    run: (s) => fitViewTo(s, planBounds(s.plan.getPlan(), getLibrary())),
+    run: (s) =>
+      in3d(s) ? requestOrbit(s, 'fit') : fitViewTo(s, planBounds(s.plan.getPlan(), getLibrary())),
   },
+  // 3 toggles 2D/3D. By key position, so it also works where that key types another
+  // character unshifted (AZERTY).
+  { test: (e) => isPlainDigit(e, 'Digit3'), run: toggleViewMode },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
   { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },
   { test: isRedoKey, repeat: true, run: (s) => s.plan.redo() },

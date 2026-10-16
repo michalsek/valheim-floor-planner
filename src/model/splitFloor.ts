@@ -43,6 +43,17 @@ const tileRect = (rect: WorldBox, tiles: readonly FloorTileDef[], out: PlacedTil
   return tileRect(right, smaller, out) + tileRect(bottom, smaller, out);
 };
 
+/**
+ * Which checkerboard shade a tile gets (true for the darker one), from its place on its
+ * own size's grid.
+ */
+export const isOddTile = (tile: PlacedPiece): boolean => {
+  const size = tile.footprint.length;
+  const i = Math.round((tile.center.x - size / 2) / size);
+  const j = Math.round((tile.center.z - size / 2) / size);
+  return (i + j) % 2 !== 0;
+};
+
 export const splitFloor = (floor: Floor, family: FloorFamily): FloorSplit => {
   const placed: PlacedTile[] = [];
   const leftover = tileRect(floor, family.tiles, placed);

@@ -358,3 +358,48 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 14. **QA scripts**: in `pnpm dev`, modules updated by HMR load with `?t=` URLs, so a
     script that does `import('/src/install/loadInstall.ts')` from the page can get a
     second module instance; import the URL the page actually loaded.
+
+## From M9 implementation
+
+1. **Mouse map follows M10's plan, not M9's** (coordinator request): left click picks, right
+   drag orbits, Shift/Ctrl/⌘ + right drag pans (built into OrbitControls), middle drag or
+   Space + left drag pans, the wheel zooms to the cursor, and a right click without a drag
+   does nothing. A left drag does nothing in M9 (it is M10's tool drag).
+2. **Where the plan's responsibilities landed**: entering 3D (cancel the gesture, clear the
+   pointer and hover, switch to Select unless the tool has `in3d`) is a `viewModeAtom`
+   subscription in `ToolHost`; `setViewMode` only sets the atom (`toggleViewMode` and `resetOrbit` sit beside it). The
+   depth planes are `orbitMath.clipPlanes`, applied by `OrbitRig` (`fitClipPlanes`) after
+   every camera change. `OrbitRig` registers its controls as r3f's `controls`, and `Ground`
+   reads the orbit target from there to fade the grid (3 × orbit distance, at least 30 m).
+   `Plan2d.tsx` holds the old canvas children. `CameraRig` now sets the ortho frustum itself.
+   Fit/reset requests are read with `useAtomValue` and handled in a layout effect after the
+   render they arrive in (so Open/New in 3D frame the new plan); requests from before the
+   mount are ignored. M10's dolly requests can use the same path.
+3. **Instance capacity** is the next power of two of the box count, and the mesh remounts
+   when it changes either way (the plan said "larger").
+4. **Hover is not tracked during a drag** (an orbit moves everything under the pointer); it is
+   re-picked on release, and on every camera change while the pointer rests on the canvas.
+5. **Stairs are now green** (`--prop-stairs`, both themes): the old pink read like the
+   selection tint in 3D.
+6. **Props stand on the datum**: a collider reaching below the pivot (floor braziers,
+   torches, the dvergr lantern pole) is clipped at y = 0, with a 0.1 m minimum height. M11 may
+   give props a real base.
+7. **Translucent panels are not sorted per instance**: where two door or gate panels overlap
+   on screen, they may blend in the wrong order. Harmless at 0.35 opacity.
+8. **Floors below the ground** show through the grid and the shadow catcher, darkened by the
+   catcher where shadowed; a low angle shows stone floors 1 m deep and wood 0.13 m, but
+   faintly. A stronger "below ground" treatment (e.g. a cut line at y = 0) could help.
+9. **Perf (headless Chrome 155, WebGPU on an Apple Metal-3 adapter)**: a 64 × 64 m wood floor
+   in 4 m stone walls is 1,176 boxes; one frame is 5 draw calls (pieces, shadow pass, grid,
+   catcher) and ~28k triangles, and a forced render loop with orbiting takes ~3.6 ms per
+   frame (≈280 fps equivalent) at 1288 × 827. Headless Chrome throttles rAF to ~20 Hz, so
+   real on-screen fps wasn't measured; check on a headed window.
+10. **Not exercised in the browser**: trackpad gestures and Safari. (Open and New in 3D were
+   checked through CDP's file-chooser interception.)
+11. From the plan's out-of-scope list, still open: room labels, dimensions and ring labels
+    projected into 3D; the underlay as a ground texture; station rings as ground circles;
+    a Mac trackpad's two-finger scroll zooms rather than pans in 3D; `+` / `−` do nothing in
+    3D (M10 dollies); soft shadows on plans over ~200 m (cascaded shadow maps); mixed panel
+    thickness within a family shows as uneven wall faces (true to the game);
+    `PlacedPiece.base` is 0 for floors and means nothing there (M11 should define it).
+

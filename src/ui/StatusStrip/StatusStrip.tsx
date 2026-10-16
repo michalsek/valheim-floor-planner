@@ -3,7 +3,7 @@ import { useAtom } from 'jotai';
 import { ToggleButton } from '../../controls/ToggleButton';
 import { formatNumber, formatZoom } from '../../format';
 import type { Plan } from '../../model/types';
-import { useCursor, useRendererBackend, useViewport } from '../../store/hooks';
+import { useCursor, useRendererBackend, useViewMode, useViewport } from '../../store/hooks';
 import { usePlanSelector } from '../../store/planHooks';
 import { showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
 
@@ -11,6 +11,7 @@ import { InstallMenu } from './InstallMenu';
 import { SnapStepPicker } from './SnapStepPicker';
 import styles from './StatusStrip.module.css';
 import { ThemePicker } from './ThemePicker';
+import { ViewToggle } from './ViewToggle';
 
 const hasUnderlay = (plan: Plan) => plan.underlay !== null;
 
@@ -41,13 +42,12 @@ const LayerToggles = () => {
   );
 };
 
-export const StatusStrip = () => {
+/** The 2D cursor, zoom and snap step (meaningless in 3D). */
+const PlanReadouts = () => {
   const cursor = useCursor();
   const { zoom } = useViewport();
-  const backend = useRendererBackend();
-
   return (
-    <footer className={styles.strip}>
+    <>
       <span className={styles.coords}>
         {cursor
           ? `x ${formatNumber(cursor.snapped.x)}  z ${formatNumber(cursor.snapped.z)} m`
@@ -55,6 +55,18 @@ export const StatusStrip = () => {
       </span>
       <span>{formatZoom(zoom)}</span>
       <SnapStepPicker />
+    </>
+  );
+};
+
+export const StatusStrip = () => {
+  const backend = useRendererBackend();
+  const is2d = useViewMode() === '2d';
+
+  return (
+    <footer className={styles.strip}>
+      <ViewToggle />
+      {is2d && <PlanReadouts />}
       <LayerToggles />
       <span className={styles.spacer} />
       <ThemePicker />

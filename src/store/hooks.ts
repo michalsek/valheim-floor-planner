@@ -11,6 +11,7 @@ import {
   viewportSizeAtom,
 } from './session';
 import { themeTokensAtom } from './theme';
+import { viewModeAtom } from './view3d';
 
 export const useViewport = () => useAtomValue(viewportAtom);
 export const useViewportSize = () => useAtomValue(viewportSizeAtom);
@@ -21,3 +22,4 @@ export const useActiveToolId = () => useAtomValue(activeToolIdAtom);
 export const useRendererBackend = () => useAtomValue(rendererBackendAtom);
 export const useAutosaveStatus = () => useAtomValue(autosaveStatusAtom);
 export const useThemeTokens = () => useAtomValue(themeTokensAtom);
+export const useViewMode = () => useAtomValue(viewModeAtom);

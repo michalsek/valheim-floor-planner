@@ -1,4 +1,5 @@
 import { activeToolIdAtom } from '../store/session';
+import { setViewMode } from '../store/view3d';
 
 import { dimensionTool } from './Dimension/dimensionTool';
 import { floorTool } from './Floor/floorTool';
@@ -28,8 +29,12 @@ export const TOOLS: readonly Tool[] = TOOL_IDS.map((id) => TOOLS_BY_ID[id]);
 
 export const getTool = (id: ToolId): Tool => TOOLS_BY_ID[id];
 
-/** Switches tools, letting the old one clean up its transient state first. */
+/**
+ * Switches tools, letting the old one clean up its transient state first. A tool that
+ * doesn't work in 3D (`in3d`) goes back to 2D.
+ */
 export const setActiveTool = (ctx: ToolContext, id: ToolId): void => {
+  if (!getTool(id).in3d) setViewMode(ctx, '2d');
   const current = ctx.get(activeToolIdAtom);
   if (current === id) return;
   getTool(current).onDeactivate?.(ctx);

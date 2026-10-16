@@ -74,6 +74,7 @@ export const selectTool: Tool = {
   shortcut: 'v',
   icon: SelectIcon,
   cursor: 'default',
+  in3d: true,
   onPointerDown: onSelectDown,
   onPointerMove: onSelectMove,
   onPointerUp: onSelectUp,

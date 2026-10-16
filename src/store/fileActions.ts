@@ -13,6 +13,7 @@ import { getImage, putImage } from './imageStore';
 import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
 import { embedUnderlayAtom, fitViewTo, type SessionAccess } from './session';
+import { resetOrbit } from './view3d';
 
 interface FileStatus {
   tone: 'error' | 'info';
@@ -81,6 +82,7 @@ export const openPlanFile = async (ctx: FileContext): Promise<void> => {
     if (plan.underlay && underlayImage) await putImage(plan.underlay.imageId, underlayImage);
     ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Open ${file.name}` });
     fitViewTo(ctx, planBounds(plan, getLibrary()));
+    resetOrbit(ctx);
     ctx.set(fileStatusAtom, null);
   } catch (error) {
     ctx.set(fileStatusAtom, { tone: 'error', message: messageOf(error) });
@@ -100,5 +102,6 @@ export const startNewPlan = (ctx: FileContext): void => {
     return;
   }
   ctx.plan.dispatch({ type: 'plan.replace', plan: emptyPlan() }, { label: 'New plan' });
+  resetOrbit(ctx);
   ctx.set(fileStatusAtom, null);
 };

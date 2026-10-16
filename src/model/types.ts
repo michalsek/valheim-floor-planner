@@ -3,6 +3,9 @@ import type { SelectionItem } from './selection';
 /** A point or vector on the world plane, in metres. Screen right is +x, screen down is +z. */
 export type Vec2 = { x: number; z: number };
 
+/** A point or size in 3D: x and z on the plan, y up (metres). */
+export type Vec3 = { x: number; y: number; z: number };
+
 export type WallId = string;
 
 /**

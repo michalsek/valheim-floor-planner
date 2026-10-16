@@ -2,7 +2,7 @@ import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 
 import { floorColor } from '../catalog/materialColors';
-import type { PlacedPiece } from '../model/types';
+import { isOddTile } from '../model/splitFloor';
 import { useDisplayDerived } from '../store/planHooks';
 import type { ThemeTokens } from '../theme/themeTokens';
 
@@ -19,14 +19,6 @@ const floorStyler =
     const [material = '', odd] = key.split(':');
     return { color: floorColor(palette, material, odd === '1'), opacity: floorOpacity };
   };
-
-/** Which checkerboard shade a tile gets, from its place on its own size's grid. */
-const isOdd = (tile: PlacedPiece): boolean => {
-  const size = tile.footprint.length;
-  const i = Math.round((tile.center.x - size / 2) / size);
-  const j = Math.round((tile.center.z - size / 2) / size);
-  return (i + j) % 2 !== 0;
-};
 
 /**
  * Floor tiles as thin see-through slabs under the walls, tinted apart from the wall
@@ -48,7 +40,7 @@ export const FloorMeshes = () => {
         <mesh
           key={tile.key}
           geometry={resources.geometry}
-          material={resources.materialFor(`${tile.material}:${isOdd(tile) ? 1 : 0}`)}
+          material={resources.materialFor(`${tile.material}:${isOddTile(tile) ? 1 : 0}`)}
           position={[tile.center.x, SLAB / 2, tile.center.z]}
           scale={[tile.footprint.length, SLAB, tile.footprint.thickness]}
         />
