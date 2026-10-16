@@ -1,0 +1,7 @@
+import { ToolIcon } from '../ToolIcon';
+
+export const SelectIcon = () => (
+  <ToolIcon>
+    <path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" />
+  </ToolIcon>
+);

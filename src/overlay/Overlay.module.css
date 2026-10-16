@@ -1,0 +1,54 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.dimLine,
+.tick {
+  stroke: var(--overlay-accent);
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+}
+
+.label,
+.labelSecondary {
+  fill: var(--overlay-ink);
+  stroke: var(--canvas-bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.labelSecondary {
+  font-size: 11px;
+  fill: var(--overlay-muted);
+}
+
+.cursor {
+  stroke: var(--overlay-accent);
+  stroke-width: 1px;
+  fill: none;
+}
+
+.cursorRaw {
+  stroke: var(--overlay-warning);
+  stroke-width: 1px;
+  stroke-dasharray: 2 2;
+  fill: none;
+}
+
+.marker {
+  fill: var(--overlay-accent);
+}

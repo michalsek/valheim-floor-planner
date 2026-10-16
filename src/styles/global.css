@@ -1,0 +1,53 @@
+:root {
+  color-scheme: dark;
+
+  --app-bg: #0f1216;
+  --panel-bg: #171b21;
+  --panel-border: #262c35;
+  --canvas-bg: #14181d;
+  --text: #d8dee6;
+  --text-muted: #8590a0;
+  --accent: #e3a34a;
+  --accent-soft: rgb(227 163 74 / 0.16);
+  --hover-bg: #212730;
+
+  --overlay-accent: #f0b35c;
+  --overlay-ink: #f3f5f8;
+  --overlay-muted: #b9c3cf;
+  --overlay-warning: #6fc3ff;
+
+  --rail-width: 52px;
+  --status-height: 30px;
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--app-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  /* No rubber-band scroll or swipe navigation while panning with a trackpad. */
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}

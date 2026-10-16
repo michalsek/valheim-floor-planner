@@ -65,9 +65,9 @@ interface Derived { pieces: PlacedPiece[]; rooms: Room[]; bom; warnings }
 
 Wall families are a short hand-written list (family → prefabs). Everything else comes
 from the JSON:
-- thickness: `colliderSize.z`;
+- thickness: `colliderSize.z` (the family uses its thickest piece);
 - snap kind: snap-point z (0 = centre-line, ±0.5 = face);
-- piece lengths and heights: collider sizes.
+- piece lengths and heights: snap-point extents (collider sizes drift off grid).
 
 The wall splitter fills the face rectangle (length × height) in courses,
 largest-first, around openings.
