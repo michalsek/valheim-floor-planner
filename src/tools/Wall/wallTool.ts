@@ -8,6 +8,7 @@ import { draftToRun, nextDraftAction } from './wallDraft';
 import { WallIcon } from './WallIcon';
 import { WallOptions } from './WallOptions';
 import { WallPreview } from './WallPreview';
+import { WallOverlay3d, WallPreview3d } from './WallPreview3d';
 import {
   flipWallSide,
   wallDraftAtom,
@@ -123,5 +124,7 @@ export const wallTool: Tool = {
   },
   Preview: WallPreview,
   WorldPreview: WallWorldPreview,
+  Preview3d: WallPreview3d,
+  Overlay3d: WallOverlay3d,
   Options: WallOptions,
 };

@@ -1,14 +1,15 @@
 import { samePoint } from '../../model/geometry/polyline';
 import { newId } from '../../model/newId';
-import { viewportAtom } from '../../store/session';
+import { pxToMetresAt } from '../hitTolerance';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool } from '../types';
 
 import { RulerIcon } from './RulerIcon';
 import { RulerPreview } from './RulerPreview';
+import { RulerOverlay3d, RulerPreview3d } from './RulerPreview3d';
 import { RULER_IDLE, rulerAtom } from './rulerState';
 
-/** A pinned measurement is drawn this far (screen px at pin time) off the measured line. */
+/** A pinned measurement is drawn this far (screen px at pin time, at its middle) off the line. */
 const PIN_OFFSET_PX = 20;
 
 /**
@@ -36,7 +37,8 @@ export const rulerTool: Tool = {
     const state = ctx.get(rulerAtom);
     if (e.key === 'Enter' && state.phase === 'done') {
       // Off the line (to its left), so a pin taken along a wall doesn't sit on top of it.
-      const offset = -Math.round((PIN_OFFSET_PX / ctx.get(viewportAtom).zoom) * 100) / 100;
+      const mid = { x: (state.a.x + state.b.x) / 2, z: (state.a.z + state.b.z) / 2 };
+      const offset = -Math.round(pxToMetresAt(ctx, PIN_OFFSET_PX, mid) * 100) / 100;
       const dimension = { id: newId(), a: state.a, b: state.b, offset };
       ctx.plan.dispatch({ type: 'dimension.insert', dimension }, { label: 'Pin measurement' });
       ctx.set(rulerAtom, RULER_IDLE);
@@ -50,4 +52,6 @@ export const rulerTool: Tool = {
     ctx.set(rulerAtom, RULER_IDLE);
   },
   Preview: RulerPreview,
+  Preview3d: RulerPreview3d,
+  Overlay3d: RulerOverlay3d,
 };

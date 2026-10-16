@@ -5,7 +5,7 @@ import { requestOrbit } from '../../store/view3d';
 
 import styles from './ViewBar.module.css';
 
-/** The 3D view's bar over the top of the canvas: framing buttons and a controls hint. */
+/** The 3D view's bar over the bottom of the canvas: framing buttons and a controls hint. */
 export const ViewBar = () => {
   const store = useStore();
   return (
@@ -21,8 +21,8 @@ export const ViewBar = () => {
         Reset
       </Button>
       <span className={styles.hint}>
-        Click selects · right drag orbits · middle, Shift+right or Space+drag pans · wheel zooms · 3
-        for 2D
+        Left click / drag uses the tool · right drag orbits · middle, Shift+right or Space+drag pans
+        · wheel zooms · 3 for 2D
       </span>
     </div>
   );

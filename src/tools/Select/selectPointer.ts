@@ -4,53 +4,31 @@
  * previewed through `editPreviewAtom` and committed on release as one history entry.
  */
 import { refusedSlides, translateCommands, vertexDragCommands } from '../../model/editCommands';
-import { boxFromCorners } from '../../model/geometry/box';
-import { hitItem, hitTest, itemsInBox, type Hit } from '../../model/hitTest';
-import {
-  handleWallId,
-  isSelected,
-  itemsLabel,
-  toggleItem,
-  unionItems,
-} from '../../model/selection';
+import { hitItem } from '../../model/hitTest';
+import { isSelected, itemsLabel, toggleItem, unionItems } from '../../model/selection';
 import { snapValue } from '../../model/geometry/snap';
 import type { Vec2 } from '../../model/types';
 import { clampVertexTarget } from '../../model/vertexDrag';
 import { getLibrary } from '../../store/libraryInstance';
-import { getDerived } from '../../store/planHooks';
 import { editPreviewAtom, hoverAtom, selectionAtom } from '../../store/selection';
-import { cursorStyleAtom, snapStepAtom, viewportAtom } from '../../store/session';
-import { hitTolerance } from '../hitTolerance';
+import { cursorStyleAtom, snapStepAtom, workDatumAtom } from '../../store/session';
+import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { ToolContext, ToolPointerEvent } from '../types';
 
 import { commitCommands, moveStep } from './selectActions';
 import {
   boxMode,
-  DRAG_THRESHOLD_PX,
-  HANDLE_PX,
   SELECT_IDLE,
   selectGestureAtom,
+  type Grab,
   type SelectGesture,
 } from './selectState';
 
 type Gesture<P extends SelectGesture['phase']> = Extract<SelectGesture, { phase: P }>;
 
-/** What is under `p`; the single selected wall's corners count as handles. */
-const hitAt = (ctx: ToolContext, p: Vec2): Hit | null => {
-  const plan = ctx.plan.getPlan();
-  return hitTest(plan, p, hitTolerance(ctx), {
-    families: getLibrary().wallFamilies,
-    propDefs: getLibrary().propDefs,
-    openings: getDerived(plan).openings,
-    handlesFor: handleWallId(ctx.get(selectionAtom)),
-    handleTol: HANDLE_PX / ctx.get(viewportAtom).zoom,
-    selection: ctx.get(selectionAtom),
-  });
-};
-
-const updateHover = (ctx: ToolContext, p: Vec2): void => {
-  const hit = hitAt(ctx, p);
+const updateHover = (ctx: ToolContext, e: ToolPointerEvent): void => {
+  const { hit } = pickGrab(ctx, e);
   ctx.set(hoverAtom, hit);
   ctx.set(cursorStyleAtom, hit ? (hit.kind === 'vertex' ? 'grab' : 'move') : null);
 };
@@ -68,9 +46,16 @@ export const cancelGesture = (ctx: ToolContext): boolean => {
   return true;
 };
 
+/** The press on the plane at the grabbed height (on the work plane where that misses). */
+const grabOf = (ctx: ToolContext, e: ToolPointerEvent, y: number): Grab => {
+  const on = onPlaneAt(ctx, e, y);
+  if (on) return { y, world: on.world, snapped: on.snapped };
+  return { y: ctx.get(workDatumAtom), world: e.world, snapped: e.snapped };
+};
+
 export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
   if (e.button !== PRIMARY_BUTTON) return;
-  const hit = hitAt(ctx, e.world);
+  const { hit, y } = pickGrab(ctx, e);
   const selection = ctx.get(selectionAtom);
   // Select on press, so press-and-drag moves an unselected item in one gesture.
   const item = hit && hit.kind !== 'vertex' ? hitItem(hit) : null;
@@ -80,7 +65,7 @@ export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
     phase: 'pressing',
     startScreen: e.screen,
     startWorld: e.world,
-    startSnapped: e.snapped,
+    grab: grabOf(ctx, e, y),
     hit,
     shift: e.shiftKey,
     addedOnDown,
@@ -90,7 +75,7 @@ export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
 /** The drag a press turns into once it passes the threshold. */
 const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture => {
   ctx.set(hoverAtom, null);
-  const { hit, startWorld, startSnapped } = press;
+  const { hit, startWorld, grab } = press;
   if (hit?.kind === 'vertex') {
     const run = ctx.plan.getPlan().walls[hit.wallId];
     const corner = run?.points[hit.index];
@@ -101,10 +86,18 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
   }
   if (hit) {
     ctx.set(cursorStyleAtom, 'move');
-    return { phase: 'moving', startWorld, startSnapped, items: ctx.get(selectionAtom) };
+    return { phase: 'moving', grab, items: ctx.get(selectionAtom) };
   }
   ctx.set(cursorStyleAtom, null);
-  return { phase: 'box', startWorld, currentWorld: startWorld, additive: press.shift };
+  const { startScreen } = press;
+  return {
+    phase: 'box',
+    startWorld,
+    currentWorld: startWorld,
+    startScreen,
+    currentScreen: startScreen,
+    additive: press.shift,
+  };
 };
 
 /**
@@ -112,11 +105,12 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
  * openings move); with Alt (no snapping) the raw delta.
  */
 const moveDelta = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEvent): Vec2 => {
-  if (e.altKey) return { x: e.snapped.x - g.startWorld.x, z: e.snapped.z - g.startWorld.z };
+  const { world, snapped } = g.grab;
+  if (e.altKey) return { x: e.snapped.x - world.x, z: e.snapped.z - world.z };
   const step = moveStep(g.items, ctx.get(snapStepAtom));
   return {
-    x: snapValue(e.snapped.x - g.startSnapped.x, step),
-    z: snapValue(e.snapped.z - g.startSnapped.z, step),
+    x: snapValue(e.snapped.x - snapped.x, step),
+    z: snapValue(e.snapped.z - snapped.z, step),
   };
 };
 
@@ -159,11 +153,14 @@ const moveSelection = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEve
 /** Follows the pointer; returns the updated gesture. */
 const drag = (ctx: ToolContext, g: SelectGesture, e: ToolPointerEvent): SelectGesture => {
   switch (g.phase) {
-    case 'moving':
-      moveSelection(ctx, g, e);
+    case 'moving': {
+      // Along the grabbed point's plane; a ray that misses it leaves the preview as is.
+      const on = onPlaneAt(ctx, e, g.grab.y);
+      if (on) moveSelection(ctx, g, on);
       return g;
+    }
     case 'box':
-      return { ...g, currentWorld: e.world };
+      return { ...g, currentWorld: e.world, currentScreen: e.screen };
     case 'vertex':
       return dragCorner(ctx, g, e);
     case 'idle':
@@ -178,10 +175,10 @@ const drag = (ctx: ToolContext, g: SelectGesture, e: ToolPointerEvent): SelectGe
 
 export const onSelectMove = (e: ToolPointerEvent, ctx: ToolContext): void => {
   const g = ctx.get(selectGestureAtom);
-  if (g.phase === 'idle') return updateHover(ctx, e.world);
+  if (g.phase === 'idle') return updateHover(ctx, e);
   if (g.phase === 'pressing') {
     const moved = Math.hypot(e.screen.x - g.startScreen.x, e.screen.y - g.startScreen.y);
-    if (moved <= DRAG_THRESHOLD_PX) return;
+    if (moved <= dragThresholdPx(ctx)) return;
     ctx.set(selectGestureAtom, drag(ctx, startDrag(ctx, g), e));
     return;
   }
@@ -201,9 +198,14 @@ const click = (ctx: ToolContext, press: Gesture<'pressing'>): void => {
   else if (!addedOnDown) ctx.set(selectionAtom, (s) => toggleItem(s, item));
 };
 
-const selectInBox = (ctx: ToolContext, g: Gesture<'box'>, end: Vec2): void => {
-  const box = boxFromCorners(g.startWorld, end);
-  const items = itemsInBox(ctx.plan.getPlan(), box, boxMode(g.startWorld, end), getLibrary());
+const selectInBox = (ctx: ToolContext, g: Gesture<'box'>): void => {
+  const mode = boxMode(g.startScreen, g.currentScreen);
+  const items = itemsInSelectBox(
+    ctx,
+    { a: g.startWorld, b: g.currentWorld },
+    { a: g.startScreen, b: g.currentScreen },
+    mode
+  );
   ctx.set(selectionAtom, (s) => (g.additive ? unionItems(s, items) : items));
 };
 
@@ -218,7 +220,7 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
       commitCommands(ctx, itemsLabel('Move', g.items), preview);
       break;
     case 'box':
-      selectInBox(ctx, g, e.world);
+      selectInBox(ctx, g);
       break;
     case 'vertex':
       commitCommands(ctx, 'Move corner', preview);
@@ -231,5 +233,5 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
     }
   }
   finish(ctx);
-  updateHover(ctx, e.world);
+  updateHover(ctx, e);
 };

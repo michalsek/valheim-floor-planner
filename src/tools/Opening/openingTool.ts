@@ -5,13 +5,15 @@ import { getLibrary } from '../../store/libraryInstance';
 import { getDerived } from '../../store/planHooks';
 import { openingFamilyAtom } from '../../store/session';
 import { hitTolerance } from '../hitTolerance';
+import { pickWallPoint } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
-import type { Tool, ToolContext } from '../types';
+import type { Tool, ToolContext, ToolPointerEvent } from '../types';
 
 import { OpeningIcon } from './OpeningIcon';
 import { OpeningOptions } from './OpeningOptions';
 import { placeOpening, type Placement } from './openingPlacement';
 import { OpeningPreview } from './OpeningPreview';
+import { OpeningOverlay3d, OpeningPreview3d } from './OpeningPreview3d';
 import { openingDefAtom, openingHoverAtom } from './openingState';
 import { OpeningWorldPreview } from './OpeningWorldPreview';
 
@@ -24,10 +26,12 @@ const placementAt = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null
 };
 
 /**
- * Updates the hover placement. Hovering a wall whose family has openings of its own
- * first switches the picker to them; other walls keep the list.
+ * Updates the hover placement (Alt places freely). Hovering a wall whose family has
+ * openings of its own first switches the picker to them; other walls keep the list.
  */
-const hover = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null => {
+const hover = (ctx: ToolContext, e: ToolPointerEvent): Placement | null => {
+  const p = pickWallPoint(ctx, e);
+  const free = e.altKey;
   const plan = ctx.plan.getPlan();
   const wall = wallAt(plan, p, hitTolerance(ctx), getLibrary().wallFamilies);
   const family = wall && getLibrary().wallFamilies.get(plan.walls[wall.id]?.familyId ?? '');
@@ -48,11 +52,11 @@ export const openingTool: Tool = {
   icon: OpeningIcon,
   cursor: 'crosshair',
   onPointerMove(e, ctx) {
-    hover(ctx, e.world, e.altKey);
+    hover(ctx, e);
   },
   onPointerDown(e, ctx) {
     if (e.button !== PRIMARY_BUTTON) return;
-    const placement = hover(ctx, e.world, e.altKey);
+    const placement = hover(ctx, e);
     const def = ctx.get(openingDefAtom);
     if (!placement?.valid || !def) return;
     const opening = {
@@ -62,7 +66,7 @@ export const openingTool: Tool = {
       at: placement.center,
     };
     ctx.plan.dispatch({ type: 'opening.insert', opening }, { label: `Add ${def.label}` });
-    hover(ctx, e.world, e.altKey);
+    hover(ctx, e);
   },
   onPointerLeave(ctx) {
     ctx.set(openingHoverAtom, null);
@@ -72,5 +76,7 @@ export const openingTool: Tool = {
   },
   Preview: OpeningPreview,
   WorldPreview: OpeningWorldPreview,
+  Preview3d: OpeningPreview3d,
+  Overlay3d: OpeningOverlay3d,
   Options: OpeningOptions,
 };

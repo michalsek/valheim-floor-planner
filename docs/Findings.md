@@ -426,3 +426,53 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    with the drop zone on macOS and offers the cached catalogue first on return visits.
    A picker cancel (which is also how the blocklist refusal ends) shows a dismissible
    hint about dragging the folder in.
+
+## From M10 implementation
+
+1. **`in3d` now defaults to true**: only the underlay tool sets `in3d: false` (its image isn't
+   drawn in 3D and calibration needs pixel-exact clicks). `worksIn3d(tool)` in `toolbox.ts`
+   reads it; entering 3D with the underlay tool active switches to Select.
+2. **Where the plan's pieces landed**: `ToolHost` takes every press in the capture phase, in
+   both views, and never stops it, so window listeners (the install menu's outside click)
+   still see it. In 3D it bumps `toolPressAtom` and `OrbitRig` turns the controls off until
+   that event has been dispatched, so OrbitControls skips the press without capturing it.
+   Non-left presses and Space + left go to OrbitControls as a `camera` gesture. A camera
+   move under a still pointer (damping, wheel, fit, `+` / `−`) is replayed to the tool as a
+   move, which replaces M9's hover re-pick. The theme carries the overlay ink colours
+   (`ThemeTokens.ink`). The 3D view bar moved to the bottom of the canvas, since the tool
+   options bar now shows in 3D too.
+3. **Rays that miss the work plane**: a piece under the ray (a wall seen against the sky
+   from a low camera) gives the tool its world point (the hit's plan position); with
+   neither, moves drop the tool's hover, a press reaches the tool's new `onPointerMiss`
+   (Select clears the selection) and a release cancels, unless it is still a click on a
+   press that had a world point. The plane is ignored beyond 6 orbit distances.
+4. **Moves drag along the grabbed point's plane**: Select keeps the height of the point it
+   grabbed (a wall's face, a prop's top) and intersects that horizontal plane on every move,
+   so the piece stays under the pointer. The 3D drag threshold is 6 px (3 in 2D).
+5. **Tool lines show faintly where pieces hide them** (a depth-tested pass at full colour,
+   and an untested pass at 35%), for previews, the snap cross and pinned dimensions.
+   Handles, labels and the select box are SVG over everything; hidden handles stay
+   grabbable.
+6. **Box select in 3D is a screen rectangle**: an item is contained when all its pieces'
+   projected corners are inside, touched when their projected bounds overlap it (items
+   without pieces, i.e. dimensions, use their drawn lines). 2D is unchanged.
+7. **The work datum is applied in one place per layer**: pieces stand at their own elevation
+   (`getPieceBoxes(plan)`, 0 until M11); `View3d` lifts the previews, the snap cross and
+   pinned dimensions in a `<group position-y={datum}>`, and `Overlay3d` gives its content the
+   datum through `OverlayPlaneContext`. Besides those, the cursor, picking (handles, grab
+   fallback), `pxToMetresAt` and `Ground` read it. Pinned dimensions are drawn at the datum,
+   which M11 should revisit once dimensions carry an elevation.
+8. **Floor ghosts are faint**: floors hang below the datum, so only their top shows at the
+   grid; the outline and the size / tiles label (shared with 2D) carry the preview. The
+   ruler's Δx / Δz isn't drawn in 3D (only lengths are).
+9. **Ghost meshes** start with room for 64 boxes and grow ×4 when outgrown (never shrinking
+   while shown), so a floor drag doesn't rebuild its instance buffers at every power of two.
+10. **macOS Ctrl+click** reaches the page as button 0 with `ctrlKey`, so in 3D it acts as a
+    tool click, not as OrbitControls' Ctrl + right pan; a two-finger click is button 2 and
+    orbits. Not checked on a real trackpad (headless Chrome only).
+11. **Not exercised in the browser**: releasing an orbit outside the window (CDP can't send
+    that), trackpad gestures, Safari. Checked in headless Chrome 155 on WebGPU and `?webgl`.
+12. From the plan's out-of-scope list, still open: orbiting about the picked point; trackpad
+    two-finger scroll zooms in 3D; room labels, the "show all" rings and the underlay in 3D;
+    touch input; snapping to wall tops and piece snap points; handles at wall tops when a
+    floor covers their bases.

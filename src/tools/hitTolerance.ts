@@ -1,7 +1,28 @@
-import { viewportAtom, type SessionAccess } from '../store/session';
+import type { Vec2 } from '../model/types';
+import {
+  projection3dAtom,
+  pxPerMetreAtom,
+  viewportAtom,
+  workDatumAtom,
+  type SessionAccess,
+} from '../store/session';
+import { viewModeAtom } from '../store/view3d';
+import { pxPerMetreAt } from '../viewport/projection3d';
 
 /** How close (screen px) the pointer must be to an object to hit or hover it. */
 export const HIT_TOL_PX = 6;
+/** Radius (screen px) of the vertex handles on a selected wall. */
+export const HANDLE_PX = 6;
 
-/** `HIT_TOL_PX` in world metres at the current zoom. */
-export const hitTolerance = (ctx: SessionAccess): number => HIT_TOL_PX / ctx.get(viewportAtom).zoom;
+/** Screen px as world metres where the pointer is (see `pxPerMetreAtom`). */
+export const pxToMetres = (ctx: SessionAccess, px: number): number => px / ctx.get(pxPerMetreAtom);
+
+/** Screen px as world metres at a point on the work plane (in 2D, anywhere). */
+export const pxToMetresAt = (ctx: SessionAccess, px: number, p: Vec2): number => {
+  const projection = ctx.get(projection3dAtom);
+  if (ctx.get(viewModeAtom) !== '3d' || !projection) return px / ctx.get(viewportAtom).zoom;
+  return px / pxPerMetreAt({ x: p.x, y: ctx.get(workDatumAtom), z: p.z }, projection);
+};
+
+/** `HIT_TOL_PX` in world metres where the pointer is. */
+export const hitTolerance = (ctx: SessionAccess): number => pxToMetres(ctx, HIT_TOL_PX);

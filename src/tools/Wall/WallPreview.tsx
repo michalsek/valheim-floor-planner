@@ -4,10 +4,8 @@ import { DimensionLine } from '../../overlay/DimensionLine';
 import styles from '../../overlay/Overlay.module.css';
 import { useWorldToScreen } from '../../overlay/useWorldToScreen';
 
+import { CLOSE_RING_RADIUS, VERTEX_RADIUS } from './wallMarks';
 import { wallPreviewAtom } from './wallPreviewAtom';
-
-const VERTEX_RADIUS = 3.5;
-const CLOSE_RING_RADIUS = 9;
 
 /** Screen-space marks for the wall being drawn: vertices, live length, close ring. */
 export const WallPreview = () => {

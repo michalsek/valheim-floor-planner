@@ -9,6 +9,7 @@ import type { Tool, ToolContext } from '../types';
 import { FloorIcon } from './FloorIcon';
 import { FloorOptions } from './FloorOptions';
 import { FloorPreview } from './FloorPreview';
+import { FloorOverlay3d, FloorPreview3d } from './FloorPreview3d';
 import { FLOOR_IDLE, floorDragAtom } from './floorState';
 import { FloorWorldPreview } from './FloorWorldPreview';
 
@@ -62,5 +63,7 @@ export const floorTool: Tool = {
   },
   Preview: FloorPreview,
   WorldPreview: FloorWorldPreview,
+  Preview3d: FloorPreview3d,
+  Overlay3d: FloorOverlay3d,
   Options: FloorOptions,
 };

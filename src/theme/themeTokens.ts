@@ -1,8 +1,8 @@
 /**
  * The theme values that don't reach the page through CSS: the grid shader uniforms, the
- * slab mesh colours and the 3D view's colours. Parsed from the CSS custom properties in `global.css` through
- * a getter, so this module stays pure and testable; `store/theme.ts` feeds it
- * `getComputedStyle`.
+ * slab mesh colours and the 3D view's colours (its tool lines and ghosts too). Parsed
+ * from the CSS custom properties in `global.css` through a getter, so this module stays
+ * pure and testable; `store/theme.ts` feeds it `getComputedStyle`.
  */
 import {
   matToken,
@@ -28,6 +28,18 @@ export interface ThemeTokens {
   propGroups: PropGroupColors;
   /** Darkness of the 3D view's ground shadows (0–1). */
   shadowAlpha: number;
+  /** The 3D view's tool drawing: lines, the cursor, valid and invalid ghosts. */
+  ink: ToolInk;
+}
+
+/** Overlay colours the 3D view draws with (the same tokens as the 2D overlay's CSS). */
+export interface ToolInk {
+  accent: string;
+  /** The raw (unsnapped) cursor, and the ward ring. */
+  info: string;
+  pinned: string;
+  success: string;
+  danger: string;
 }
 
 /** Used for missing or unparsable tokens; a missing material takes the fallback. */
@@ -51,6 +63,13 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   selection: '#ff5ad2',
   propGroups: Object.fromEntries(PROP_KEYS.map((g) => [g, '#9aa3ad'])) as PropGroupColors,
   shadowAlpha: 0.4,
+  ink: {
+    accent: '#e8a84e',
+    info: '#7cc4ff',
+    pinned: '#9fb4ff',
+    success: '#8fd18b',
+    danger: '#ff8475',
+  },
 };
 
 /** `#rgb` or `#rrggbb` (any case) as lowercase `#rrggbb`, or null. */
@@ -96,5 +115,12 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
       PROP_KEYS.map((g) => [g, color(`--prop-${g}`, def.propGroups[g])])
     ) as PropGroupColors,
     shadowAlpha: number('--shadow-alpha', def.shadowAlpha, 1),
+    ink: {
+      accent: color('--accent', def.ink.accent),
+      info: color('--info', def.ink.info),
+      pinned: color('--pinned', def.ink.pinned),
+      success: color('--success', def.ink.success),
+      danger: color('--danger', def.ink.danger),
+    },
   };
 };

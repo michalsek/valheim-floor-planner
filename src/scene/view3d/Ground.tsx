@@ -1,16 +1,18 @@
 import { useFrame, useThree } from '@react-three/fiber';
+import { useAtomValue } from 'jotai';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { ShadowNodeMaterial, Vector3 } from 'three/webgpu';
 
 import { useThemeTokens } from '../../store/hooks';
+import { workDatumAtom } from '../../store/session';
 import { createGridMaterial } from '../grid/gridMaterial';
 import { GRID_LEVELS, type GridLevelAlphas } from '../grid/gridLevels';
 
 /** The ground planes' size (metres): far beyond any plan. */
 const GROUND_SIZE = 4000;
-/** Just under the floor tops at the datum (y = 0), so floors cover the grid. */
-const GRID_Y = -0.02;
-const CATCHER_Y = -0.03;
+/** Just under the floor tops at the work datum, so floors cover the grid. */
+const GRID_DROP = 0.02;
+const CATCHER_DROP = 0.03;
 /** The grid is gone this many orbit distances from the target (at least the minimum). */
 const FADE_DISTANCES = 3;
 const MIN_FADE_RADIUS = 30;
@@ -54,6 +56,7 @@ const orbitTarget = (controls: unknown): Vector3 | null =>
  * angle. The grid fades out around the orbit target.
  */
 export const Ground = () => {
+  const datum = useAtomValue(workDatumAtom);
   const dpr = useThree((s) => s.viewport.dpr);
   const invalidate = useThree((s) => s.invalidate);
   const [grid] = useState(() => createGridMaterial({ perspective: true }));
@@ -94,7 +97,7 @@ export const Ground = () => {
   return (
     <>
       <mesh
-        position-y={CATCHER_Y}
+        position-y={datum - CATCHER_DROP}
         rotation-x={-Math.PI / 2}
         renderOrder={-2}
         material={catcher.material}
@@ -102,7 +105,12 @@ export const Ground = () => {
       >
         <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
       </mesh>
-      <mesh position-y={GRID_Y} rotation-x={-Math.PI / 2} renderOrder={-1} material={grid.material}>
+      <mesh
+        position-y={datum - GRID_DROP}
+        rotation-x={-Math.PI / 2}
+        renderOrder={-1}
+        material={grid.material}
+      >
         <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
       </mesh>
     </>

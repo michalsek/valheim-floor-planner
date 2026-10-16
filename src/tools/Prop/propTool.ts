@@ -7,6 +7,7 @@ import type { Tool } from '../types';
 import { PropIcon } from './PropIcon';
 import { PropOptions } from './PropOptions';
 import { PropPreview, PropWorldPreview } from './PropPreview';
+import { PropPreview3d } from './PropPreview3d';
 import { armedPrefabAtom, propGhostAtom, propRotationAtom } from './propState';
 
 /**
@@ -47,5 +48,6 @@ export const propTool: Tool = {
   },
   Preview: PropPreview,
   WorldPreview: PropWorldPreview,
+  Preview3d: PropPreview3d,
   Options: PropOptions,
 };

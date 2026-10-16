@@ -2,6 +2,7 @@ import { useAtomValue } from 'jotai';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { derivePlan, type Derived } from '../model/derivePlan';
+import { pieceBoxes, type PieceBox } from '../model/pieceBoxes';
 import type { Plan } from '../model/types';
 
 import { applyCommands, type PlanCommand } from '../model/commands';
@@ -70,6 +71,21 @@ export const getDerived = (plan: Plan): Derived => {
 };
 
 export const useDerivedPlan = (): Derived => getDerived(usePlan());
+
+const boxesCache = new WeakMap<Plan, PieceBox[]>();
+
+/**
+ * The plan's pieces and props as 3D boxes, each at its own elevation (0 until M11),
+ * not the work datum. Memoised per plan object.
+ */
+export const getPieceBoxes = (plan: Plan): PieceBox[] => {
+  let boxes = boxesCache.get(plan);
+  if (!boxes) {
+    boxes = pieceBoxes(getDerived(plan), plan, getLibrary());
+    boxesCache.set(plan, boxes);
+  }
+  return boxes;
+};
 
 /** History labels for the history list (see `PlanStore.historyLabels`). */
 export const useHistory = (): HistoryLabels =>

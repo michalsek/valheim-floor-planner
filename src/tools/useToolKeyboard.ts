@@ -39,9 +39,10 @@ interface KeyBinding {
 
 const in3d = (ctx: ToolContext): boolean => ctx.get(viewModeAtom) === '3d';
 
-/** Zooms the 2D view; the 3D view zooms with the wheel only. */
+/** Zooms the 2D view about its centre, or moves the 3D camera towards or away from its target. */
 const zoomKey = (ctx: ToolContext, factor: number): void => {
-  if (!in3d(ctx)) zoomViewportAt(ctx, null, factor);
+  if (in3d(ctx)) requestOrbit(ctx, factor > 1 ? 'dollyIn' : 'dollyOut');
+  else zoomViewportAt(ctx, null, factor);
 };
 
 const isPlainDigit = (e: KeyboardEvent, code: string): boolean =>

@@ -9,7 +9,11 @@ import type { ToolId } from './toolIds';
 
 export type { ToolId } from './toolIds';
 
-/** A pointer event already converted to plan coordinates by `ToolHost`. */
+/**
+ * A pointer event already converted to plan coordinates by `ToolHost`. In 3D the
+ * points are where the pointer's ray meets the work plane, so tools work the same in
+ * both views; `picking.ts` is the only seam that knows which view is showing.
+ */
 export interface ToolPointerEvent {
   screen: ScreenPoint;
   world: Vec2;
@@ -41,7 +45,7 @@ export interface Tool {
   icon: ComponentType;
   /** CSS cursor shown over the canvas while the tool is active (see `cursorStyleAtom`). */
   cursor: string;
-  /** Works in the 3D view; activating any other tool goes back to 2D. */
+  /** False for a 2D-only tool: activating it goes back to 2D (default true). */
   in3d?: boolean;
   onActivate?(ctx: ToolContext): void;
   onDeactivate?(ctx: ToolContext): void;
@@ -53,6 +57,11 @@ export interface Tool {
   onPointerCancel?(ctx: ToolContext): void;
   /** The pointer left the canvas: drop hover state (a captured gesture goes on). */
   onPointerLeave?(ctx: ToolContext): void;
+  /**
+   * A press with nothing under it to work with (3D: empty sky, no piece and no work
+   * plane). No other pointer event of that sequence reaches the tool.
+   */
+  onPointerMiss?(e: Pick<ToolPointerEvent, 'button' | 'shiftKey'>, ctx: ToolContext): void;
   /** A double-click; its two pointer-downs have already reached `onPointerDown`. */
   onDoubleClick?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** Receives every key first (modified ones too); returns true when handled. */
@@ -61,6 +70,10 @@ export interface Tool {
   Preview?: ComponentType;
   /** Overlay content in world metres (strokes need `vector-effect="non-scaling-stroke"`). */
   WorldPreview?: ComponentType;
+  /** 3D scene content (r3f): ghost pieces, lines on the work plane. */
+  Preview3d?: ComponentType;
+  /** 3D overlay content in screen CSS px, placed with `useProject3d`: labels, handles. */
+  Overlay3d?: ComponentType;
   /** Tool settings, shown in a bar over the top of the canvas. */
   Options?: ComponentType;
 }

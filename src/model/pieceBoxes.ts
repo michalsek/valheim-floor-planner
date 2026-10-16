@@ -1,6 +1,7 @@
 /**
  * The plan as boxes in 3D: every derived piece and every prop, at its real size and
- * height. Pure; the 3D view draws them as instances and picks them by raycast.
+ * height. Pure; the 3D view draws them as instances, tools draw their previews with the
+ * per-kind builders, and picking casts rays against them (`geometry/ray.ts`).
  *
  * Vertical convention: a level's walking surface is its datum. Floors hang below it
  * (top at the datum, bottom at datum − thickness); walls, openings and props stand on
@@ -49,28 +50,15 @@ const DEG = Math.PI / 180;
 /** The shortest prop box, so a prop whose collider is all below its pivot still shows. */
 const MIN_PROP_HEIGHT = 0.1;
 
-const hitOf = (piece: PlacedPiece, plan: Plan): Hit => {
-  const id = piece.sourceId;
-  switch (piece.kind) {
-    case 'wall':
-      return { kind: 'wall', id, segment: piece.segment, distance: 0 };
-    case 'opening':
-      return { kind: 'opening', id, distance: 0 };
-    case 'floor': {
-      const floor = plan.floors[id];
-      return { kind: 'floor', id, area: floor ? boxArea(floor) : 0 };
-    }
-  }
-};
-
-const pieceBox = (piece: PlacedPiece, plan: Plan, datum: number): PieceBox => {
+/** A derived piece's box, standing on (or, for floors, hanging below) `datum`. */
+const placedBox = (piece: PlacedPiece, hit: Hit, datum: number): PieceBox => {
   const { length, thickness } = piece.footprint;
   const across = piece.kind === 'opening' ? Math.min(PANEL_THICKNESS, thickness) : thickness;
   const bottom = piece.kind === 'floor' ? datum - piece.height : datum + piece.base;
   return {
     key: piece.key,
     item: { kind: piece.kind, id: piece.sourceId },
-    hit: hitOf(piece, plan),
+    hit,
     kind: piece.kind,
     material: piece.material,
     group: null,
@@ -82,7 +70,36 @@ const pieceBox = (piece: PlacedPiece, plan: Plan, datum: number): PieceBox => {
   };
 };
 
-const propBox = (prop: Prop, lib: Pick<Library, 'propDefs'>, datum: number): PieceBox => {
+/** Wall pieces (every course), e.g. a run's split or the wall tool's preview. */
+export const wallPieceBoxes = (pieces: readonly PlacedPiece[], datum = 0): PieceBox[] =>
+  pieces.map((piece) =>
+    placedBox(
+      piece,
+      { kind: 'wall', id: piece.sourceId, segment: piece.segment, distance: 0 },
+      datum
+    )
+  );
+
+/** Floor tiles; `areaOf` gives each floor's area (what its hit reports). */
+export const floorPieceBoxes = (
+  pieces: readonly PlacedPiece[],
+  areaOf: (floorId: string) => number,
+  datum = 0
+): PieceBox[] =>
+  pieces.map((piece) =>
+    placedBox(piece, { kind: 'floor', id: piece.sourceId, area: areaOf(piece.sourceId) }, datum)
+  );
+
+/** A door or gate panel in its gap. */
+export const openingBox = (piece: PlacedPiece, datum = 0): PieceBox =>
+  placedBox(piece, { kind: 'opening', id: piece.sourceId, distance: 0 }, datum);
+
+/** A prop's collider box, standing on `datum`. */
+export const propBox = (
+  prop: Pick<Prop, 'id' | 'prefab' | 'position' | 'rotation'>,
+  lib: Pick<Library, 'propDefs'>,
+  datum = 0
+): PieceBox => {
   const def = lib.propDefs.get(prop.prefab);
   const rect = propRect(lib.propDefs, prop.prefab);
   const range = def?.heightRange ?? APPROX_HEIGHT;
@@ -107,16 +124,27 @@ const propBox = (prop: Prop, lib: Pick<Library, 'propDefs'>, datum: number): Pie
   };
 };
 
+const ofKind = (pieces: readonly PlacedPiece[], kind: PlacedPiece['kind']) =>
+  pieces.filter((piece) => piece.kind === kind);
+
 /** Every piece (all courses) and prop of a level whose walking surface is at `datum`. */
 export const pieceBoxes = (
   derived: Pick<Derived, 'pieces'>,
   plan: Plan,
   lib: Pick<Library, 'propDefs'>,
   datum = 0
-): PieceBox[] => [
-  ...derived.pieces.map((piece) => pieceBox(piece, plan, datum)),
-  ...Object.values(plan.props).map((prop) => propBox(prop, lib, datum)),
-];
+): PieceBox[] => {
+  const floorArea = (id: string) => {
+    const floor = plan.floors[id];
+    return floor ? boxArea(floor) : 0;
+  };
+  return [
+    ...floorPieceBoxes(ofKind(derived.pieces, 'floor'), floorArea, datum),
+    ...wallPieceBoxes(ofKind(derived.pieces, 'wall'), datum),
+    ...ofKind(derived.pieces, 'opening').map((piece) => openingBox(piece, datum)),
+    ...Object.values(plan.props).map((prop) => propBox(prop, lib, datum)),
+  ];
+};
 
 /** The axis-aligned box around every box (turns included); null when there are none. */
 export const boxesBounds = (boxes: readonly PieceBox[]): Bounds3 | null => {

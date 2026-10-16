@@ -11,6 +11,7 @@ import type { Tool, ToolContext } from '../types';
 
 import { DimensionIcon } from './DimensionIcon';
 import { DimensionPreview } from './DimensionPreview';
+import { DimensionOverlay3d, DimensionPreview3d } from './DimensionPreview3d';
 import { DIMENSION_IDLE, dimensionDraftAtom } from './dimensionState';
 
 /** Hovers the pinned dimension under `p`: Delete or Alt+click would remove it. */
@@ -95,4 +96,6 @@ export const dimensionTool: Tool = {
     ctx.set(hoverAtom, null);
   },
   Preview: DimensionPreview,
+  Preview3d: DimensionPreview3d,
+  Overlay3d: DimensionOverlay3d,
 };

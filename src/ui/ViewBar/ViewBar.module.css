@@ -1,6 +1,7 @@
 .bar {
   position: absolute;
-  top: 10px;
+  /* At the bottom: the tool options bar takes the top in both views. */
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;

@@ -37,15 +37,16 @@ Other keys:
 
 ## 3D view
 
-Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by course, floors at their real thickness, doors and gates as see-through panels, and items as their collider boxes. Editing stays in 2D, but the selection is shared: in 3D, click selects (Shift+click toggles, clicking empty ground clears) and Delete, arrows, Mod+A and undo work as in 2D. Any drawing tool's key goes back to 2D with that tool.
+Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by course, floors at their real thickness, doors and gates as see-through panels, and items as their collider boxes. Every tool except the underlay works in 3D too, on the ground plane: the same clicks, drags, snapping, Alt, keys and undo as in 2D, with ghost pieces and lines showing what a click would build. Pointing at a wall's face puts an opening on that wall, and selecting picks the piece you see. The underlay tool goes back to 2D.
 
+- Left click and drag use the active tool.
 - Right drag orbits.
 - Middle drag, Shift/Ctrl/⌘ + right drag, or Space + drag pans along the ground.
-- The wheel zooms towards the cursor.
+- The wheel zooms towards the cursor; + and − move the camera in and out.
 - Home or Shift+1 fits the plan; 0 resets the view direction.
 
 ## Docs
 
 - `research/README.md`: what we know about the game, plus the extracted data (`valheim-pieces.json`, `valheim-items.json`) and the UnityPy scripts that extract it (`research/extract/`). The app parses the install itself (`src/gameData/`); the JSON is now the fixture for tests.
-- `docs/Roadmap.md`: the stack, the architecture and the milestones. Each milestone has a plan in `docs/plans/` (M1–M8; `docs/RoadmapV2.md` covers M8 onwards).
+- `docs/Roadmap.md`: the stack, the architecture and the milestones. Each milestone has a plan in `docs/plans/` (M1–M10; `docs/RoadmapV2.md` covers M8 onwards).
 - `docs/Findings.md`: known issues and follow-ups that agents logged while building it.

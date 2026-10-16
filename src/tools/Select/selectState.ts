@@ -6,10 +6,12 @@ import type { Selection } from '../../model/selection';
 import type { Vec2, WallRun } from '../../model/types';
 import type { ScreenPoint } from '../../viewport/viewportMath';
 
-/** A press that moves further than this (screen px) is a drag, not a click. */
-export const DRAG_THRESHOLD_PX = 3;
-/** Radius (screen px) of the vertex handles on a selected wall. */
-export const HANDLE_PX = 6;
+/** Where a press grabbed: in 3D, a piece's face may be above the work plane. */
+export interface Grab {
+  y: number;
+  world: Vec2;
+  snapped: Vec2;
+}
 
 /** The Select tool's pointer gesture (session state, never in history). */
 export type SelectGesture =
@@ -18,17 +20,29 @@ export type SelectGesture =
   | {
       phase: 'pressing';
       startScreen: ScreenPoint;
+      /** On the work plane: where a box select starts. */
       startWorld: Vec2;
-      startSnapped: Vec2;
+      /** The grabbed point, on the horizontal plane at height `y` a move drags along. */
+      grab: Grab;
       hit: Hit | null;
       shift: boolean;
       /** The press selected the hit item, so a Shift+click mustn't toggle it off again. */
       addedOnDown: boolean;
     }
-  /** Dragging the selection; the move is previewed in `editPreviewAtom`. */
-  | { phase: 'moving'; startWorld: Vec2; startSnapped: Vec2; items: Selection }
-  /** Box select, kept in world points so a zoom mid-drag doesn't move the box. */
-  | { phase: 'box'; startWorld: Vec2; currentWorld: Vec2; additive: boolean }
+  /** Dragging the selection along the grab's plane; previewed in `editPreviewAtom`. */
+  | { phase: 'moving'; grab: Grab; items: Selection }
+  /**
+   * Box select: a world rectangle on the work plane, kept in world points so a zoom
+   * mid-drag doesn't move it. The screen points decide contain vs touch.
+   */
+  | {
+      phase: 'box';
+      startWorld: Vec2;
+      currentWorld: Vec2;
+      startScreen: ScreenPoint;
+      currentScreen: ScreenPoint;
+      additive: boolean;
+    }
   /** Dragging a corner of `run` (as it was at the start) to `target`, the last accepted one. */
   | { phase: 'vertex'; run: WallRun; index: number; target: Vec2 };
 
@@ -37,8 +51,8 @@ export const SELECT_IDLE: SelectGesture = { phase: 'idle' };
 export const selectGestureAtom = atom<SelectGesture>(SELECT_IDLE);
 
 /**
- * Dragged left→right a box selects what it contains; right→left, what it touches.
- * (Screen x and world x run the same way, so world points decide it.)
+ * Dragged left→right on screen a box selects what it contains; right→left, what it
+ * touches (from any camera direction in 3D).
  */
-export const boxMode = (start: Vec2, current: Vec2): BoxMode =>
+export const boxMode = (start: ScreenPoint, current: ScreenPoint): BoxMode =>
   current.x >= start.x ? 'contain' : 'touch';

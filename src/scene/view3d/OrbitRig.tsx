@@ -2,17 +2,26 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useAtomValue, useStore } from 'jotai';
 import { useEffect, useEffectEvent, useLayoutEffect, useState } from 'react';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { MOUSE, type PerspectiveCamera } from 'three/webgpu';
+import { MathUtils, MOUSE, Vector3, type PerspectiveCamera } from 'three/webgpu';
 
+import type { Bounds3 } from '../../model/geometry/bounds3';
+import type { Vec3 } from '../../model/types';
 import {
   modifiersAtom,
+  projection3dAtom,
   viewportAtom,
   viewportSizeAtom,
   type SessionAccess,
 } from '../../store/session';
-import { orbitRequestAtom, orbitStateAtom, type OrbitState } from '../../store/view3d';
-
-import type { Bounds3 } from '../../model/geometry/bounds3';
+import {
+  orbitRequestAtom,
+  orbitStateAtom,
+  toolPressAtom,
+  type OrbitRequestKind,
+  type OrbitState,
+} from '../../store/view3d';
+import type { Projection3d } from '../../viewport/projection3d';
+import type { Size } from '../../viewport/viewportMath';
 
 import {
   along,
@@ -28,6 +37,8 @@ import { fitClipPlanes, VIEW_FOV } from './useViewCamera';
 const EMPTY_RADIUS = 10;
 /** The lowest the camera goes: just above the ground (the datum). */
 const MIN_CAMERA_Y = 0.05;
+/** How much one `+` / `−` press moves the camera in or out. */
+const DOLLY_FACTOR = 1.25;
 
 const createControls = (camera: PerspectiveCamera): OrbitControls => {
   const controls = new OrbitControls(camera);
@@ -44,10 +55,37 @@ const createControls = (camera: PerspectiveCamera): OrbitControls => {
   return controls;
 };
 
-/** The camera and its controls, and the moves the rig makes, outside React. */
-const createRig = (camera: PerspectiveCamera, onMove: () => void) => {
+/**
+ * The camera and its controls, and the moves the rig makes, outside React. `onMove`
+ * gets the camera as plain data after every move (and on `publish`).
+ */
+const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d) => void) => {
   const controls = createControls(camera);
   let radius = EMPTY_RADIUS;
+  let canvas: Size = { width: 1, height: 1 };
+
+  /** The camera as plain data, for the cursor, picking and the 3D overlay. */
+  const projection = (size: Size): Projection3d => {
+    camera.updateMatrixWorld();
+    const column = (i: number): Vec3 => {
+      const { x, y, z } = new Vector3().setFromMatrixColumn(camera.matrixWorld, i);
+      return { x, y, z };
+    };
+    const back = column(2);
+    const { x, y, z } = camera.position;
+    return {
+      eye: { x, y, z },
+      right: column(0),
+      up: column(1),
+      forward: { x: -back.x, y: -back.y, z: -back.z },
+      tanHalfFov: Math.tan(MathUtils.degToRad(camera.fov) / 2),
+      aspect: size.width / Math.max(size.height, 1),
+      size: { width: size.width, height: size.height },
+      orbitDistance: camera.position.distanceTo(controls.target),
+    };
+  };
+
+  const publish = () => onMove(projection(canvas));
 
   /**
    * Keeps the camera above the ground (a pan or zoom to the cursor can take it lower
@@ -64,21 +102,52 @@ const createRig = (camera: PerspectiveCamera, onMove: () => void) => {
     controls.target.set(target.x, target.y, target.z);
     controls.update();
     afterMove();
-    onMove();
+    publish();
   };
 
   return {
     controls,
     afterMove,
+    publish,
     place,
     setRadius(r: number) {
       radius = r;
+    },
+    /** The canvas size is part of the projection. */
+    setSize(size: Size) {
+      canvas = size;
+      publish();
     },
     /** The default direction, keeping the target and distance. */
     reset() {
       const { x, y, z } = controls.target;
       const target = { x, y, z };
       place({ position: along(target, DEFAULT_DIR, camera.position.distanceTo(target)), target });
+    },
+    /** Moves the camera `factor` times closer to its target (within the distance limits). */
+    dolly(factor: number) {
+      const offset = camera.position.clone().sub(controls.target);
+      const distance = MathUtils.clamp(
+        offset.length() / factor,
+        controls.minDistance,
+        controls.maxDistance
+      );
+      offset.setLength(distance);
+      const { x, y, z } = controls.target;
+      place({
+        position: { x: x + offset.x, y: y + offset.y, z: z + offset.z },
+        target: { x, y, z },
+      });
+    },
+    /**
+     * Ignores the press being dispatched (a tool's): the controls are off until the
+     * event has reached every listener.
+     */
+    skipPress() {
+      controls.enabled = false;
+      setTimeout(() => {
+        controls.enabled = true;
+      });
     },
     /** Space held: left drag pans (as in 2D) instead of picking. */
     setPanOnLeft(pan: boolean) {
@@ -101,8 +170,9 @@ const frame2dView = (session: SessionAccess, aspect: number): CameraPlacement =>
 
 /**
  * Orbit controls on the canvas for the 3D camera: damped orbit, ground pan and zoom
- * to the cursor. Answers fit and reset requests, and keeps the camera for the next time
- * 3D opens (the first time, it fits the plan).
+ * to the cursor. Answers fit, reset and dolly requests, keeps the camera for the next
+ * time 3D opens (the first time, it fits the plan), and publishes it as
+ * `projection3dAtom` after every move and resize.
  */
 export const OrbitRig = ({
   camera,
@@ -116,7 +186,14 @@ export const OrbitRig = ({
   const setThree = useThree((s) => s.set);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
-  const [rig] = useState(() => createRig(camera, invalidate));
+  // Each move publishes the camera and asks for a frame, so the overlay redraws with
+  // the camera the frame is drawn with.
+  const [rig] = useState(() =>
+    createRig(camera, (projection) => {
+      store.set(projection3dAtom, projection);
+      invalidate();
+    })
+  );
   const request = useAtomValue(orbitRequestAtom);
   /** Requests up to this one were made before this mount (in 2D, say); they're ignored. */
   const [firstRequest] = useState(() => store.get(orbitRequestAtom)?.n ?? 0);
@@ -124,6 +201,11 @@ export const OrbitRig = ({
   useLayoutEffect(() => {
     rig.setRadius(bounds ? boundsRadius(bounds) : EMPTY_RADIUS);
   }, [rig, bounds]);
+
+  // Before the mount effect below, so the first placement is published at this size.
+  useLayoutEffect(() => {
+    rig.setSize(size);
+  }, [rig, size]);
 
   /** Frames the plan as of this render; an empty plan frames what the 2D view showed. */
   const fit = useEffectEvent(() => {
@@ -145,30 +227,39 @@ export const OrbitRig = ({
   // sees the new plan's bounds (both updates land in the same render).
   useLayoutEffect(() => {
     if (!request || request.n <= firstRequest) return;
-    if (request.kind === 'fit') fit();
-    if (request.kind === 'reset') rig.reset();
+    const handlers: Record<OrbitRequestKind, () => void> = {
+      fit,
+      reset: () => rig.reset(),
+      dollyIn: () => rig.dolly(DOLLY_FACTOR),
+      dollyOut: () => rig.dolly(1 / DOLLY_FACTOR),
+    };
+    handlers[request.kind]();
   }, [request, firstRequest, rig]);
+
+  useLayoutEffect(() => () => store.set(projection3dAtom, null), [store]);
 
   useEffect(() => {
     const { controls } = rig;
     const onChange = () => {
       rig.afterMove();
-      invalidate();
+      rig.publish();
     };
     const applyButtons = () => rig.setPanOnLeft(store.get(modifiersAtom).space);
     applyButtons();
     controls.connect(gl.domElement);
     controls.addEventListener('change', onChange);
-    // Published so the ground (and picking) can follow the camera.
+    // Published so the ground can follow the orbit target.
     setThree({ controls });
     const stopButtons = store.sub(modifiersAtom, applyButtons);
+    const stopPresses = store.sub(toolPressAtom, () => rig.skipPress());
     return () => {
       stopButtons();
+      stopPresses();
       controls.removeEventListener('change', onChange);
       controls.disconnect();
       setThree({ controls: null });
     };
-  }, [rig, gl, store, invalidate, setThree]);
+  }, [rig, gl, store, setThree]);
 
   // Damping: `update` fires `change` (and so another frame) until the motion settles.
   useFrame(() => {

@@ -63,6 +63,8 @@ export const underlayTool: Tool = {
   shortcut: 'u',
   icon: UnderlayIcon,
   cursor: 'crosshair',
+  // The image isn't drawn in 3D, and calibrating needs pixel-exact clicks on it.
+  in3d: false,
   onPointerDown(e, ctx) {
     if (e.button === PRIMARY_BUTTON) onDown(e, ctx);
   },

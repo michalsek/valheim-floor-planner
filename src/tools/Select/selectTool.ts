@@ -1,6 +1,7 @@
 import { hoverAtom } from '../../store/selection';
 import { cursorStyleAtom } from '../../store/session';
 import { isMod, isRedoKey, isUndoKey, rotateStep } from '../keys';
+import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool, ToolContext } from '../types';
 
 import {
@@ -14,6 +15,7 @@ import {
 import { SelectIcon } from './SelectIcon';
 import { cancelGesture, onSelectDown, onSelectMove, onSelectUp } from './selectPointer';
 import { SelectPreview } from './SelectPreview';
+import { SelectOverlay3d } from './SelectPreview3d';
 import { selectGestureAtom } from './selectState';
 
 const ARROWS: Record<string, readonly [number, number]> = {
@@ -74,11 +76,14 @@ export const selectTool: Tool = {
   shortcut: 'v',
   icon: SelectIcon,
   cursor: 'default',
-  in3d: true,
   onPointerDown: onSelectDown,
   onPointerMove: onSelectMove,
   onPointerUp: onSelectUp,
   onPointerCancel: cancelGesture,
+  // Clicking empty sky in 3D clears the selection, as clicking empty ground does.
+  onPointerMiss(e, ctx) {
+    if (e.button === PRIMARY_BUTTON && !e.shiftKey) clearSelection(ctx);
+  },
   onPointerLeave(ctx) {
     if (ctx.get(selectGestureAtom).phase !== 'idle') return;
     ctx.set(hoverAtom, null);
@@ -93,4 +98,5 @@ export const selectTool: Tool = {
     ctx.set(cursorStyleAtom, null);
   },
   Preview: SelectPreview,
+  Overlay3d: SelectOverlay3d,
 };

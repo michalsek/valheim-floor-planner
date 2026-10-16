@@ -1,5 +1,5 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useState, type Ref } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import {
   BoxGeometry,
   Color,
@@ -20,17 +20,11 @@ export interface PieceInstancesProps {
   colorOf: PieceColorer;
   material: Material;
   castShadow: boolean;
-  ref?: Ref<InstancedMesh>;
+  /** Room for at least this many boxes (default: the next power of two of the count). */
+  capacity?: number | undefined;
 }
 
 const UP = new Vector3(0, 1, 0);
-
-/** The boxes each mesh last drew, by instance index (for raycast hits). */
-const drawn = new WeakMap<InstancedMesh, readonly PieceBox[]>();
-
-/** The box an instance of `mesh` stands for, as of its last draw. */
-export const boxOfInstance = (mesh: InstancedMesh, instanceId: number): PieceBox | undefined =>
-  drawn.get(mesh)?.[instanceId];
 
 const nextPow2 = (n: number): number => 2 ** Math.ceil(Math.log2(Math.max(n, 1)));
 
@@ -57,9 +51,8 @@ const writeMatrices = (mesh: InstancedMesh, boxes: readonly PieceBox[]) => {
   mesh.count = boxes.length;
   mesh.visible = boxes.length > 0;
   mesh.instanceMatrix.needsUpdate = true;
-  // Culling and raycasts use the bounds; they'd be stale otherwise.
+  // Culling uses the bounds; they'd be stale otherwise.
   mesh.computeBoundingSphere();
-  drawn.set(mesh, boxes);
 };
 
 const writeColors = (mesh: InstancedMesh, boxes: readonly PieceBox[], colorOf: PieceColorer) => {
@@ -74,7 +67,6 @@ const Instances = ({
   colorOf,
   material,
   castShadow,
-  ref,
 }: PieceInstancesProps & { capacity: number }) => {
   const invalidate = useThree((s) => s.invalidate);
   const [mesh] = useState(() => createMesh(material, capacity));
@@ -99,14 +91,15 @@ const Instances = ({
     [mesh]
   );
 
-  return <primitive object={mesh} ref={ref} castShadow={castShadow} receiveShadow dispose={null} />;
+  return <primitive object={mesh} castShadow={castShadow} receiveShadow dispose={null} />;
 };
 
 /**
  * Boxes as one instanced mesh (one draw call), coloured per instance. Its capacity is
- * the next power of two; crossing one remounts the mesh with new buffers.
+ * a power of two at least the count (and `capacity`); a change remounts the mesh with
+ * new buffers.
  */
-export const PieceInstances = (props: PieceInstancesProps) => {
-  const capacity = nextPow2(props.boxes.length);
+export const PieceInstances = ({ capacity: min = 0, ...props }: PieceInstancesProps) => {
+  const capacity = nextPow2(Math.max(props.boxes.length, min));
   return <Instances key={capacity} capacity={capacity} {...props} />;
 };

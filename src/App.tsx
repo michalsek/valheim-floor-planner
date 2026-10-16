@@ -1,9 +1,11 @@
 import { Provider } from 'jotai';
 
 import styles from './App.module.css';
+import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
 import { FloorOutlines } from './overlay/FloorOutlines';
 import { OpeningSymbols } from './overlay/OpeningSymbols';
 import { Overlay } from './overlay/Overlay';
+import { Overlay3d } from './overlay/Overlay3d';
 import { PinnedDimensions } from './overlay/PinnedDimensions';
 import { PropFootprints } from './overlay/PropFootprints';
 import { PropLabels } from './overlay/PropLabels';
@@ -18,7 +20,7 @@ import { PlanCanvas } from './scene/PlanCanvas';
 import { useViewMode } from './store/hooks';
 import { sessionStore } from './store/session';
 import { ToolHost } from './tools/ToolHost';
-import { ToolPreview, ToolWorldPreview } from './tools/ToolPreview';
+import { ToolOverlay3d, ToolPreview, ToolWorldPreview } from './tools/ToolPreview';
 import { BomPanel } from './ui/BomPanel/BomPanel';
 import { CatalogBrowser } from './ui/CatalogBrowser/CatalogBrowser';
 import { Inspector } from './ui/Inspector/Inspector';
@@ -52,7 +54,15 @@ const PlanOverlay = () => (
   </Overlay>
 );
 
-/** The canvas and, in 2D, the underlay under it and the overlay over it. */
+/** The 3D overlay: dimension lengths and the tool's labels and handles. */
+const ViewOverlay3d = () => (
+  <Overlay3d>
+    <PinnedDimensionLabels3d />
+    <ToolOverlay3d />
+  </Overlay3d>
+);
+
+/** The canvas, with (in 2D) the underlay under it, and the view's overlay over it. */
 const CanvasLayers = () => {
   const is2d = useViewMode() === '2d';
   return (
@@ -60,7 +70,7 @@ const CanvasLayers = () => {
       {/* Before the canvas, so it draws under the grid and walls. */}
       {is2d && <UnderlayLayer />}
       <PlanCanvas />
-      {is2d && <PlanOverlay />}
+      {is2d ? <PlanOverlay /> : <ViewOverlay3d />}
     </>
   );
 };
@@ -69,15 +79,13 @@ const CanvasLayers = () => {
  * Bars over the canvas, outside ToolHost so clicks on them never reach the tool. The
  * catalogue overlays the canvas edge, so the view doesn't jump when it opens.
  */
-const CanvasChrome = () =>
-  useViewMode() === '3d' ? (
-    <ViewBar />
-  ) : (
-    <>
-      <CatalogBrowser />
-      <ToolOptionsBar />
-    </>
-  );
+const CanvasChrome = () => (
+  <>
+    <CatalogBrowser />
+    <ToolOptionsBar />
+    {useViewMode() === '3d' && <ViewBar />}
+  </>
+);
 
 export const App = () => (
   <Provider store={sessionStore}>

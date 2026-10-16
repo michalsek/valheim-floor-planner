@@ -42,8 +42,8 @@ const LayerToggles = () => {
   );
 };
 
-/** The 2D cursor, zoom and snap step (meaningless in 3D). */
-const PlanReadouts = () => {
+/** The cursor on the plan (the work plane in 3D), the 2D zoom and the snap step. */
+const PlanReadouts = ({ is2d }: { is2d: boolean }) => {
   const cursor = useCursor();
   const { zoom } = useViewport();
   return (
@@ -53,7 +53,7 @@ const PlanReadouts = () => {
           ? `x ${formatNumber(cursor.snapped.x)}  z ${formatNumber(cursor.snapped.z)} m`
           : '—'}
       </span>
-      <span>{formatZoom(zoom)}</span>
+      {is2d && <span>{formatZoom(zoom)}</span>}
       <SnapStepPicker />
     </>
   );
@@ -66,7 +66,7 @@ export const StatusStrip = () => {
   return (
     <footer className={styles.strip}>
       <ViewToggle />
-      {is2d && <PlanReadouts />}
+      <PlanReadouts is2d={is2d} />
       <LayerToggles />
       <span className={styles.spacer} />
       <ThemePicker />
