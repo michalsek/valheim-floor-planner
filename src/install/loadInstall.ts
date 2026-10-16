@@ -16,6 +16,7 @@ import type { ExtractPhase } from '../gameData/valheim/extractCatalogue';
 import { hasLibrary, setLibrary } from '../store/libraryInstance';
 
 import { fileListDir, handleDir, pickDirectory, readPermission, type DirLike } from './directory';
+import { resolveDrop, type DroppedItem } from './dropFolder';
 import { asGameDataError } from './fileErrors';
 import { buildGuidOf, fingerprint } from './fingerprint';
 import {
@@ -234,6 +235,20 @@ export const chooseFolder = async (): Promise<void> => {
 /** Scans the files of a folder input (every browser); on success forgets any stored handle. */
 export const chooseFiles = (files: readonly File[]): Promise<void> =>
   scan(fileListDir(files), hasLibrary(), null);
+
+/**
+ * Scans a dropped folder. A readable handle is remembered like a picked folder; an
+ * entry-only drop (other browsers, or a folder Chromium refuses) forgets the stored one.
+ */
+export const chooseDrop = async (drop: DroppedItem): Promise<void> => {
+  setStatus({ kind: 'locating' });
+  try {
+    const { dir, handle: dropped } = await resolveDrop(drop);
+    await scan(dir, hasLibrary(), dropped);
+  } catch (error) {
+    fail(error);
+  }
+};
 
 /** Uses the cached catalogue without checking the folder. */
 export const openCachedCatalogue = (): void => {

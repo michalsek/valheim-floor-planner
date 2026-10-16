@@ -11,6 +11,7 @@ import {
 } from '../../install/loadInstall';
 import { ERROR_MESSAGES, formatScanDate, phaseLabel } from '../shared/installCopy';
 import { Row } from '../shared/PanelList';
+import { useFolderDrop } from '../shared/useFolderDrop';
 import { useFolderInput } from '../shared/useFolderInput';
 import { useInstall } from '../shared/useInstall';
 
@@ -53,6 +54,7 @@ export const InstallMenu = () => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const folderInput = useFolderInput((files) => void chooseFiles(files));
+  const { dragging, dropProps } = useFolderDrop();
   const busy = status.kind === 'locating' || status.kind === 'parsing';
 
   useEffect(() => {
@@ -88,7 +90,12 @@ export const InstallMenu = () => {
           : `${loaded.pieceCount} pieces · Unity ${loaded.unityVersion}`}
       </button>
       {open && (
-        <div className={styles.menu} role="dialog" aria-label="Game install">
+        <div
+          className={dragging ? `${styles.menu} ${styles.menuDragging}` : styles.menu}
+          role="dialog"
+          aria-label="Game install"
+          {...dropProps}
+        >
           <ul className={styles.menuList}>
             <Row label="Folder" value={loaded.folderName} />
             <Row label="Pieces" value={loaded.pieceCount} />
@@ -119,6 +126,9 @@ export const InstallMenu = () => {
               Change folder…
             </button>
           </div>
+          <p className={styles.menuNote}>
+            {dragging ? 'Drop to open this install' : 'Or drop a Valheim folder on this menu.'}
+          </p>
         </div>
       )}
       {folderInput.input}

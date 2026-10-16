@@ -74,6 +74,11 @@
   white-space: normal;
 }
 
+.menuDragging {
+  border: 2px dashed var(--accent);
+  background: var(--accent-soft);
+}
+
 .menuList {
   margin: 0;
   padding: 0;

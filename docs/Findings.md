@@ -403,3 +403,19 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     thickness within a family shows as uneven wall faces (true to the game);
     `PlacedPiece.base` is 0 for floors and means nothing there (M11 should define it).
 
+## From the M8 drag-and-drop follow-up
+
+1. **The macOS folder dialog failed in the user's test** (`~/Library` hidden or blocked,
+   `Valheim.app` treated as a file), so the gate (and the editor's install menu) accept
+   a dropped folder: `Valheim`, `Valheim.app`, `Contents`, `Resources` or `Data`.
+   `install/dropFolder.ts` captures the item synchronously, then tries Chromium's
+   `getAsFileSystemHandle()` (stored like a picked folder when it can be listed), else
+   `webkitGetAsEntry()` (any browser, this visit only; files are looked up by path,
+   never by listing the 4 GB folder).
+2. **`getAsFileSystemHandle()` can stay pending forever**: it never settled for
+   DevTools-synthesized drops, which would leave the gate stuck. It is raced against a
+   2 s timeout, then the entry is used. Whether a real Finder drop gives a usable handle
+   for `~/Library/Application Support/…` (so later visits only need a permission click)
+   is unverified.
+3. **A drop outside a drop target in the editor** (e.g. on the canvas) opens the folder
+   in a new tab, as browsers do by default. Only the open install menu takes drops.

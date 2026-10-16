@@ -10,9 +10,11 @@ import {
 } from '../../install/loadInstall';
 
 import { ERROR_MESSAGES, formatScanDate, PHASES } from '../shared/installCopy';
+import { useFolderDrop } from '../shared/useFolderDrop';
 import { useFolderInput } from '../shared/useFolderInput';
 import { useInstall } from '../shared/useInstall';
 
+import { DropZone } from './DropZone';
 import styles from './InstallGate.module.css';
 import { InstallPaths } from './InstallPaths';
 
@@ -128,9 +130,13 @@ const CachedOption = ({ info }: { info: InstallInfo }) => (
 export const InstallGate = () => {
   const { status, cached } = useInstall();
   const busy = status.kind === 'locating' || status.kind === 'parsing';
+  const { dragging, dropProps } = useFolderDrop();
 
   return (
-    <main className={styles.gate}>
+    <main
+      className={dragging ? `${styles.gate} ${styles.gateDragging}` : styles.gate}
+      {...dropProps}
+    >
       <div className={styles.card}>
         <h1 className={styles.title}>Open your Valheim install</h1>
         <p className={styles.lead}>
@@ -138,16 +144,18 @@ export const InstallGate = () => {
           your copy of Valheim. The files are read here in your browser; nothing is uploaded.
         </p>
         <StatusPanel status={status} />
+        {!busy && <DropZone dragging={dragging} />}
         {cached && !busy && <CachedOption info={cached} />}
         <InstallPaths />
         <section className={styles.section}>
           <h2 className={styles.heading}>If the browser won't open the folder</h2>
           <p className={styles.note}>
             Chrome refuses folders it treats as system folders, such as Program Files on Windows,
-            and it may refuse <code>~/Library</code> on macOS. Use “Select with upload dialog”
-            instead: it reads the same files. The browser calls it an upload and asks you to confirm
-            about a thousand files; nothing leaves your computer. Choose the Valheim folder itself,
-            not the whole Steam library, or listing the files takes much longer.
+            and the macOS dialog may not show <code>~/Library</code> or let you pick inside{' '}
+            <code>Valheim.app</code>. Dragging the folder onto this page works in every browser.
+            “Select with upload dialog” reads the same files too: the browser calls it an upload and
+            asks you to confirm about a thousand files, but nothing leaves your computer. Choose the
+            Valheim folder itself, not the whole Steam library.
           </p>
         </section>
       </div>

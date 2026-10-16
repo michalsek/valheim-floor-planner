@@ -1,5 +1,4 @@
-import { useState } from 'react';
-
+import { CopyButton } from './CopyButton';
 import styles from './InstallGate.module.css';
 
 const PLATFORMS = [
@@ -16,7 +15,8 @@ const PLATFORMS = [
   { id: 'linux', label: 'Linux', path: '~/.local/share/Steam/steamapps/common/Valheim' },
 ] as const;
 
-const userPlatform = (): string => {
+/** The platform this browser runs on, for ordering and tips. */
+export const userPlatform = (): string => {
   const agent = navigator.userAgent;
   if (/Mac/.test(agent)) return 'mac';
   if (/Win/.test(agent)) return 'win';
@@ -25,13 +25,8 @@ const userPlatform = (): string => {
 
 /** Where Steam puts Valheim on each platform (this one first), with copy buttons. */
 export const InstallPaths = () => {
-  const [copied, setCopied] = useState<string | null>(null);
   const mine = userPlatform();
   const platforms = [...PLATFORMS].sort((a, b) => Number(b.id === mine) - Number(a.id === mine));
-
-  const copy = (id: string, path: string) => {
-    void navigator.clipboard?.writeText(path).then(() => setCopied(id));
-  };
 
   return (
     <section className={styles.section}>
@@ -41,9 +36,7 @@ export const InstallPaths = () => {
           <li key={p.id} className={styles.path}>
             <span className={styles.platform}>{p.label}</span>
             <code className={styles.code}>{p.path}</code>
-            <button type="button" className={styles.copy} onClick={() => copy(p.id, p.path)}>
-              {copied === p.id ? 'Copied' : 'Copy'}
-            </button>
+            <CopyButton text={p.path} />
           </li>
         ))}
       </ul>
@@ -56,7 +49,8 @@ export const InstallPaths = () => {
         <p className={styles.note}>
           <code>~/Library</code> is hidden in the folder dialog: press <kbd>⌘</kbd>
           <kbd>⇧</kbd>
-          <kbd>G</kbd> and paste the path, or drag the Valheim folder in from Finder.
+          <kbd>G</kbd> and paste the path. If it still won't open, drag the folder in instead
+          (above).
         </p>
       )}
     </section>
