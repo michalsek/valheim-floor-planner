@@ -1,42 +1,29 @@
 import { useThree } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
-import { BoxGeometry, MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { materialColor } from '../catalog/materialColors';
 import { groundCourse } from '../model/types';
 import { useDisplayDerived } from '../store/planHooks';
+
+import { createSlabResources } from './slabResources';
 
 /** Gap left between neighbouring pieces, so seams show (metres). */
 const SEAM = 0.06;
 /** Slab height above the grid plane; walls stay opaque and above y = 0. */
 const SLAB = 0.1;
 
-/** Shared geometry and one material per piece material, created on demand. */
-const createResources = () => {
-  const geometry = new BoxGeometry(1, 1, 1);
-  const materials = new Map<string, MeshBasicNodeMaterial>();
-  const materialFor = (material: string) => {
-    let m = materials.get(material);
-    if (!m) {
-      m = new MeshBasicNodeMaterial({ color: materialColor(material) });
-      materials.set(material, m);
-    }
-    return m;
-  };
-  const dispose = () => {
-    geometry.dispose();
-    materials.forEach((m) => m.dispose());
-  };
-  return { geometry, materialFor, dispose };
-};
+const createResources = () =>
+  createSlabResources((material) => ({ color: materialColor(material), opacity: 1 }));
 
-/** The plan's ground-course wall pieces, as flat slabs (the bill counts every course). */
+/**
+ * The plan's ground-course wall pieces, as flat slabs (the bill counts every course).
+ * Openings leave their gap empty; floors have their own meshes.
+ */
 export const WallMeshes = () => {
   const { pieces } = useDisplayDerived();
   const invalidate = useThree((s) => s.invalidate);
   const [resources] = useState(createResources);
 
-  // As with the grid, StrictMode reuses disposed resources; three.js re-creates them.
   useEffect(() => () => resources.dispose(), [resources]);
   useEffect(() => {
     invalidate();
@@ -44,7 +31,7 @@ export const WallMeshes = () => {
 
   return (
     <group>
-      {groundCourse(pieces).map((piece) => (
+      {groundCourse(pieces.filter((p) => p.kind === 'wall')).map((piece) => (
         <mesh
           key={piece.key}
           geometry={resources.geometry}

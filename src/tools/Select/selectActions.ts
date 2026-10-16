@@ -1,7 +1,8 @@
 /** Selection edits shared by the Select tool's keys and the Inspector. */
+import { library } from '../../catalog';
 import { duplicateCommands, removeCommands, translateCommands } from '../../model/editCommands';
 import { newId } from '../../model/newId';
-import { allItems, itemsLabel } from '../../model/selection';
+import { allItems, itemsLabel, type Selection } from '../../model/selection';
 import type { PlanCommand } from '../../model/commands';
 import { selectionAtom } from '../../store/selection';
 import { snapStepAtom } from '../../store/session';
@@ -19,6 +20,15 @@ export const commitCommands = (
   return result.ok;
 };
 
+/**
+ * The step a move of `items` goes in: the snap step, but at least 1 m when floors or
+ * openings move. Floors stay on the metre grid their tiles need, and openings slide
+ * in whole metres, so a 0.5 m step would never move them. (`toolMinSnapAtom` does the
+ * same for the cursor of a tool that draws on that grid.)
+ */
+export const moveStep = (items: Selection, step: number): number =>
+  items.some((item) => item.kind === 'floor' || item.kind === 'opening') ? Math.max(step, 1) : step;
+
 export const clearSelection = (ctx: ToolContext): boolean => {
   if (ctx.get(selectionAtom).length === 0) return false;
   ctx.set(selectionAtom, []);
@@ -32,7 +42,8 @@ export const selectAll = (ctx: ToolContext): void => {
 export const deleteSelection = (ctx: ToolContext): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  commitCommands(ctx, itemsLabel('Delete', items), removeCommands(items));
+  const cmds = removeCommands(ctx.plan.getPlan(), items, library);
+  commitCommands(ctx, itemsLabel('Delete', items), cmds);
   return true;
 };
 
@@ -40,9 +51,9 @@ export const deleteSelection = (ctx: ToolContext): boolean => {
 export const nudgeSelection = (ctx: ToolContext, dx: number, dz: number): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  const step = ctx.get(snapStepAtom);
+  const step = moveStep(items, ctx.get(snapStepAtom));
   const d = { x: dx * step, z: dz * step };
-  commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d));
+  commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d, library));
   return true;
 };
 
@@ -50,8 +61,9 @@ export const nudgeSelection = (ctx: ToolContext, dx: number, dz: number): boolea
 export const duplicateSelection = (ctx: ToolContext): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  const step = ctx.get(snapStepAtom);
-  const copy = duplicateCommands(ctx.plan.getPlan(), items, { x: step, z: step }, newId);
+  const step = moveStep(items, ctx.get(snapStepAtom));
+  const d = { x: step, z: step };
+  const copy = duplicateCommands(ctx.plan.getPlan(), items, d, newId, library);
   if (commitCommands(ctx, itemsLabel('Duplicate', items), copy.cmds)) {
     ctx.set(selectionAtom, copy.items);
   }

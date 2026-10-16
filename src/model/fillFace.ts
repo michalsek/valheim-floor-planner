@@ -2,6 +2,8 @@
  * Fills a wall face (length × height, in metres) with whole pieces, "bands, largest
  * first": at each height, lay the tallest pieces that fit, longest first; fill what's
  * left of that band with shorter pieces, recursively. What can't be filled is reported.
+ * Holes (doors, gates) split the face into full-height strips between them, plus the
+ * part above each hole.
  */
 import type { WallPieceDef } from '../catalog/wallFamilies';
 
@@ -27,13 +29,35 @@ export interface FaceFill {
   unfilled: UnfilledRect[];
 }
 
+/** A gap in the face from the ground: `start` along the face, `width` long, `height` tall. */
+export interface FaceHole {
+  start: number;
+  width: number;
+  height: number;
+}
+
 export const fillFace = (
   pieces: readonly WallPieceDef[],
   length: number,
-  height: number
+  height: number,
+  holes: readonly FaceHole[] = []
 ): FaceFill => {
   const result: FaceFill = { placed: [], unfilled: [] };
-  fillRect(pieces, { offset: 0, base: 0, length, height }, result);
+  let from = 0;
+  for (const hole of [...holes].sort((a, b) => a.start - b.start)) {
+    const start = Math.max(hole.start, from);
+    const end = Math.min(hole.start + hole.width, length);
+    if (end - start < EPS) continue;
+    fillRect(pieces, { offset: from, base: 0, length: start - from, height }, result);
+    const top = Math.min(hole.height, height);
+    fillRect(
+      pieces,
+      { offset: start, base: top, length: end - start, height: height - top },
+      result
+    );
+    from = end;
+  }
+  fillRect(pieces, { offset: from, base: 0, length: length - from, height }, result);
   return result;
 };
 

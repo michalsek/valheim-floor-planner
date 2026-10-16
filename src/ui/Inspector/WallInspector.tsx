@@ -1,6 +1,5 @@
-import { catalog, wallFamilyById } from '../../catalog';
+import { wallFamilyById } from '../../catalog';
 import { formatMetres } from '../../format';
-import { computeBom } from '../../model/bom';
 import { runSegments } from '../../model/geometry/polyline';
 import type { WallId, WallRun } from '../../model/types';
 import { useDisplayDerived, useDisplayPlan } from '../../store/planHooks';
@@ -11,6 +10,8 @@ import { Row, Section } from '../shared/PanelList';
 
 import styles from './Inspector.module.css';
 import { InspectorTitle } from './InspectorTitle';
+import { ItemWarnings } from './ItemWarnings';
+import { PieceCost } from './PieceCost';
 
 /** The history label for a settings change from `WallSettingsFields`. */
 const changeLabel = (changes: Partial<WallSettings>): string => {
@@ -25,20 +26,21 @@ const settingsOf = ({ familyId, side, height }: WallRun): WallSettings => ({
   height,
 });
 
-/** A wall run: family, height and strip side (undoable), its segments and its pieces. */
+/**
+ * A wall run: family, height and strip side (undoable), its segments, and its pieces
+ * (its openings' included).
+ */
 export const WallInspector = ({ id }: { id: WallId }) => {
   const ctx = useToolContext();
-  const wall = useDisplayPlan().walls[id];
+  const plan = useDisplayPlan();
+  const wall = plan.walls[id];
   const { pieces } = useDisplayDerived();
   if (!wall) return null;
 
   const family = wallFamilyById.get(wall.familyId);
   const segs = runSegments(wall);
   const total = segs.reduce((sum, s) => sum + s.length, 0);
-  const bom = computeBom(
-    pieces.filter((p) => p.sourceId === id),
-    catalog
-  );
+  const own = (sourceId: string) => sourceId === id || plan.openings[sourceId]?.wallId === id;
 
   return (
     <>
@@ -52,19 +54,14 @@ export const WallInspector = ({ id }: { id: WallId }) => {
           }
         />
       </div>
+      <ItemWarnings item={{ kind: 'wall', id }} />
       <Section title={wall.closed ? 'Loop' : 'Run'}>
         {segs.map((seg, i) => (
           <Row key={i} label={`Segment ${i + 1}`} value={formatMetres(seg.length)} />
         ))}
         <Row label="Total" value={formatMetres(total)} />
       </Section>
-      {bom.pieces.length > 0 && (
-        <Section title="Pieces">
-          {bom.pieces.map((line) => (
-            <Row key={line.prefab} label={line.name} value={line.count} />
-          ))}
-        </Section>
-      )}
+      <PieceCost pieces={pieces.filter((p) => own(p.sourceId))} />
     </>
   );
 };

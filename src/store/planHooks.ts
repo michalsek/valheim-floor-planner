@@ -1,7 +1,7 @@
 import { useAtomValue } from 'jotai';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 
-import { catalog, wallFamilyById } from '../catalog';
+import { library } from '../catalog';
 import { derivePlan, type Derived } from '../model/derivePlan';
 import type { Plan } from '../model/types';
 
@@ -63,7 +63,7 @@ const derivedCache = new WeakMap<Plan, Derived>();
 export const getDerived = (plan: Plan): Derived => {
   let derived = derivedCache.get(plan);
   if (!derived) {
-    derived = derivePlan(plan, wallFamilyById, catalog);
+    derived = derivePlan(plan, library);
     derivedCache.set(plan, derived);
   }
   return derived;

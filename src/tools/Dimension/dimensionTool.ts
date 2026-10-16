@@ -86,6 +86,9 @@ export const dimensionTool: Tool = {
     ctx.set(dimensionDraftAtom, DIMENSION_IDLE);
     return true;
   },
+  onPointerLeave(ctx) {
+    ctx.set(hoverAtom, null);
+  },
   // `startSelectionSync` clears a hover whose dimension an undo removed.
   onDeactivate(ctx) {
     ctx.set(dimensionDraftAtom, DIMENSION_IDLE);

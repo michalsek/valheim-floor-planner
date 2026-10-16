@@ -1,3 +1,5 @@
+import type { SelectionItem } from './selection';
+
 /** A point or vector on the world plane, in metres. Screen right is +x, screen down is +z. */
 export type Vec2 = { x: number; z: number };
 
@@ -32,6 +34,30 @@ export interface Dimension {
   offset: number;
 }
 
+export type FloorId = string;
+
+/** A rectangle of floor tiles of one family, from `min` to `max` (x and z). */
+export interface Floor {
+  id: FloorId;
+  familyId: string;
+  min: Vec2;
+  max: Vec2;
+}
+
+export type OpeningId = string;
+
+/**
+ * A door, gate or grate cut into a wall. `at` is its centre on the wall's drawn line:
+ * a world point, not a segment index, so it survives normalisation, loop reversal and
+ * renumbering (the segment is worked out on every derive, see `resolveOpenings`).
+ */
+export interface Opening {
+  id: OpeningId;
+  wallId: WallId;
+  prefab: string;
+  at: Vec2;
+}
+
 /** The plan document: everything the user draws, and the only thing in undo history. */
 export interface Plan {
   version: 1;
@@ -39,6 +65,8 @@ export interface Plan {
   name: string;
   walls: Record<WallId, WallRun>;
   dimensions: Record<DimId, Dimension>;
+  floors: Record<FloorId, Floor>;
+  openings: Record<OpeningId, Opening>;
 }
 
 export const DEFAULT_PLAN_NAME = 'Untitled';
@@ -48,18 +76,21 @@ export const emptyPlan = (): Plan => ({
   name: DEFAULT_PLAN_NAME,
   walls: {},
   dimensions: {},
+  floors: {},
+  openings: {},
 });
 
 /** One game piece, derived from the plan (never stored). */
 export interface PlacedPiece {
   /** Stable within a derive: `${sourceId}:${segment}:${course}:${n}`. */
   key: string;
+  kind: 'wall' | 'floor' | 'opening';
   prefab: string;
   /** The prefab's material (e.g. 'wood', 'stone'); drives the plan colour. */
   material: string;
   /** Id of the plan object the piece was derived from. */
   sourceId: string;
-  /** Index of the run segment the piece belongs to. */
+  /** Index of the run segment the piece belongs to (0 for floor tiles). */
   segment: number;
   /** Course index, counted in the family's smallest piece height. */
   course: number;
@@ -69,6 +100,7 @@ export interface PlacedPiece {
   center: Vec2;
   /** Angle of the piece's length axis on the plane: `atan2(dz, dx)`. */
   rotation: number;
+  /** Size on the plane: along the length axis, and across it. */
   footprint: { length: number; thickness: number };
 }
 
@@ -77,7 +109,11 @@ export const groundCourse = (pieces: readonly PlacedPiece[]): PlacedPiece[] =>
   pieces.filter((piece) => piece.course === 0);
 
 export interface PlanWarning {
-  wallId: WallId;
+  /** The plan object the warning is about. */
+  source: SelectionItem;
+  /** The wall segment, for wall warnings. */
   segment: number | null;
   message: string;
+  /** 'info' notes something worth knowing that isn't wrong (a gate taller than its wall). */
+  level: 'warning' | 'info';
 }

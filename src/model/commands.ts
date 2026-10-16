@@ -2,7 +2,17 @@
 import { produce } from 'immer';
 
 import { samePoint } from './geometry/polyline';
-import type { Dimension, DimId, Plan, WallId, WallRun } from './types';
+import type {
+  Dimension,
+  DimId,
+  Floor,
+  FloorId,
+  Opening,
+  OpeningId,
+  Plan,
+  WallId,
+  WallRun,
+} from './types';
 
 export type PlanCommand =
   | { type: 'wall.insert'; wall: WallRun }
@@ -11,6 +21,12 @@ export type PlanCommand =
   | { type: 'dimension.insert'; dimension: Dimension }
   | { type: 'dimension.patch'; id: DimId; changes: Partial<Omit<Dimension, 'id'>> }
   | { type: 'dimension.remove'; id: DimId }
+  | { type: 'floor.insert'; floor: Floor }
+  | { type: 'floor.patch'; id: FloorId; changes: Partial<Omit<Floor, 'id'>> }
+  | { type: 'floor.remove'; id: FloorId }
+  | { type: 'opening.insert'; opening: Opening }
+  | { type: 'opening.patch'; id: OpeningId; changes: Partial<Omit<Opening, 'id'>> }
+  | { type: 'opening.remove'; id: OpeningId }
   | { type: 'plan.rename'; name: string }
   | { type: 'plan.replace'; plan: Plan };
 
@@ -22,6 +38,12 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'dimension.insert': 'Add dimension',
   'dimension.patch': 'Edit dimension',
   'dimension.remove': 'Delete dimension',
+  'floor.insert': 'Add floor',
+  'floor.patch': 'Edit floor',
+  'floor.remove': 'Delete floor',
+  'opening.insert': 'Add opening',
+  'opening.patch': 'Edit opening',
+  'opening.remove': 'Delete opening',
   'plan.rename': 'Rename plan',
   'plan.replace': 'Replace plan',
 };
@@ -32,6 +54,14 @@ export class PlanCommandError extends Error {
     this.name = 'PlanCommandError';
   }
 }
+
+const checkFloor = ({ min, max }: Floor): void => {
+  if (!(max.x > min.x && max.z > min.z)) throw new PlanCommandError('A floor needs an area');
+};
+
+const checkWall = (plan: Plan, wallId: WallId): void => {
+  if (!(wallId in plan.walls)) throw new PlanCommandError(`Wall "${wallId}" does not exist`);
+};
 
 /**
  * Applies `cmd` to an Immer draft. `plan.replace` returns the new plan instead, which
@@ -54,6 +84,10 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
     case 'wall.remove':
       if (!(cmd.id in draft.walls)) throw new PlanCommandError(`Wall "${cmd.id}" does not exist`);
       delete draft.walls[cmd.id];
+      // A wall takes its openings with it; one undo restores both.
+      for (const opening of Object.values(draft.openings)) {
+        if (opening.wallId === cmd.id) delete draft.openings[opening.id];
+      }
       return undefined;
     case 'dimension.insert':
       if (cmd.dimension.id in draft.dimensions) {
@@ -77,6 +111,44 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
         throw new PlanCommandError(`Dimension "${cmd.id}" does not exist`);
       }
       delete draft.dimensions[cmd.id];
+      return undefined;
+    case 'floor.insert':
+      if (cmd.floor.id in draft.floors) {
+        throw new PlanCommandError(`Floor "${cmd.floor.id}" already exists`);
+      }
+      checkFloor(cmd.floor);
+      draft.floors[cmd.floor.id] = cmd.floor;
+      return undefined;
+    case 'floor.patch': {
+      const floor = draft.floors[cmd.id];
+      if (!floor) throw new PlanCommandError(`Floor "${cmd.id}" does not exist`);
+      Object.assign(floor, cmd.changes);
+      checkFloor(floor);
+      return undefined;
+    }
+    case 'floor.remove':
+      if (!(cmd.id in draft.floors)) throw new PlanCommandError(`Floor "${cmd.id}" does not exist`);
+      delete draft.floors[cmd.id];
+      return undefined;
+    case 'opening.insert':
+      if (cmd.opening.id in draft.openings) {
+        throw new PlanCommandError(`Opening "${cmd.opening.id}" already exists`);
+      }
+      checkWall(draft, cmd.opening.wallId);
+      draft.openings[cmd.opening.id] = cmd.opening;
+      return undefined;
+    case 'opening.patch': {
+      const opening = draft.openings[cmd.id];
+      if (!opening) throw new PlanCommandError(`Opening "${cmd.id}" does not exist`);
+      Object.assign(opening, cmd.changes);
+      checkWall(draft, opening.wallId);
+      return undefined;
+    }
+    case 'opening.remove':
+      if (!(cmd.id in draft.openings)) {
+        throw new PlanCommandError(`Opening "${cmd.id}" does not exist`);
+      }
+      delete draft.openings[cmd.id];
       return undefined;
     case 'plan.rename': {
       const name = cmd.name.trim();

@@ -104,7 +104,7 @@ const snapCoordinates = (runs: readonly WallRun[]): ((p: Vec2) => Vec2) => {
   const points = runs.flatMap((run) => run.points);
   const xs = snapValues(points.map((p) => p.x));
   const zs = snapValues(points.map((p) => p.z));
-  return (p) => ({ x: xs.get(p.x)!, z: zs.get(p.z)! });
+  return (p) => ({ x: xs.get(p.x) ?? p.x, z: zs.get(p.z) ?? p.z });
 };
 
 const sources = (
@@ -125,9 +125,10 @@ const sources = (
       if (seg.length < EPS) return [];
       if (!horizontal && seg.a.x !== seg.b.x) {
         skipped.push({
-          wallId: run.id,
+          source: { kind: 'wall', id: run.id },
           segment,
           message: `Segment ${segment + 1} is diagonal, so rooms ignore it`,
+          level: 'warning',
         });
         return [];
       }
@@ -156,9 +157,13 @@ export const buildWallGraph = (
   for (const { seg, owner, cuts } of all) {
     const along = (p: Vec2) => (p.x - seg.a.x) * seg.dir.x + (p.z - seg.a.z) * seg.dir.z;
     const sorted = [...cuts].sort((p, q) => along(p) - along(q));
-    const stops = sorted.filter((p, i) => i === 0 || vertexKey(p) !== vertexKey(sorted[i - 1]!));
-    stops.slice(1).forEach((q, i) => {
-      const p = stops[i]!;
+    const stops = sorted.filter((p, i) => {
+      const prev = sorted[i - 1];
+      return !prev || vertexKey(p) !== vertexKey(prev);
+    });
+    stops.forEach((q, i) => {
+      const p = stops[i - 1];
+      if (!p) return;
       const kp = keyOf(p);
       const kq = keyOf(q);
       if (kp === kq) return;
@@ -196,8 +201,9 @@ export const overlapWarnings = (graph: WallGraph): PlanWarning[] => {
     }
   }
   return [...overlaps.values()].map(({ owner, length }) => ({
-    wallId: owner.wallId,
+    source: { kind: 'wall', id: owner.wallId },
     segment: owner.segment,
     message: `Segment ${owner.segment + 1} overlaps another wall for ${length.toFixed(2)} m: pieces counted twice`,
+    level: 'warning',
   }));
 };

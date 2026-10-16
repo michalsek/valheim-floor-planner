@@ -1,6 +1,8 @@
 import { activeToolIdAtom } from '../store/session';
 
 import { dimensionTool } from './Dimension/dimensionTool';
+import { floorTool } from './Floor/floorTool';
+import { openingTool } from './Opening/openingTool';
 import { rulerTool } from './Ruler/rulerTool';
 import { selectTool } from './Select/selectTool';
 import { TOOL_IDS, type ToolId } from './toolIds';
@@ -11,6 +13,8 @@ import { wallTool } from './Wall/wallTool';
 const TOOLS_BY_ID: Record<ToolId, Tool> = {
   select: selectTool,
   wall: wallTool,
+  floor: floorTool,
+  opening: openingTool,
   ruler: rulerTool,
   dimension: dimensionTool,
 };

@@ -121,3 +121,8 @@
 .historyRedo {
   color: var(--text-muted);
 }
+
+.info {
+  padding: 3px 0;
+  color: var(--text-muted);
+}

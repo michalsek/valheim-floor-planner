@@ -2,7 +2,7 @@ import styles from './Controls.module.css';
 
 interface SelectProps {
   label: string;
-  options: readonly { value: string; label: string }[];
+  options: readonly { value: string; label: string; disabled?: boolean }[];
   value: string;
   onChange(value: string): void;
 }
@@ -19,7 +19,7 @@ export const Select = ({ label, options, value, onChange }: SelectProps) => (
     }}
   >
     {options.map((option) => (
-      <option key={option.value} value={option.value}>
+      <option key={option.value} value={option.value} disabled={option.disabled ?? false}>
         {option.label}
       </option>
     ))}

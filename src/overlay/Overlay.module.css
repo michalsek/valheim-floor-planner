@@ -212,3 +212,64 @@
   stroke-width: 1.5px;
   stroke-opacity: 0.5;
 }
+
+.openingSymbol,
+.openingProblem,
+.openingSelected,
+.openingHover,
+.openingValid,
+.openingInvalid {
+  fill: none;
+  stroke-width: 1.25px;
+  stroke-linecap: round;
+}
+
+.openingSymbol {
+  stroke: var(--overlay-ink);
+  stroke-opacity: 0.85;
+}
+
+.openingProblem,
+.openingInvalid {
+  stroke: var(--overlay-danger);
+}
+
+.openingSelected,
+.openingHover {
+  stroke: var(--overlay-accent);
+}
+
+.openingSelected {
+  stroke-width: 2px;
+}
+
+.openingValid {
+  stroke: var(--overlay-ok);
+  stroke-width: 1.75px;
+}
+
+.openingDashed polyline {
+  stroke-dasharray: 3 3;
+}
+
+.openingSill {
+  stroke-opacity: 0.5;
+}
+
+.floorOutline {
+  fill: none;
+  stroke: var(--overlay-muted);
+  stroke-opacity: 0.5;
+  stroke-width: 1px;
+}
+
+.labelWarn {
+  fill: var(--warning);
+}
+
+.floorSeam {
+  fill: none;
+  stroke: var(--canvas-bg);
+  stroke-opacity: 0.7;
+  stroke-width: 1px;
+}

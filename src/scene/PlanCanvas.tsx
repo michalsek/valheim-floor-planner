@@ -9,6 +9,7 @@ import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
 import { CameraRig } from './CameraRig';
 import { createRenderer } from './createRenderer';
+import { FloorMeshes } from './FloorMeshes';
 import { GridPlane } from './GridPlane';
 import { WallMeshes } from './WallMeshes';
 
@@ -41,6 +42,7 @@ export const PlanCanvas = () => {
     >
       <CameraRig />
       <GridPlane />
+      <FloorMeshes />
       <WallMeshes />
     </Canvas>
   );

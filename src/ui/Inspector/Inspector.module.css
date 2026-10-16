@@ -38,3 +38,22 @@
 .delete:hover {
   background: var(--hover-bg);
 }
+
+.warnings {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.warning,
+.info {
+  padding: 2px 0;
+}
+
+.warning {
+  color: var(--warning);
+}
+
+.info {
+  color: var(--text-muted);
+}

@@ -169,7 +169,10 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       onDoubleClick={onDoubleClick}
       onPointerCancel={onPointerLost}
       onLostPointerCapture={onPointerLost}
-      onPointerLeave={() => ctx.set(pointerScreenAtom, null)}
+      onPointerLeave={() => {
+        ctx.set(pointerScreenAtom, null);
+        activeTool().onPointerLeave?.(ctx);
+      }}
       // Middle-button mousedown would start the browser's autoscroll.
       onMouseDown={(e) => e.button === MIDDLE_BUTTON && e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}

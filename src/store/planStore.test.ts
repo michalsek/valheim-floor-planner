@@ -86,4 +86,16 @@ describe('planStore', () => {
     store.load(emptyPlan());
     expect([store.canUndo(), store.canRedo()]).toEqual([false, false]);
   });
+
+  it('deletes a wall with its openings, and one undo restores both', () => {
+    const store = createPlanStore(emptyPlan());
+    store.dispatch({ type: 'wall.insert', wall: wall('a') });
+    const opening = { id: 'o', wallId: 'a', prefab: 'wood_door', at: { x: 1, z: 0 } };
+    store.dispatch({ type: 'opening.insert', opening });
+    store.dispatch({ type: 'wall.remove', id: 'a' });
+    expect(store.getPlan().openings).toEqual({});
+    store.undo();
+    expect(store.getPlan().openings).toEqual({ o: opening });
+    expect(ids(store)).toEqual(['a']);
+  });
 });

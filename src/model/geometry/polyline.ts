@@ -101,6 +101,16 @@ export const runSegments = (run: Pick<WallRun, 'points' | 'closed'>): Segment[] 
   return segments(points, run.closed && points.length > 2);
 };
 
+/** Whether a run is a real loop (as `runSegments` treats it): closed, with 3+ segments. */
+export const isLoop = (run: Pick<WallRun, 'closed'>, segs: readonly Segment[]): boolean =>
+  run.closed && segs.length > 2;
+
+/** The point `t` metres along a segment from its first point. */
+export const pointAlong = (seg: Pick<Segment, 'a' | 'dir'>, t: number): Vec2 => ({
+  x: seg.a.x + seg.dir.x * t,
+  z: seg.a.z + seg.dir.z * t,
+});
+
 /** `p` moved by `d`. */
 export const addVec = (p: Vec2, d: Vec2): Vec2 => ({ x: p.x + d.x, z: p.z + d.z });
 

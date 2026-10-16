@@ -143,11 +143,19 @@ const hasFaceSnapPoints = (piece: PieceDef): boolean => {
   );
 };
 
-const toOpening = (piece: PieceDef): WallOpeningDef => ({
+/** An opening's size: its snap extents, or its collider where it has no snap points. */
+export const toOpening = (piece: PieceDef): WallOpeningDef => ({
   prefab: piece.prefab,
   width: round2(snapExtent(piece, 'x') || (piece.colliderSize?.[0] ?? 0)),
   height: round2(snapExtent(piece, 'y') || (piece.colliderSize?.[1] ?? 0)),
 });
+
+/**
+ * How far a wall's pieces sit off the drawn line, towards `side`: half the strip for
+ * block walls (their face is on the line), none for panel walls (centred on it).
+ */
+export const stripOffset = (family: WallFamily): number =>
+  family.snapKind === 'face' ? family.thickness / 2 : 0;
 
 export const MAX_WALL_HEIGHT = 4;
 

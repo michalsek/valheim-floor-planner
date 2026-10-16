@@ -25,7 +25,7 @@ const planOf = (walls: WallRun[], dims: Plan['dimensions'] = {}): Plan => ({
 });
 
 const TOL = 0.1;
-const opts = { families: wallFamilyById, handlesFor: null, handleTol: 0.2 };
+const opts = { families: wallFamilyById, openings: [], handlesFor: null, handleTol: 0.2 };
 const at = (plan: Plan, x: number, z: number, handlesFor: string | null = null) =>
   hitTest(plan, { x, z }, TOL, { ...opts, handlesFor });
 

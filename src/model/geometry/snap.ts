@@ -5,7 +5,8 @@ export const SNAP_STEPS = [0.5, 1, 2] as const;
 export type SnapStep = (typeof SNAP_STEPS)[number];
 
 /** Rounds a coordinate to the nearest multiple of `step` (and turns -0 into 0). */
-const snapValue = (value: number, step: number): number => Math.round(value / step) * step + 0;
+export const snapValue = (value: number, step: number): number =>
+  Math.round(value / step) * step + 0;
 
 export const snapToGrid = (p: Vec2, step: number): Vec2 => ({
   x: snapValue(p.x, step),

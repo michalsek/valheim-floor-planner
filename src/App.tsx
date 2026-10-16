@@ -1,6 +1,8 @@
 import { Provider } from 'jotai';
 
 import styles from './App.module.css';
+import { FloorOutlines } from './overlay/FloorOutlines';
+import { OpeningSymbols } from './overlay/OpeningSymbols';
 import { Overlay } from './overlay/Overlay';
 import { PinnedDimensions } from './overlay/PinnedDimensions';
 import { RoomLabels } from './overlay/RoomLabels';
@@ -31,8 +33,10 @@ export const App = () => (
           <Overlay
             world={
               <>
+                <FloorOutlines />
                 <RoomOutlines />
                 <WallLines />
+                <OpeningSymbols />
                 <SelectionHighlight />
                 <ToolWorldPreview />
               </>

@@ -7,6 +7,8 @@ import { samePoint } from './geometry/polyline';
 import {
   DEFAULT_PLAN_NAME,
   type Dimension,
+  type Floor,
+  type Opening,
   type Plan,
   type Vec2,
   type WallRun,
@@ -25,6 +27,8 @@ export class PlanParseError extends Error {
 /** Hand-edited files beyond these would make the splitter crawl. */
 export const MAX_WALL_HEIGHT_M = 64;
 export const MAX_POINTS_PER_RUN = 10_000;
+/** Floors beyond this would make the tiler crawl. */
+export const MAX_FLOOR_SIDE_M = 512;
 
 function fail(path: string, expected: string): never {
   throw new PlanParseError(path, expected);
@@ -82,6 +86,35 @@ const parseDimension = (value: unknown, key: string, path: string): Dimension =>
   return { id, a, b, offset: asFinite(d.offset, `${path}.offset`) };
 };
 
+const parseFloor = (value: unknown, key: string, path: string): Floor => {
+  const f = asRecord(value, path);
+  const id = asString(f.id, `${path}.id`);
+  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+  const min = asPoint(f.min, `${path}.min`);
+  const max = asPoint(f.max, `${path}.max`);
+  if (!(max.x > min.x && max.z > min.z)) fail(`${path}.max`, 'a point beyond min on both axes');
+  if (max.x - min.x > MAX_FLOOR_SIDE_M || max.z - min.z > MAX_FLOOR_SIDE_M) {
+    fail(`${path}.max`, `sides of at most ${MAX_FLOOR_SIDE_M} m`);
+  }
+  return { id, familyId: asString(f.familyId, `${path}.familyId`), min, max };
+};
+
+const parseOpening =
+  (walls: Plan['walls']) =>
+  (value: unknown, key: string, path: string): Opening => {
+    const o = asRecord(value, path);
+    const id = asString(o.id, `${path}.id`);
+    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+    const wallId = asString(o.wallId, `${path}.wallId`);
+    if (!Object.hasOwn(walls, wallId)) fail(`${path}.wallId`, 'the id of a wall in the plan');
+    return {
+      id,
+      wallId,
+      prefab: asString(o.prefab, `${path}.prefab`),
+      at: asPoint(o.at, `${path}.at`),
+    };
+  };
+
 /** Parses each entry of an optional keyed collection (missing → `{}`). */
 const parseCollection = <T>(
   value: unknown,
@@ -102,10 +135,13 @@ const parseName = (value: unknown): string =>
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
   if (root.version !== 1) fail('$.version', '1');
+  const walls = parseCollection(root.walls, '$.walls', parseWall);
   return {
     version: 1,
     name: parseName(root.name),
-    walls: parseCollection(root.walls, '$.walls', parseWall),
+    walls,
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension),
+    floors: parseCollection(root.floors, '$.floors', parseFloor),
+    openings: parseCollection(root.openings, '$.openings', parseOpening(walls)),
   };
 };

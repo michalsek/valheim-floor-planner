@@ -11,7 +11,7 @@ import { RunPath } from './RunPath';
  */
 const FAR_ZOOM = 12;
 
-/** Thin lines along committed runs, plus solid footprints when zoomed far out. */
+/** Thin lines along committed runs, plus solid wall footprints when zoomed far out. */
 export const WallLines = () => {
   const { walls } = useDisplayPlan();
   const { pieces } = useDisplayDerived();
@@ -19,7 +19,13 @@ export const WallLines = () => {
 
   return (
     <g>
-      {zoom <= FAR_ZOOM && <PieceFootprints pieces={pieces} className={styles.pieceFar} solid />}
+      {zoom <= FAR_ZOOM && (
+        <PieceFootprints
+          pieces={pieces.filter((p) => p.kind === 'wall')}
+          className={styles.pieceFar}
+          solid
+        />
+      )}
       {Object.values(walls).map((wall) => (
         <RunPath
           key={wall.id}

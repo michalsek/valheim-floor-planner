@@ -74,6 +74,11 @@ export const selectTool: Tool = {
   onPointerMove: onSelectMove,
   onPointerUp: onSelectUp,
   onPointerCancel: cancelGesture,
+  onPointerLeave(ctx) {
+    if (ctx.get(selectGestureAtom).phase !== 'idle') return;
+    ctx.set(hoverAtom, null);
+    ctx.set(cursorStyleAtom, null);
+  },
   onKeyDown(e, ctx) {
     return ctx.get(selectGestureAtom).phase === 'idle' ? onIdleKey(e, ctx) : onGestureKey(e, ctx);
   },

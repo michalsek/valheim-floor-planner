@@ -4,9 +4,13 @@
  * member to `SelectionItem` and an entry there.
  */
 import { ITEM_KINDS, SELECTION_KINDS } from './itemKinds';
-import type { DimId, Plan, WallId } from './types';
+import type { DimId, FloorId, OpeningId, Plan, WallId } from './types';
 
-export type SelectionItem = { kind: 'wall'; id: WallId } | { kind: 'dimension'; id: DimId };
+export type SelectionItem =
+  | { kind: 'wall'; id: WallId }
+  | { kind: 'opening'; id: OpeningId }
+  | { kind: 'floor'; id: FloorId }
+  | { kind: 'dimension'; id: DimId };
 
 export type SelectionKind = SelectionItem['kind'];
 

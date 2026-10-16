@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { catalog, wallFamilyById } from '../catalog';
+import { library } from '../catalog';
 
 import { derivePlan } from './derivePlan';
-import type { Plan, WallRun } from './types';
+import { emptyPlan, type Plan, type WallRun } from './types';
 
 const wall = (familyId: string): WallRun => ({
   id: familyId,
@@ -20,13 +20,8 @@ const wall = (familyId: string): WallRun => ({
 });
 
 const derive = (...walls: WallRun[]) => {
-  const plan: Plan = {
-    version: 1,
-    name: 'Test',
-    walls: Object.fromEntries(walls.map((w) => [w.id, w])),
-    dimensions: {},
-  };
-  return derivePlan(plan, wallFamilyById, catalog);
+  const plan: Plan = { ...emptyPlan(), walls: Object.fromEntries(walls.map((w) => [w.id, w])) };
+  return derivePlan(plan, library);
 };
 
 describe('derivePlan', () => {
@@ -36,7 +31,7 @@ describe('derivePlan', () => {
 
   it('warns about an unknown family', () => {
     expect(derive(wall('marble')).warnings).toEqual([
-      expect.objectContaining({ wallId: 'marble', segment: null }),
+      expect.objectContaining({ source: { kind: 'wall', id: 'marble' }, segment: null }),
     ]);
   });
 });

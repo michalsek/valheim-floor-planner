@@ -168,3 +168,46 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    (M6 splits props across two tiers).
 10. **The right column order is PlanHeader, Inspector, BOM** (the plan had the Inspector
     first), so the name and file buttons don't jump when the selection empties.
+
+## From M5 implementation
+
+1. **No `geometry/rect.ts`.** Floors are `WorldBox`es (`min`/`max`), so `box.ts` gained
+   `boxSize`, `boxArea`, `boxIntersection`, `boxOutline` and an exported `pointInBox`
+   instead of a parallel `Rect` module.
+2. **One `Library` object** (`catalog/library.ts`, `library` in `catalog/index.ts`)
+   carries the catalogue, wall and floor families and opening defs. `derivePlan(plan,
+   lib)` and the edit commands take it, instead of a growing list of maps.
+3. **Item kinds get an `EditScope`** (`{ lib, items }`): an opening whose wall is in the
+   same edit leaves translate/remove/duplicate to the wall (no double patch, no double
+   remove). Duplicating an opening alone puts the copy right beside it (after, else
+   before) or makes no copy; `duplicateCommands` only selects copies that were made.
+4. **Picker family.** Hovering a wall switches the picker only when its family has
+   openings of its own; stone, log, scalewood and grausten walls keep the last list, which
+   is how a stone wall gets a wood door. The picker also has an explicit "For" family
+   select. The Inspector's prefab select lists every opening.
+5. **Opening slides keep their offset**: a slide moves the start by whole metres
+   (rounded symmetrically, so ← and → match) rather than re-snapping it, so an
+   Alt-placed opening stays off-grid; moves of a selection with openings go in steps of
+   at least 1 m. Openings sliding together don't block each other; if any opening of a
+   wall is refused, all of that wall's slides are, and a drag keeps their last valid
+   positions (mixed selections too).
+6. **Corner reserve follows corner ownership** (fix round): block walls keep `t` clear
+   only at ends where the strips overlap, where the corner column is inside the segment.
+7. **Warnings have `level` ('warning' | 'info') and `source`** (any item). The BOM panel
+   lists info in muted text; selecting a warning's source from the panel is still left
+   for later. The Inspector shows the warnings of the inspected item.
+8. **Floor legibility** (fix round): floor tiles are tinted 40 % material towards a
+   slightly lifted canvas tone (`#3a424d`, so black marble still shows) at 0.6 opacity,
+   checkered ±8 %, with 1 px SVG seams masked off under walls. The seams are hidden
+   below 8 px per tile.
+9. **Floor selection inside a room**: clicking an empty room interior selects the floor
+   under it (tier after walls). There is no way to box-select only walls of a floored
+   room in "touch" mode without also catching the floor.
+10. **The opening hover is stale after pan/zoom** until the pointer moves (as M3 finding
+    10 and M4 finding 4), since placement needs the plan and isn't a derived atom.
+11. **`stave_gate` (Timberwood Gate) is 6 m tall**, taller than any wall (max 4 m), so it
+    always cuts the full height with an info note; its resources include `Frostwood`,
+    which has no label in `items.ts`.
+12. **Floor seams sit in the overlay**, above the canvas, so they are masked by the wall
+    footprints; opening gaps are not masked, so seams show through a doorway (as they
+    should: the floor is there).

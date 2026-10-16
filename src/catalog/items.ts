@@ -12,6 +12,10 @@ const ITEM_LABELS: Record<string, string> = {
   Stone: 'Stone',
   Grausten: 'Grausten',
   BlackMarble: 'Black marble',
+  Iron: 'Iron',
+  Tar: 'Tar',
+  Gold: 'Gold',
+  FlametalNew: 'Flametal',
 };
 
 export const itemLabel = (id: string): string => ITEM_LABELS[id] ?? id;

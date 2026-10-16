@@ -2,10 +2,19 @@
  * Splits a wall run into game pieces. Panel walls are centred on the drawn line;
  * block walls put a face on it and fill a strip of their thickness on `run.side`.
  */
-import { minPieceHeight, type WallFamily } from '../catalog/wallFamilies';
+import { minPieceHeight, stripOffset, type WallFamily } from '../catalog/wallFamilies';
 
-import { fillFace } from './fillFace';
-import { cross, EPS, normalizeRun, segments, sideNormal, type Segment } from './geometry/polyline';
+import { fillFace, type FaceHole } from './fillFace';
+import {
+  addVec,
+  cross,
+  EPS,
+  isLoop,
+  pointAlong,
+  runSegments,
+  sideNormal,
+  type Segment,
+} from './geometry/polyline';
 import type { PlacedPiece, WallRun, WallSide } from './types';
 
 export type SplitIssue =
@@ -19,10 +28,25 @@ export interface SplitResult {
   issues: SplitIssue[];
 }
 
-export const splitWall = (run: WallRun, family: WallFamily): SplitResult => {
-  const points = normalizeRun(run.points, run.closed);
-  const closed = run.closed && points.length > 2;
-  const segs = segments(points, closed);
+/**
+ * An opening's gap: on `segment` (numbered as `runSegments` numbers them), `start`
+ * metres from the segment's first point along the drawn line.
+ */
+export interface WallCut {
+  segment: number;
+  start: number;
+  width: number;
+  height: number;
+}
+
+export const splitWall = (
+  run: WallRun,
+  family: WallFamily,
+  cuts: readonly WallCut[] = []
+): SplitResult => {
+  // The numbering cuts, hit tests and the Inspector use.
+  const segs = runSegments(run);
+  const closed = isLoop(run, segs);
   const courseHeight = minPieceHeight(family);
   const isBlock = family.snapKind === 'face';
   const t = family.thickness;
@@ -31,15 +55,18 @@ export const splitWall = (run: WallRun, family: WallFamily): SplitResult => {
   const issues: SplitIssue[] = [];
 
   segs.forEach((seg, index) => {
-    const { start, end } = isBlock ? blockSpan(segs, seg, index, closed, run.side, t) : NO_ADJUST;
+    const { start, end } = isBlock ? blockSpan(segs, index, closed, run.side, t) : NO_ADJUST;
     const length = seg.length + end - start;
     if (length < EPS) {
       issues.push({ kind: 'tooShort', segment: index });
       return;
     }
-    const fill = fillFace(family.pieces, length, run.height);
+    const holes: FaceHole[] = cuts
+      .filter((cut) => cut.segment === index)
+      .map((cut) => ({ start: cut.start - start, width: cut.width, height: cut.height }));
+    const fill = fillFace(family.pieces, length, run.height, holes);
     const normal = sideNormal(seg.dir, run.side);
-    const across = isBlock ? t / 2 : 0;
+    const across = stripOffset(family);
     const rotation = Math.atan2(seg.dir.z, seg.dir.x);
     const perCourse = new Map<number, number>();
 
@@ -50,6 +77,7 @@ export const splitWall = (run: WallRun, family: WallFamily): SplitResult => {
       perCourse.set(course, n + 1);
       pieces.push({
         key: `${run.id}:${index}:${course}:${n}`,
+        kind: 'wall',
         prefab: piece.prefab,
         material: family.material,
         sourceId: run.id,
@@ -57,10 +85,7 @@ export const splitWall = (run: WallRun, family: WallFamily): SplitResult => {
         course,
         base,
         height: piece.height,
-        center: {
-          x: seg.a.x + seg.dir.x * along + normal.x * across,
-          z: seg.a.z + seg.dir.z * along + normal.z * across,
-        },
+        center: addVec(pointAlong(seg, along), { x: normal.x * across, z: normal.z * across }),
         rotation,
         footprint: { length: piece.length, thickness: piece.thickness },
       });
@@ -75,32 +100,56 @@ export const splitWall = (run: WallRun, family: WallFamily): SplitResult => {
 
 const NO_ADJUST = { start: 0, end: 0 };
 
+/** The segments before and after segment `index`, where the run has them. */
+const neighbours = (
+  segs: readonly Segment[],
+  index: number,
+  closed: boolean
+): { prev: Segment | undefined; next: Segment | undefined } => {
+  const n = segs.length;
+  return {
+    prev: n > 1 && (closed || index > 0) ? segs[(index - 1 + n) % n] : undefined,
+    next: n > 1 && (closed || index < n - 1) ? segs[(index + 1) % n] : undefined,
+  };
+};
+
+/**
+ * What a block wall's strips do at a corner: 'overlap' where the turn is towards the
+ * strip side, 'gap' where it is away from it; null for a straight join or a run end.
+ */
+export type CornerKind = 'overlap' | 'gap' | null;
+
+const cornerKind = (dIn: Segment | undefined, dOut: Segment | undefined, side: WallSide) => {
+  if (!dIn || !dOut) return null;
+  const turn = cross(dIn.dir, dOut.dir);
+  if (Math.abs(turn) < EPS) return null;
+  return turn > 0 === (side === 'right') ? 'overlap' : 'gap';
+};
+
+/** The kind of corner at each end of segment `index`. */
+export const segmentCorners = (
+  segs: readonly Segment[],
+  index: number,
+  closed: boolean,
+  side: WallSide
+): { start: CornerKind; end: CornerKind } => {
+  const seg = segs[index];
+  const { prev, next } = neighbours(segs, index, closed);
+  return { start: cornerKind(prev, seg, side), end: cornerKind(seg, next, side) };
+};
+
 /**
  * Block-wall span adjustments at the segment's two corners. The incoming segment (in
- * drawing order) owns the corner column. Where the strips overlap (the turn is towards
- * the strip side) the outgoing one starts `t` later; where they leave a gap, the
- * incoming one runs on by `t`.
+ * drawing order) owns the corner column. Where the strips overlap the outgoing one
+ * starts `t` later; where they leave a gap, the incoming one runs on by `t`.
  */
 const blockSpan = (
   segs: readonly Segment[],
-  seg: Segment,
   index: number,
   closed: boolean,
   side: WallSide,
   t: number
 ): { start: number; end: number } => {
-  const n = segs.length;
-  const prev = n > 1 && (closed || index > 0) ? segs[(index - 1 + n) % n] : undefined;
-  const next = n > 1 && (closed || index < n - 1) ? segs[(index + 1) % n] : undefined;
-
-  /** True when the strips overlap at the corner, false for a gap, null when straight. */
-  const overlaps = (dIn: Segment, dOut: Segment): boolean | null => {
-    const turn = cross(dIn.dir, dOut.dir);
-    if (Math.abs(turn) < EPS) return null;
-    return turn > 0 === (side === 'right');
-  };
-
-  const startOverlap = prev ? overlaps(prev, seg) : null;
-  const endOverlap = next ? overlaps(seg, next) : null;
-  return { start: startOverlap === true ? t : 0, end: endOverlap === false ? t : 0 };
+  const corners = segmentCorners(segs, index, closed, side);
+  return { start: corners.start === 'overlap' ? t : 0, end: corners.end === 'gap' ? t : 0 };
 };

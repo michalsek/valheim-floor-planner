@@ -49,6 +49,8 @@ export interface Tool {
   onPointerUp?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** The pointer sequence ended without a pointer-up (cancel or lost capture). */
   onPointerCancel?(ctx: ToolContext): void;
+  /** The pointer left the canvas: drop hover state (a captured gesture goes on). */
+  onPointerLeave?(ctx: ToolContext): void;
   /** A double-click; its two pointer-downs have already reached `onPointerDown`. */
   onDoubleClick?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** Receives every key first (modified ones too); returns true when handled. */

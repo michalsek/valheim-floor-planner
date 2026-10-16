@@ -14,6 +14,8 @@ import { Row, Section } from '../shared/PanelList';
 
 import styles from './Inspector.module.css';
 import { InspectorTitle } from './InspectorTitle';
+import { FloorInspector } from './FloorInspector';
+import { OpeningInspector } from './OpeningInspector';
 import { WallInspector } from './WallInspector';
 
 const DimensionInspector = ({ id }: { id: DimId }) => {
@@ -35,6 +37,8 @@ const DimensionInspector = ({ id }: { id: DimId }) => {
 /** Each kind's inspector for one selected item; a missing kind fails to compile. */
 const INSPECTORS: { readonly [K in SelectionKind]: ComponentType<{ id: string }> } = {
   wall: WallInspector,
+  opening: OpeningInspector,
+  floor: FloorInspector,
   dimension: DimensionInspector,
 };
 

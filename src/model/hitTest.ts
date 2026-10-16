@@ -1,27 +1,39 @@
 /**
  * What is under a point, and what lies in a box, for selection.
- * `hitTest` tries tiers in order (vertex handle, dimension, wall) and the nearest
- * object within the first tier that has one wins. Later kinds add a tier to `TIERS`
- * (openings before walls, floors after).
+ * `hitTest` tries tiers in order (vertex handle, dimension, opening, wall, floor) and
+ * the nearest object within the first tier that has one wins. A new kind adds a tier
+ * to `TIERS` where it belongs (M6 puts small props before walls, large ones after).
  */
 import type { WallFamily } from '../catalog/wallFamilies';
 
-import { lineInBox, type BoxMode, type Polyline, type WorldBox } from './geometry/box';
+import {
+  boxArea,
+  lineInBox,
+  pointInBox,
+  type BoxMode,
+  type Polyline,
+  type WorldBox,
+} from './geometry/box';
 import { dimensionLine } from './geometry/dimension';
 import { distanceToSegment } from './geometry/measure';
 import { dot, runSegments, sideNormal } from './geometry/polyline';
 import { ITEM_KINDS } from './itemKinds';
+import type { ResolvedOpening } from './openings';
 import { allItems, type SelectionItem } from './selection';
-import type { Dimension, DimId, Plan, Vec2, WallId, WallRun } from './types';
+import type { Dimension, DimId, FloorId, OpeningId, Plan, Vec2, WallId, WallRun } from './types';
 import { wallExtents, type WallExtents } from './wallGraph';
 
 export type Hit =
   | { kind: 'vertex'; wallId: WallId; index: number }
   | { kind: 'dimension'; id: DimId; distance: number }
-  | { kind: 'wall'; id: WallId; segment: number; distance: number };
+  | { kind: 'opening'; id: OpeningId; distance: number }
+  | { kind: 'wall'; id: WallId; segment: number; distance: number }
+  | { kind: 'floor'; id: FloorId; area: number };
 
 export interface HitOptions {
   families: ReadonlyMap<string, WallFamily>;
+  /** The plan's openings, as derived. */
+  openings: readonly ResolvedOpening[];
   /** The wall whose vertices are drag handles (the single selected wall), if any. */
   handlesFor: WallId | null;
   /** Handle radius in metres. */
@@ -99,23 +111,87 @@ const dimensionTier: Tier = (plan, p, tol) => {
   return hit && { kind: 'dimension', ...hit };
 };
 
-const wallTier: Tier = (plan, p, tol, { families }) => {
+// An unknown family has no thickness; hit its drawn line only.
+const extentsOf = (run: WallRun, families: HitOptions['families']): WallExtents => {
+  const family = families.get(run.familyId);
+  return family ? wallExtents(run.side, family) : { left: 0, right: 0 };
+};
+
+/** The wall (and segment) under `p`: the nearest footprint within `tol`. */
+export const wallAt = (
+  plan: Plan,
+  p: Vec2,
+  tol: number,
+  families: HitOptions['families']
+): Extract<Hit, { kind: 'wall' }> | null => {
+  let best: Extract<Hit, { kind: 'wall' }> | null = null;
+  for (const run of Object.values(plan.walls)) {
+    const hit = hitWall(run, extentsOf(run, families), p, tol);
+    if (hit && (!best || hit.distance < best.distance)) best = { kind: 'wall', id: run.id, ...hit };
+  }
+  return best;
+};
+
+/** Without a size (off its wall, unknown prefab) an opening is hit this close to its anchor. */
+const LOOSE_OPENING_RADIUS = 0.5;
+
+/**
+ * An opening is hit over its width and its wall's footprint; one that resolves onto
+ * no segment, near its anchor.
+ */
+const hitOpening = (
+  plan: Plan,
+  o: ResolvedOpening,
+  p: Vec2,
+  tol: number,
+  families: HitOptions['families']
+): number | null => {
+  const rel = { x: p.x - o.center.x, z: p.z - o.center.z };
+  const run = plan.walls[o.wallId];
+  if (!o.def || o.segment === null || !run) {
+    const distance = Math.hypot(rel.x, rel.z);
+    return distance <= LOOSE_OPENING_RADIUS + tol ? distance : null;
+  }
+  const extents = extentsOf(run, families);
+  const along = dot(rel, o.dir);
+  const across = dot(rel, sideNormal(o.dir, 'right'));
+  const inside =
+    Math.abs(along) <= o.def.width / 2 + tol &&
+    across >= -extents.left - tol &&
+    across <= extents.right + tol;
+  return inside ? Math.abs(along) : null;
+};
+
+const openingTier: Tier = (plan, p, tol, { openings, families }) => {
   let best: Hit | null = null;
   let bestDistance = Infinity;
-  for (const run of Object.values(plan.walls)) {
-    const family = families.get(run.familyId);
-    // An unknown family has no thickness; hit its drawn line only.
-    const extents = family ? wallExtents(run.side, family) : { left: 0, right: 0 };
-    const hit = hitWall(run, extents, p, tol);
-    if (hit && hit.distance < bestDistance) {
-      best = { kind: 'wall', id: run.id, ...hit };
-      bestDistance = hit.distance;
+  for (const o of openings) {
+    const distance = hitOpening(plan, o, p, tol, families);
+    if (distance !== null && distance < bestDistance) {
+      best = { kind: 'opening', id: o.id, distance };
+      bestDistance = distance;
     }
   }
   return best;
 };
 
-const TIERS: readonly Tier[] = [vertexTier, dimensionTier, wallTier];
+const wallTier: Tier = (plan, p, tol, { families }) => wallAt(plan, p, tol, families);
+
+/** The smallest floor under `p`, so a floor laid over another can still be picked. */
+const floorTier: Tier = (plan, p) => {
+  let best: Hit | null = null;
+  let bestArea = Infinity;
+  for (const floor of Object.values(plan.floors)) {
+    const area = boxArea(floor);
+    if (pointInBox(p, floor) && area < bestArea) {
+      best = { kind: 'floor', id: floor.id, area };
+      bestArea = area;
+    }
+  }
+  return best;
+};
+
+const TIERS: readonly Tier[] = [vertexTier, dimensionTier, openingTier, wallTier, floorTier];
 
 /** The topmost thing under `p` (within `tol` metres), or null. */
 export const hitTest = (plan: Plan, p: Vec2, tol: number, opts: HitOptions): Hit | null => {

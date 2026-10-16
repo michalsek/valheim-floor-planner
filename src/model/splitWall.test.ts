@@ -3,17 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { wallFamilyById } from '../catalog';
 
 import { orientClockwise, signedArea } from './geometry/polyline';
-import { splitWall } from './splitWall';
+import { splitWall, type WallCut } from './splitWall';
 import type { Vec2, WallRun, WallSide } from './types';
 
 const run = (
   familyId: string,
   points: Vec2[],
   closed = false,
-  side: WallSide = 'right'
-): WallRun => ({ id: 'w', familyId, points, closed, side, height: 2 });
+  side: WallSide = 'right',
+  height = 2
+): WallRun => ({ id: 'w', familyId, points, closed, side, height });
 
-const split = (r: WallRun) => splitWall(r, wallFamilyById.get(r.familyId)!).pieces;
+const split = (r: WallRun, cuts: readonly WallCut[] = []) =>
+  splitWall(r, wallFamilyById.get(r.familyId)!, cuts).pieces;
 
 const groundLength = (r: WallRun) =>
   split(r)
@@ -111,5 +113,41 @@ describe('splitWall', () => {
     expect(oriented.side).toBe('right');
     expect(signedArea(oriented.points)).toBeGreaterThan(0);
     expect(groundLength(oriented)).toBeCloseTo(28);
+  });
+
+  describe('with an opening cut', () => {
+    const line = (familyId: string, length: number, height: number) =>
+      run(
+        familyId,
+        [
+          { x: 0, z: 0 },
+          { x: length, z: 0 },
+        ],
+        false,
+        'right',
+        height
+      );
+    const door = (start: number, width: number, height: number): WallCut[] => [
+      { segment: 0, start, width, height },
+    ];
+
+    it('leaves a 2 m wood door gap in an 8 × 2 wall: 3 ground pieces, none above', () => {
+      const pieces = split(line('wood', 8, 2), door(2, 2, 2));
+      expect(pieces.filter((p) => p.course === 0)).toHaveLength(3);
+      expect(pieces.every((p) => p.center.x < 2 || p.center.x > 4)).toBe(true);
+    });
+
+    it('fills the 2 m above a 2 m door in a 4 m stone wall', () => {
+      const above = split(line('stone', 8, 4), door(2, 2, 2)).filter(
+        (p) => p.center.x > 2 && p.center.x < 4
+      );
+      expect(above.reduce((sum, p) => sum + p.footprint.length * p.height, 0)).toBeCloseTo(4);
+      expect(Math.min(...above.map((p) => p.base))).toBe(2);
+    });
+
+    it('cuts a 3 m gate through the full height of a 2 m wall', () => {
+      const pieces = split(line('wood', 8, 2), door(2, 2, 3));
+      expect(pieces.some((p) => p.center.x > 2 && p.center.x < 4)).toBe(false);
+    });
   });
 });
