@@ -39,7 +39,7 @@ export const PlanActions = ({ undoRedo, canClear, onClear }: PlanActionsProps) =
         type="button"
         className={styles.action}
         disabled={!canClear}
-        title={canClear ? 'Remove every wall (undoable)' : 'The plan is empty'}
+        title={canClear ? 'Remove all walls and dimensions (undoable)' : 'The plan is empty'}
         onMouseDown={keepFocus}
         onClick={onClear}
       >

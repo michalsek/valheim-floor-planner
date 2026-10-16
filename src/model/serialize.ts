@@ -2,7 +2,8 @@
  * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
  * throws on a bad shape. Collections added by later milestones default to `{}`.
  */
-import type { Plan, Vec2, WallRun, WallSide } from './types';
+import { samePoint } from './geometry/polyline';
+import type { Dimension, Plan, Vec2, WallRun, WallSide } from './types';
 
 export const serializePlan = (plan: Plan): string => JSON.stringify(plan);
 
@@ -63,14 +64,35 @@ const parseWall = (value: unknown, key: string, path: string): WallRun => {
   };
 };
 
+const parseDimension = (value: unknown, key: string, path: string): Dimension => {
+  const d = asRecord(value, path);
+  const id = asString(d.id, `${path}.id`);
+  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+  const a = asPoint(d.a, `${path}.a`);
+  const b = asPoint(d.b, `${path}.b`);
+  if (samePoint(a, b)) fail(`${path}.b`, 'a point other than a');
+  return { id, a, b, offset: asFinite(d.offset, `${path}.offset`) };
+};
+
+/** Parses each entry of an optional keyed collection (missing → `{}`). */
+const parseCollection = <T>(
+  value: unknown,
+  path: string,
+  parse: (item: unknown, key: string, path: string) => T
+): Record<string, T> =>
+  Object.fromEntries(
+    Object.entries(asRecord(value ?? {}, path)).map(([key, item]) => [
+      key,
+      parse(item, key, `${path}.${key}`),
+    ])
+  );
+
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
   if (root.version !== 1) fail('$.version', '1');
-  const walls = asRecord(root.walls ?? {}, '$.walls');
   return {
     version: 1,
-    walls: Object.fromEntries(
-      Object.entries(walls).map(([key, w]) => [key, parseWall(w, key, `$.walls.${key}`)])
-    ),
+    walls: parseCollection(root.walls, '$.walls', parseWall),
+    dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension),
   };
 };

@@ -16,6 +16,9 @@
   --overlay-ink: #f3f5f8;
   --overlay-muted: #b9c3cf;
   --overlay-warning: #6fc3ff;
+  --overlay-ok: #8fd18b;
+  --overlay-danger: #ff7a6b;
+  --overlay-pinned: #9fb4ff;
 
   --rail-width: 52px;
   --status-height: 30px;

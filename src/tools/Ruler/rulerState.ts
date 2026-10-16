@@ -8,7 +8,4 @@ export type RulerState =
 
 export const RULER_IDLE: RulerState = { phase: 'idle' };
 
-/** Shorter measurements count as "no measurement yet". */
-export const MIN_RULER_LENGTH = 1e-6;
-
 export const rulerAtom = atom<RulerState>(RULER_IDLE);

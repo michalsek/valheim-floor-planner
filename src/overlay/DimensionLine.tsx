@@ -1,4 +1,5 @@
 import { formatDelta, formatMetres } from '../format';
+import { dimensionLine } from '../model/geometry/dimension';
 import { measure } from '../model/geometry/measure';
 import type { Vec2 } from '../model/types';
 import type { ScreenPoint } from '../viewport/viewportMath';
@@ -8,20 +9,45 @@ import { useWorldToScreen } from './useWorldToScreen';
 
 const TICK = 6;
 const LABEL_OFFSET = 14;
+/** Extension lines run this far past the dimension line. */
+const OVERSHOOT = 4;
+
+/** live: being measured; pinned: stored in the plan; danger: a click deletes it. */
+type DimensionTone = 'live' | 'pinned' | 'danger';
+
+const TONE_CLASS: Record<DimensionTone, string> = {
+  live: '',
+  pinned: styles.tonePinned ?? '',
+  danger: styles.toneDanger ?? '',
+};
 
 interface DimensionLineProps {
   a: Vec2;
   b: Vec2;
+  /** Draws the line this many metres to the right of a→b, with extension lines. */
+  offset?: number;
   /** Show Δx/Δz below the line (noise for axis-aligned lines). */
   showDelta?: boolean;
+  tone?: DimensionTone;
 }
 
-/** Dimension line from `a` to `b` with end ticks, a length label above and Δx/Δz below. */
-export const DimensionLine = ({ a, b, showDelta = true }: DimensionLineProps) => {
+/**
+ * Dimension line for `a`→`b` with end ticks, a length label above and Δx/Δz below.
+ * With an offset, the line is moved aside and extension lines lead back to the points.
+ */
+export const DimensionLine = ({
+  a,
+  b,
+  offset = 0,
+  showDelta = true,
+  tone = 'live',
+}: DimensionLineProps) => {
   const toScreen = useWorldToScreen();
-  const sa = toScreen(a);
-  const sb = toScreen(b);
+  const line = dimensionLine({ a, b, offset });
+  const sa = toScreen(line.a);
+  const sb = toScreen(line.b);
   const { length, dx, dz } = measure(a, b);
+  const toneClass = TONE_CLASS[tone];
 
   const angle = Math.atan2(sb.y - sa.y, sb.x - sa.x);
   // Unit perpendicular to the line, for the end ticks.
@@ -35,19 +61,25 @@ export const DimensionLine = ({ a, b, showDelta = true }: DimensionLineProps) =>
 
   return (
     <g>
-      <line className={styles.dimLine} x1={sa.x} y1={sa.y} x2={sb.x} y2={sb.y} />
-      <Tick at={sa} perp={perp} />
-      <Tick at={sb} perp={perp} />
+      {offset !== 0 && (
+        <>
+          <Extension from={toScreen(a)} to={sa} className={toneClass} />
+          <Extension from={toScreen(b)} to={sb} className={toneClass} />
+        </>
+      )}
+      <line className={`${styles.dimLine} ${toneClass}`} x1={sa.x} y1={sa.y} x2={sb.x} y2={sb.y} />
+      <Tick at={sa} perp={perp} className={toneClass} />
+      <Tick at={sb} perp={perp} className={toneClass} />
       <Label
-        className={styles.label}
-        at={offset(mid, up, LABEL_OFFSET)}
+        className={tone === 'danger' ? `${styles.label} ${styles.labelDanger}` : styles.label}
+        at={shift(mid, up, LABEL_OFFSET)}
         deg={textDeg}
         text={formatMetres(length)}
       />
       {showDelta && (
         <Label
           className={styles.labelSecondary}
-          at={offset(mid, up, -LABEL_OFFSET)}
+          at={shift(mid, up, -LABEL_OFFSET)}
           deg={textDeg}
           text={formatDelta(dx, dz)}
         />
@@ -56,9 +88,41 @@ export const DimensionLine = ({ a, b, showDelta = true }: DimensionLineProps) =>
   );
 };
 
-const Tick = ({ at, perp }: { at: ScreenPoint; perp: ScreenPoint }) => (
+/** From a measured point to just past the dimension line. */
+const Extension = ({
+  from,
+  to,
+  className,
+}: {
+  from: ScreenPoint;
+  to: ScreenPoint;
+  className: string;
+}) => {
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (length < 1) return null;
+  const end = shift(to, { x: (to.x - from.x) / length, y: (to.y - from.y) / length }, OVERSHOOT);
+  return (
+    <line
+      className={`${styles.dimLine} ${styles.extension} ${className}`}
+      x1={from.x}
+      y1={from.y}
+      x2={end.x}
+      y2={end.y}
+    />
+  );
+};
+
+const Tick = ({
+  at,
+  perp,
+  className,
+}: {
+  at: ScreenPoint;
+  perp: ScreenPoint;
+  className: string;
+}) => (
   <line
-    className={styles.tick}
+    className={`${styles.tick} ${className}`}
     x1={at.x - perp.x * TICK}
     y1={at.y - perp.y * TICK}
     x2={at.x + perp.x * TICK}
@@ -92,7 +156,7 @@ const readableAngle = (angle: number): number => {
   return angle;
 };
 
-const offset = (p: ScreenPoint, dir: ScreenPoint, distance: number): ScreenPoint => ({
+const shift = (p: ScreenPoint, dir: ScreenPoint, distance: number): ScreenPoint => ({
   x: p.x + dir.x * distance,
   y: p.y + dir.y * distance,
 });

@@ -18,6 +18,7 @@ const plan: Plan = {
       height: 2,
     },
   },
+  dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: -1.5 } },
 };
 
 describe('serialize', () => {
@@ -25,10 +26,17 @@ describe('serialize', () => {
     expect(parsePlan(JSON.parse(serializePlan(plan)))).toEqual(plan);
   });
 
-  it.each([null, [], { version: 2, walls: {} }, { version: 1, walls: { a: { id: 'a' } } }])(
-    'rejects %j',
-    (raw) => {
-      expect(() => parsePlan(raw)).toThrow();
-    }
-  );
+  it('defaults a missing dimensions collection to {}', () => {
+    expect(parsePlan({ version: 1, walls: {} }).dimensions).toEqual({});
+  });
+
+  it.each([
+    null,
+    [],
+    { version: 2, walls: {} },
+    { version: 1, walls: { a: { id: 'a' } } },
+    { version: 1, dimensions: { d: { id: 'd', a: { x: 1, z: 1 }, b: { x: 1, z: 1 }, offset: 0 } } },
+  ])('rejects %j', (raw) => {
+    expect(() => parsePlan(raw)).toThrow();
+  });
 });

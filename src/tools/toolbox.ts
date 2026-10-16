@@ -1,5 +1,6 @@
 import { activeToolIdAtom } from '../store/session';
 
+import { dimensionTool } from './Dimension/dimensionTool';
 import { rulerTool } from './Ruler/rulerTool';
 import { selectTool } from './Select/selectTool';
 import { TOOL_IDS, type ToolId } from './toolIds';
@@ -11,6 +12,7 @@ const TOOLS_BY_ID: Record<ToolId, Tool> = {
   select: selectTool,
   wall: wallTool,
   ruler: rulerTool,
+  dimension: dimensionTool,
 };
 
 /** Tools in ToolRail order. */

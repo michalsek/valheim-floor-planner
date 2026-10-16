@@ -20,7 +20,11 @@ const wall = (familyId: string): WallRun => ({
 });
 
 const derive = (...walls: WallRun[]) => {
-  const plan: Plan = { version: 1, walls: Object.fromEntries(walls.map((w) => [w.id, w])) };
+  const plan: Plan = {
+    version: 1,
+    walls: Object.fromEntries(walls.map((w) => [w.id, w])),
+    dimensions: {},
+  };
   return derivePlan(plan, wallFamilyById, catalog);
 };
 

@@ -98,3 +98,39 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 13. **Shared controls live in `src/controls/`.** Both `tools/` and `ui/` use them, which
     avoids a `tools` ↔ `ui` import cycle (`ui` already imports `tools`). The snap picker
     now uses `SegmentedControl` too, so its buttons got a 28 px minimum width.
+
+## From M3 implementation
+
+1. **Piece dedup is still per run.** Overlapping walls now get a "pieces counted twice"
+   warning (on the later-drawn run), but the BOM still counts both, and block-wall
+   T-junctions still double the shared 1 × 1 column. Fixing it needs graph-based
+   splitting instead of `splitWall` per run.
+2. **Roof span is per room.** A longhouse split by an inner wall shows two spans; the
+   badge is really a building/wing property (needs rectangle decomposition). For block
+   walls the bearing line also depends on the strip side; we use the grid span.
+3. **Courtyards count as rooms.** An "outdoor" flag would come with M4's inspector.
+   *(Fix round: clear floors are now exact region maths, the face minus every wall's
+   strip, instead of an inset ring. A neck too narrow for its walls splits the clear
+   floor into pieces (areas summed, label in the roomiest piece) rather than
+   collapsing the whole room or self-intersecting.)*
+4. **Footprint and outer sizes are exact unions** of the enclosed area and the wall
+   strips (plus corner boxes), so pinch vertices and notches narrower than the walls'
+   outward reach are no longer over- or under-counted. *(Fix round: replaces the
+   outward ring offset.)*
+5. **Only enclosures are buildings.** A free-standing wall or an open U adds no
+   footprint (the plan's "per-component outer face" would have counted fences).
+6. **Room labels are measured with canvas `measureText`** in the overlay's font
+   (cached). The font sizes are duplicated between `RoomLabels.tsx` and the CSS.
+7. **Label spot prefers wide rectangles** (depth weighted ×3), so an L's label sits in
+   the wide arm rather than the deeper but narrow one.
+8. **The clear outline is hard to see over the meshes**: it coincides with the walls'
+   inner faces by definition. It's useful when zoomed far out (and in the stepped
+   mixed-material case); a fill tint might read better.
+9. **Diagonal walls** (only from hand-edited files) are skipped by the room logic with a
+   warning.
+10. **Dimension tool hover is stale after pan/zoom** until the pointer moves (the tool
+    only hears pointer events); it is cleared on plan changes. M4's shared `hoverAtom`
+    can recompute on viewport changes. Dimension selection and moving are left for M4.
+11. **Region maths cost.** Clear floors subtract the whole plan's wall solid per room
+    (O(slabs × intervals)). Fine at house scale; clip the solid to each room's box if
+    big plans get slow.

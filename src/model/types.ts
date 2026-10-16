@@ -21,13 +21,25 @@ export interface WallRun {
   height: number;
 }
 
+export type DimId = string;
+
+/** A pinned measurement from `a` to `b`, drawn `offset` metres to the right of a→b. */
+export interface Dimension {
+  id: DimId;
+  a: Vec2;
+  b: Vec2;
+  /** Signed distance along `sideNormal(b − a, 'right')`. */
+  offset: number;
+}
+
 /** The plan document: everything the user draws, and the only thing in undo history. */
 export interface Plan {
   version: 1;
   walls: Record<WallId, WallRun>;
+  dimensions: Record<DimId, Dimension>;
 }
 
-export const emptyPlan = (): Plan => ({ version: 1, walls: {} });
+export const emptyPlan = (): Plan => ({ version: 1, walls: {}, dimensions: {} });
 
 /** One game piece, derived from the plan (never stored). */
 export interface PlacedPiece {

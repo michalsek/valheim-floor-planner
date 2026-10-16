@@ -2,6 +2,9 @@ import { Provider } from 'jotai';
 
 import styles from './App.module.css';
 import { Overlay } from './overlay/Overlay';
+import { PinnedDimensions } from './overlay/PinnedDimensions';
+import { RoomLabels } from './overlay/RoomLabels';
+import { RoomOutlines } from './overlay/RoomOutlines';
 import { SnapCursor } from './overlay/SnapCursor';
 import { WallLines } from './overlay/WallLines';
 import { PlanCanvas } from './scene/PlanCanvas';
@@ -25,11 +28,14 @@ export const App = () => (
           <Overlay
             world={
               <>
+                <RoomOutlines />
                 <WallLines />
                 <ToolWorldPreview />
               </>
             }
           >
+            <RoomLabels />
+            <PinnedDimensions />
             <ToolPreview />
             <SnapCursor />
           </Overlay>

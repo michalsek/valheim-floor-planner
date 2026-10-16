@@ -93,3 +93,60 @@
   stroke-width: 2px;
   stroke-linejoin: miter;
 }
+
+.roomOutline {
+  fill: none;
+  stroke: var(--overlay-muted);
+  stroke-opacity: 0.6;
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+}
+
+.roomLabel,
+.roofOk,
+.roofWarn {
+  stroke: var(--canvas-bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.roomLabel {
+  fill: var(--overlay-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.roofOk,
+.roofWarn {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.roofOk {
+  fill: var(--overlay-ok);
+}
+
+.roofWarn {
+  fill: var(--warning);
+}
+
+.extension {
+  stroke-width: 1px;
+  stroke-opacity: 0.7;
+}
+
+.tonePinned {
+  stroke: var(--overlay-pinned);
+}
+
+.toneDanger {
+  stroke: var(--overlay-danger);
+}
+
+.labelDanger {
+  fill: var(--overlay-danger);
+}
