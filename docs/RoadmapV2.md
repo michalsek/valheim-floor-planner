@@ -9,6 +9,8 @@ This builds on v1 (M1–M7, see [Roadmap.md](Roadmap.md)). The stack and princip
 
 **Workflow per milestone:** a detail planner, then an implementer, then one combined QA + code-review agent, then a fix round by the same implementer. This is leaner than v1's separate QA and review agents.
 
+**Review rule:** after each visual milestone (M9, M10, M11), pause for the user's visual review before the next milestone's implementation.
+
 **Budget rule:** check weekly usage at every agent hand-off. Stop starting new agents at about 90% so the user can apply their reset.
 
 ## M8: Game files parsed in the browser, editor gated on a real install
@@ -48,7 +50,7 @@ This builds on v1 (M1–M7, see [Roadmap.md](Roadmap.md)). The stack and princip
 
 ## M11: Verticality and structural integrity
 
-- **Levels:** elevation steps of ±0.5 m (the game's smallest vertical step), using level up/down controls.
+- **Levels:** elevation steps via level up/down controls. The user says 1 m is the smallest practical step without free placement, so plan **1 m by default**. Note that 0.5 m-tall pieces exist (log beam 2×0.5 m, grausten floors 0.5 m thick); the planner decides whether 0.5 m stays as an option.
   - Each entity gets an elevation or level.
   - Editing happens on a work plane at the current level, and the levels below are shown as ghosts.
   - Rooms and the bill of materials are worked out per level.
@@ -64,7 +66,12 @@ This builds on v1 (M1–M7, see [Roadmap.md](Roadmap.md)). The stack and princip
 
 - Roof tools for thatch, darkwood shingle and grausten, at 26°, 45° and 67°, using the extracted roof pieces: straight, inner and outer corners, ridges.
 - Simple gable and hip roofs over a selected room or building.
-- Overhangs are supported. **Ask the user how players build overhangs** before finalising the design.
+- Overhangs are supported. This is how the user builds them in-game:
+  - **Framing:** with **1 m log beams** (`wood_beam_1` / log pieces). 1 m is the smallest step without free placement.
+  - **26° roof:** the eave sits **1 m out from the wall**, measured perpendicular to it, and the roof also runs **1 m past the building's end**, so the gable overhangs too.
+  - **45° roof:** the eave sits **1 m out, 1 m down** from the top edge of the wall, and also **1 m past the building's end**. So the corner gets a 1 × 1 × 1 m bracket: one horizontal log out from the corner and one vertical log down.
+  - Reference screenshot: the user's `images/4.webp`, kept in the session (a red bracket sketch on an in-game roof corner).
+- Overhang pieces (the logs and the roof pieces past the walls) count toward the bill of materials and toward support.
 - Roof pieces count toward the bill of materials and toward support.
 
 ## M13 (optional, plan only): Loading game world saves
