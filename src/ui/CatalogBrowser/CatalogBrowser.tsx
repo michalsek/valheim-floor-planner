@@ -2,7 +2,7 @@ import { useAtom } from 'jotai';
 import { useMemo, useRef } from 'react';
 
 import { library, propDefs } from '../../catalog';
-import { groupColor } from '../../catalog/groupColors';
+import { groupVar } from '../../catalog/groupColors';
 import {
   filterProps,
   GROUP_LABELS,
@@ -39,7 +39,7 @@ const CatalogRow = ({ def, armed, onArm }: { def: PropDef; armed: boolean; onArm
         onMouseDown={keepFocus}
         onClick={onArm}
       >
-        <span className={styles.swatch} style={{ background: groupColor(def.group) }} />
+        <span className={styles.swatch} style={{ background: groupVar(def.group) }} />
         <span className={styles.names}>
           <span className={styles.name}>{def.name}</span>
           {def.namePl !== def.name && <span className={styles.namePl}>{def.namePl}</span>}

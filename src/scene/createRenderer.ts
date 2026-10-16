@@ -9,7 +9,7 @@ import type { RendererBackend } from '../store/session';
  *
  * r3f passes its default renderer props (the canvas, alpha, power preference…) typed
  * for `WebGLRenderer`; they're compatible, hence the cast. The canvas stays
- * transparent, so the page's `--canvas-bg` shows through.
+ * transparent, so the page's `--canvas` shows through.
  */
 export const createRenderer =
   (onBackend: (backend: Exclude<RendererBackend, 'pending'>) => void) =>

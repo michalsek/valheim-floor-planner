@@ -54,6 +54,7 @@ export const WallSettingsFields = ({
       {family && (
         <Field label="Height" suffix="m">
           <SegmentedControl
+            label="Wall height"
             options={wallHeightOptions(family).map((h) => ({
               value: h,
               label: formatNumber(h, Number.isInteger(h) ? 0 : 1),

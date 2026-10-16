@@ -11,8 +11,10 @@ import styles from './Overlay.module.css';
 
 /**
  * The reference image, in its own SVG under the (transparent) plan canvas, so the grid
- * and walls draw over it. A dashed box says "Image missing" when its blob is gone
- * (a file opened without the embedded image, or storage cleared).
+ * and walls draw over it. The light theme multiplies it onto the canvas
+ * (`--underlay-blend`), so a white image background doesn't read as a slab. A dashed
+ * box says "Image missing" when its blob is gone (a file opened without the embedded
+ * image, or storage cleared).
  */
 export const UnderlayLayer = () => {
   const underlay = useDisplayPlan().underlay;
@@ -29,7 +31,13 @@ export const UnderlayLayer = () => {
     <svg className={styles.overlay} aria-hidden>
       <g transform={overlayTransform(viewport, size)}>
         {image.state === 'ready' && (
-          <image href={image.url} {...box} preserveAspectRatio="none" opacity={underlay.opacity} />
+          <image
+            className={styles.underlayImage}
+            href={image.url}
+            {...box}
+            preserveAspectRatio="none"
+            opacity={underlay.opacity}
+          />
         )}
         {image.state === 'missing' && (
           <rect className={styles.underlayMissing} {...box} vectorEffect="non-scaling-stroke" />

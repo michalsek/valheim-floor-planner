@@ -111,7 +111,7 @@ const toneFor = (o: ResolvedOpening, selection: Selection, hover: Hit | null) =>
 };
 
 /**
- * Every opening's symbol (world layer): the accent colour when selected or hovered,
+ * Every opening's symbol (world layer): the selection colour when selected or hovered,
  * the danger colour when it has a problem (and isn't cut).
  */
 export const OpeningSymbols = () => {

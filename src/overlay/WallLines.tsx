@@ -23,7 +23,7 @@ export const WallLines = () => {
         <PieceFootprints
           pieces={pieces.filter((p) => p.kind === 'wall')}
           className={styles.pieceFar}
-          solid
+          paint="solid"
         />
       )}
       {Object.values(walls).map((wall) => (

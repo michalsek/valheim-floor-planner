@@ -10,6 +10,7 @@ import { showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
 
 import { SnapStepPicker } from './SnapStepPicker';
 import styles from './StatusStrip.module.css';
+import { ThemePicker } from './ThemePicker';
 
 const hasUnderlay = (plan: Plan) => plan.underlay !== null;
 
@@ -56,6 +57,7 @@ export const StatusStrip = () => {
       <SnapStepPicker />
       <LayerToggles />
       <span className={styles.spacer} />
+      <ThemePicker />
       <span className={styles.debug}>
         {catalog.pieces.size} pieces · {wallFamilies.length} wall families
       </span>

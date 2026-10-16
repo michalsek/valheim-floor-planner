@@ -7,10 +7,10 @@
   align-items: center;
   gap: 14px;
   padding: 6px 12px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.35);
+  box-shadow: var(--shadow);
   color: var(--text-muted);
   white-space: nowrap;
   z-index: 1;

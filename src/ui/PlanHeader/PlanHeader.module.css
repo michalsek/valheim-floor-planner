@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border-bottom: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .name {
@@ -19,13 +19,13 @@
 }
 
 .name:hover {
-  border-color: var(--panel-border);
+  border-color: var(--border);
 }
 
 .name:focus {
   border-color: var(--accent);
   outline: none;
-  background: var(--app-bg);
+  background: var(--surface-sunken);
 }
 
 .actions {

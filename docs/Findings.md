@@ -254,3 +254,44 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     underlay), as Open does. `0` still resets to the origin.
 15. **Upgrades stepper and opacity arrows add one history entry per click / key press**
     (not coalesced).
+
+## From M7 implementation
+
+1. **Theme picker sits in the status strip**, not the plan header: the 260 px side
+   panel can't fit New / Open / Save and a three-way control on one row, and M6 has
+   landed, so the plan's reason to avoid the strip no longer holds.
+2. **Selection has its own colour** (`--selection`: magenta, `#ff5ad2` dark /
+   `#c2179b` light), no longer the amber accent, which collided with the crafting
+   group. Selected outlines also get a halo (`--label-halo`, 5 px) under the 2 px
+   line. Hover, handles, the select box and selected openings / dimensions use it too;
+   the accent stays for UI chrome and tool drawing.
+3. **Grid is quieter than planned**: `--grid-alpha-scale` is 0.8 (dark) and 0.55
+   (light) instead of 1.15 / 0.8, which drew near-white / near-black 10 m lines.
+   Level alphas are clamped to 1.
+4. **The underlay multiplies onto the light canvas** (`--underlay-blend`), so a white
+   image background vanishes instead of reading as a pale slab; dark keeps `normal`.
+   No `--underlay-dim`: the opacity slider already covers dimming. Not yet checked with
+   a real image.
+5. **Only scene values go through `readThemeTokens`** (grid line and alpha scale,
+   floor base / material share / opacity, `--mat-*`); prop groups, rings and every
+   overlay colour stay pure CSS (`var()` in `style`/classes), so they need no parse.
+   A missing `--mat-*` takes `--mat-fallback`; the parser keeps no palette copy. The
+   parser test contains hex literals too (the only other `src` match).
+6. **`PieceFootprints` takes `paint: 'fill' | 'solid' | 'none'`**: material fills are
+   now inline `style` (to resolve `var()`), which would beat class fills, so the
+   selection highlight passes `none`.
+7. **Dev-only flash**: in `pnpm dev` the CSS is injected by JS, so the page shows the
+   UA background (from `<meta name="color-scheme">`, i.e. the OS scheme) for a moment
+   when the saved choice differs from the OS. Production links the CSS, so no flash.
+8. **`ice` and null materials** (3 pieces in the data) use `--mat-fallback` (orchid);
+   it is close-ish in hue to the selection magenta but far less saturated.
+9. **Light-theme floor seams** are canvas-coloured, lighter than the tiles; they read
+   as grout and look fine on wood and stone.
+10. **The browser pane couldn't render while hidden** (no `requestAnimationFrame`, so
+    WebGPU never initialised); screenshots came from a headless Chrome driven over CDP
+    instead.
+11. **Fix round:** light floors use `--floor-material-share: 0.7` and
+    `--floor-opacity: 0.75` (dark keeps 0.4 / 0.6), so stone, black marble and iron
+    floors differ; the grid shows less through light floors as a result. Hovered pinned
+    dimensions use the selection colour at 60 %. `SegmentedControl` now requires a
+    `label` (group name), so new uses can't miss it.

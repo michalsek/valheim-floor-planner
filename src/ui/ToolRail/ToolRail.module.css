@@ -4,8 +4,8 @@
   gap: 4px;
   height: 100%;
   padding: 8px 6px;
-  background: var(--panel-bg);
-  border-right: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border-right: 1px solid var(--border);
 }
 
 .button {
@@ -22,7 +22,7 @@
 }
 
 .button:hover {
-  background: var(--hover-bg);
+  background: var(--surface-hover);
   color: var(--text);
 }
 

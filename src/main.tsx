@@ -9,6 +9,7 @@ import { pruneImages } from './store/imageStore';
 import { planStorage, planStore } from './store/planInstance';
 import { startSelectionSync } from './store/selection';
 import { autosaveStatusAtom, sessionStore } from './store/session';
+import { startThemeSync } from './store/theme';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
@@ -27,6 +28,9 @@ void pruneImages(new Set(underlay ? [underlay.imageId] : []));
 
 // Before the first render, so the selection is pruned before React reads it.
 startSelectionSync(planStore, sessionStore);
+// Before the first render, so the scene starts with the resolved theme's colours.
+const stopThemeSync = startThemeSync(sessionStore);
+import.meta.hot?.dispose(stopThemeSync);
 
 createRoot(root).render(
   <StrictMode>

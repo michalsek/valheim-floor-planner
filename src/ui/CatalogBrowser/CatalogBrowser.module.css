@@ -7,16 +7,16 @@
   width: 260px;
   min-height: 0;
   padding: 10px 8px 0;
-  background: var(--panel-bg);
-  border-right: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border-right: 1px solid var(--border);
 }
 
 .search {
   width: 100%;
   padding: 4px 8px;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--app-bg);
+  background: var(--surface-sunken);
   color: var(--text);
   font: inherit;
 }
@@ -56,12 +56,18 @@
 }
 
 .row:hover {
-  background: var(--hover-bg);
+  background: var(--surface-hover);
 }
 
 .armed,
 .armed:hover {
   background: var(--accent-soft);
+}
+
+/* Muted text on the accent tint falls under 4.5:1 in the dark theme. */
+.armed .namePl,
+.armed .meta {
+  color: var(--text);
 }
 
 .swatch {
@@ -117,7 +123,7 @@
 
 .clear {
   padding: 1px 8px;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: transparent;
   cursor: pointer;

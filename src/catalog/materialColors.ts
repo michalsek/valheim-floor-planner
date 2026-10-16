@@ -1,26 +1,54 @@
-/** Plan-view fill colour per piece material (`PieceDef.material`). */
-const MATERIAL_COLORS: Record<string, string> = {
-  wood: '#b07a45',
-  hardwood: '#7d5232',
-  timberwood: '#8f6a4a',
-  ashstone: '#6f7781',
-  stone: '#9a9a92',
-  marble: '#4a4650',
-  iron: '#7a8590',
-};
+/**
+ * Plan-view colours per piece material (`PieceDef.material`), from a palette. The
+ * palette is theme data (`--mat-*` / `--floor-*` in `global.css`); this module only
+ * maps a material through it, so it stays free of the DOM.
+ */
 
-const FALLBACK_COLOR = '#b06ab3';
+/** The materials with their own palette colour; anything else uses the fallback. */
+export const PALETTE_MATERIALS = [
+  'wood',
+  'hardwood',
+  'timberwood',
+  'ashstone',
+  'stone',
+  'marble',
+  'iron',
+] as const;
 
-export const materialColor = (material: string | null | undefined): string =>
-  (material && MATERIAL_COLORS[material]) || FALLBACK_COLOR;
+export type PaletteMaterial = (typeof PALETTE_MATERIALS)[number];
+
+const PALETTE_SET: ReadonlySet<string> = new Set(PALETTE_MATERIALS);
+
+export const isPaletteMaterial = (material: string): material is PaletteMaterial =>
+  PALETTE_SET.has(material);
+
+export interface MaterialPalette {
+  /** `#rrggbb` per palette material. */
+  materials: Readonly<Record<PaletteMaterial, string>>;
+  /** For materials without a colour (and pieces without a material). */
+  fallback: string;
+  /** What floor tints are mixed towards, so dark materials still show on the canvas. */
+  floorBase: string;
+  /** Share of the material colour in a floor tint (0–1). */
+  floorShare: number;
+}
+
+/** The custom property holding a material's colour. */
+export const matToken = (material: string): string => `--mat-${material}`;
+
+export const materialColor = (
+  palette: MaterialPalette,
+  material: string | null | undefined
+): string =>
+  material && isPaletteMaterial(material) ? palette.materials[material] : palette.fallback;
 
 /**
- * What floor tints are mixed towards: a little lighter than the canvas, so dark
- * materials (black marble) still show on it.
+ * A material's colour as a CSS variable, for SVG fills (in `style`: presentation
+ * attributes don't resolve `var()`), so the overlay follows the theme without a render.
  */
-const FLOOR_BASE = '#3a424d';
-/** Share of the material colour in a floor tint. */
-const FLOOR_MATERIAL_SHARE = 0.4;
+export const materialVar = (material: string | null | undefined): string =>
+  `var(${matToken(material && isPaletteMaterial(material) ? material : 'fallback')})`;
+
 /** Lighter and darker tiles alternate by this much, so tiles can be counted. */
 const FLOOR_CHECKER = 0.08;
 
@@ -45,11 +73,12 @@ const toHex = (rgb: Rgb): string =>
  * read as one block with the (opaque, full-colour) walls on them. `odd` tiles of the
  * checkerboard are a little darker.
  */
-export const floorColor = (material: string, odd: boolean): string => {
-  const base = toRgb(FLOOR_BASE);
+export const floorColor = (palette: MaterialPalette, material: string, odd: boolean): string => {
+  const base = toRgb(palette.floorBase);
+  const share = palette.floorShare;
   const shade = odd ? 1 - FLOOR_CHECKER : 1 + FLOOR_CHECKER;
-  const mixed = toRgb(materialColor(material)).map(
-    (c, i) => (c * FLOOR_MATERIAL_SHARE + (base[i] ?? 0) * (1 - FLOOR_MATERIAL_SHARE)) * shade
+  const mixed = toRgb(materialColor(palette, material)).map(
+    (c, i) => (c * share + (base[i] ?? 0) * (1 - share)) * shade
   );
   return toHex([mixed[0] ?? 0, mixed[1] ?? 0, mixed[2] ?? 0]);
 };

@@ -1,5 +1,5 @@
 import { library } from '../catalog';
-import { groupColor } from '../catalog/groupColors';
+import { groupVar } from '../catalog/groupColors';
 import { propRect } from '../catalog/propDefs';
 import { propCorners } from '../model/geometry/propGeometry';
 import { propsInDrawOrder } from '../model/props';
@@ -20,7 +20,7 @@ interface PropFootprintProps {
  */
 export const PropFootprint = ({ prop, className }: PropFootprintProps) => {
   const def = library.propDefs.get(prop.prefab);
-  const color = groupColor(def?.group);
+  const color = groupVar(def?.group);
   const corners = propCorners(
     prop.position,
     prop.rotation,

@@ -47,6 +47,8 @@ src/
   overlay/   Overlay.tsx, DimensionLine.tsx, RoomLabels.tsx, RadiusRings.tsx, SnapCursor.tsx
   tools/     types.ts, toolbox.ts, ToolHost.tsx, Select/, Wall/, Floor/, Opening/, Ruler/, Prop/
   ui/        ToolRail/, Inspector/, BomPanel/, CatalogBrowser/, StatusStrip/
+  theme/     themeTokens.ts (pure parser of the scene colour tokens)
+  styles/    global.css (theme tokens for dark and light, base styles)
 ```
 
 ## Core domain types (sketch)
@@ -101,6 +103,12 @@ largest-first, around openings.
    - Catalogue browser (EN/PL search) and prop placement with rotation.
    - Station build-radius rings and the ward ring.
    - Optional: reference image underlay with two-point scale; stair helper.
+7. **M7: Theme pass.**
+   - Semantic colour tokens in `global.css`; neutral-grey dark and light themes.
+   - System / Light / Dark picker in the status strip, remembered in localStorage,
+     applied before the first paint.
+   - Grid, slab meshes and SVG fills follow the theme live (`themeTokensAtom`).
+   - Plan: `docs/plans/M7.md`.
 
 ## Reuse map
 
@@ -123,7 +131,7 @@ largest-first, around openings.
   - version pins in `packages/engine/package.json`
   - the "engine has no DOM/React" layering rule
 
-## Follow-up: theme pass (after M6)
+## Follow-up: theme pass (after M6, done as M7)
 
 The user wants a less black UI: a neutral grey dark theme, with a light theme as a
 separate option.

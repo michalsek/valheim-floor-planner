@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>Valheim Floor Planner</title>
+    <script>
+      // Sets the theme before the first paint (no dark-to-light flash). The key and the
+      // values match src/store/theme.ts, which keeps the attribute in sync afterwards.
+      (function () {
+        var theme = null;
+        try {
+          var pref = localStorage.getItem('valheimFloorPlanner.theme.v1');
+          if (pref === 'light' || pref === 'dark') theme = pref;
+        } catch (e) {
+          // Blocked storage: follow the system.
+        }
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

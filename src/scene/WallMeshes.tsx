@@ -1,19 +1,22 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { materialColor } from '../catalog/materialColors';
 import { groundCourse } from '../model/types';
 import { useDisplayDerived } from '../store/planHooks';
+import type { ThemeTokens } from '../theme/themeTokens';
 
-import { createSlabResources } from './slabResources';
+import type { SlabStyler } from './slabResources';
+import { useSlabResources } from './useSlabResources';
 
 /** Gap left between neighbouring pieces, so seams show (metres). */
 const SEAM = 0.06;
 /** Slab height above the grid plane; walls stay opaque and above y = 0. */
 const SLAB = 0.1;
 
-const createResources = () =>
-  createSlabResources((material) => ({ color: materialColor(material), opacity: 1 }));
+const wallStyler =
+  ({ palette }: ThemeTokens): SlabStyler =>
+  (material) => ({ color: materialColor(palette, material), opacity: 1 });
 
 /**
  * The plan's ground-course wall pieces, as flat slabs (the bill counts every course).
@@ -22,9 +25,8 @@ const createResources = () =>
 export const WallMeshes = () => {
   const { pieces } = useDisplayDerived();
   const invalidate = useThree((s) => s.invalidate);
-  const [resources] = useState(createResources);
+  const resources = useSlabResources(wallStyler);
 
-  useEffect(() => () => resources.dispose(), [resources]);
   useEffect(() => {
     invalidate();
   }, [pieces, invalidate]);

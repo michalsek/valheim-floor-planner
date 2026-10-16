@@ -19,6 +19,7 @@ export const SnapStepPicker = () => {
     <div className={styles.picker} title="Snap step (G)">
       <span>Snap</span>
       <SegmentedControl
+        label="Snap step"
         options={SNAP_STEPS.map((s) => ({ value: s, label: String(s) }))}
         value={step}
         onChange={(s) => setStep(s)}

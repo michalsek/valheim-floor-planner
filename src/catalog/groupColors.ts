@@ -4,5 +4,5 @@
  */
 import type { PropGroup } from './propDefs';
 
-export const groupColor = (group: PropGroup | undefined): string =>
+export const groupVar = (group: PropGroup | undefined): string =>
   `var(--prop-${group ?? 'fallback'})`;

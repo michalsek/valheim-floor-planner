@@ -9,15 +9,15 @@
 
 .dimLine,
 .tick {
-  stroke: var(--overlay-accent);
+  stroke: var(--accent);
   stroke-width: 1.5px;
   stroke-linecap: round;
 }
 
 .label,
 .labelSecondary {
-  fill: var(--overlay-ink);
-  stroke: var(--canvas-bg);
+  fill: var(--ink);
+  stroke: var(--label-halo);
   stroke-width: 4px;
   stroke-linejoin: round;
   text-anchor: middle;
@@ -33,48 +33,48 @@
 
 .labelSecondary {
   font-size: 11px;
-  fill: var(--overlay-muted);
+  fill: var(--ink-muted);
 }
 
 .cursor {
-  stroke: var(--overlay-accent);
+  stroke: var(--accent);
   stroke-width: 1px;
   fill: none;
 }
 
 .cursorRaw {
-  stroke: var(--overlay-warning);
+  stroke: var(--info);
   stroke-width: 1px;
   stroke-dasharray: 2 2;
   fill: none;
 }
 
 .marker {
-  fill: var(--overlay-accent);
+  fill: var(--accent);
 }
 
 .closeRing {
   fill: none;
-  stroke: var(--overlay-accent);
+  stroke: var(--accent);
   stroke-width: 2px;
 }
 
 .vertex {
-  fill: var(--canvas-bg);
-  stroke: var(--overlay-accent);
+  fill: var(--canvas);
+  stroke: var(--accent);
   stroke-width: 1.5px;
 }
 
 .piece {
   fill-opacity: 0.45;
-  stroke: var(--overlay-ink);
+  stroke: var(--ink);
   stroke-opacity: 0.8;
   stroke-width: 1px;
 }
 
 .runLine {
   fill: none;
-  stroke: var(--overlay-accent);
+  stroke: var(--accent);
   stroke-width: 1.5px;
 }
 
@@ -84,7 +84,7 @@
 
 .wallLine {
   fill: none;
-  stroke: var(--overlay-muted);
+  stroke: var(--ink-muted);
   stroke-opacity: 0.7;
   stroke-width: 1px;
 }
@@ -96,7 +96,7 @@
 
 .roomOutline {
   fill: none;
-  stroke: var(--overlay-muted);
+  stroke: var(--ink-muted);
   stroke-opacity: 0.6;
   stroke-width: 1px;
   stroke-dasharray: 4 3;
@@ -105,7 +105,7 @@
 .roomLabel,
 .roofOk,
 .roofWarn {
-  stroke: var(--canvas-bg);
+  stroke: var(--label-halo);
   stroke-width: 4px;
   stroke-linejoin: round;
   text-anchor: middle;
@@ -115,7 +115,7 @@
 }
 
 .roomLabel {
-  fill: var(--overlay-ink);
+  fill: var(--ink);
   font-size: 12px;
   font-weight: 600;
 }
@@ -127,7 +127,7 @@
 }
 
 .roofOk {
-  fill: var(--overlay-ok);
+  fill: var(--success);
 }
 
 .roofWarn {
@@ -140,31 +140,32 @@
 }
 
 .tonePinned {
-  stroke: var(--overlay-pinned);
+  stroke: var(--pinned);
 }
 
 .toneDanger {
-  stroke: var(--overlay-danger);
+  stroke: var(--danger);
 }
 
 .labelDanger {
-  fill: var(--overlay-danger);
+  fill: var(--danger);
 }
 
 .toneSelected {
-  stroke: var(--overlay-accent);
+  stroke: var(--selection);
   stroke-width: 2px;
 }
 
 .toneHover {
-  stroke: var(--overlay-pinned);
-  stroke-width: 2.5px;
+  stroke: var(--selection);
+  stroke-width: 2px;
+  stroke-opacity: 0.6;
 }
 
 .selectBox {
-  fill: var(--overlay-accent);
+  fill: var(--selection);
   fill-opacity: 0.08;
-  stroke: var(--overlay-accent);
+  stroke: var(--selection);
   stroke-width: 1px;
 }
 
@@ -173,19 +174,19 @@
 }
 
 .handle {
-  fill: var(--canvas-bg);
-  stroke: var(--overlay-accent);
+  fill: var(--canvas);
+  stroke: var(--selection);
   stroke-width: 1.5px;
 }
 
 .handleHot {
-  fill: var(--overlay-accent);
+  fill: var(--selection);
 }
 
 .selectedPiece,
 .hoverPiece {
-  fill: var(--overlay-accent);
-  stroke: var(--overlay-accent);
+  fill: var(--selection);
+  stroke: var(--selection);
   stroke-width: 1px;
 }
 
@@ -199,13 +200,25 @@
 }
 
 .selectedLine,
-.hoverLine {
+.hoverLine,
+.selectedHalo {
   fill: none;
-  stroke: var(--overlay-accent);
+  stroke-linejoin: round;
+}
+
+.selectedLine,
+.hoverLine {
+  stroke: var(--selection);
 }
 
 .selectedLine {
   stroke-width: 2px;
+}
+
+/* Under a selected outline, so it reads as a crisp double line on any fill. */
+.selectedHalo {
+  stroke: var(--label-halo);
+  stroke-width: 5px;
 }
 
 .hoverLine {
@@ -225,18 +238,18 @@
 }
 
 .openingSymbol {
-  stroke: var(--overlay-ink);
+  stroke: var(--ink);
   stroke-opacity: 0.85;
 }
 
 .openingProblem,
 .openingInvalid {
-  stroke: var(--overlay-danger);
+  stroke: var(--danger);
 }
 
 .openingSelected,
 .openingHover {
-  stroke: var(--overlay-accent);
+  stroke: var(--selection);
 }
 
 .openingSelected {
@@ -244,7 +257,7 @@
 }
 
 .openingValid {
-  stroke: var(--overlay-ok);
+  stroke: var(--success);
   stroke-width: 1.75px;
 }
 
@@ -258,7 +271,7 @@
 
 .floorOutline {
   fill: none;
-  stroke: var(--overlay-muted);
+  stroke: var(--ink-muted);
   stroke-opacity: 0.5;
   stroke-width: 1px;
 }
@@ -269,7 +282,7 @@
 
 .floorSeam {
   fill: none;
-  stroke: var(--canvas-bg);
+  stroke: var(--floor-seam);
   stroke-opacity: 0.7;
   stroke-width: 1px;
 }
@@ -290,8 +303,8 @@
 }
 
 .propLabel {
-  fill: var(--overlay-ink);
-  stroke: var(--canvas-bg);
+  fill: var(--ink);
+  stroke: var(--label-halo);
   stroke-width: 3px;
   stroke-linejoin: round;
   text-anchor: middle;
@@ -317,19 +330,23 @@
 }
 
 .calibLine {
-  stroke: var(--overlay-warning);
+  stroke: var(--info);
   stroke-width: 1.5px;
   stroke-dasharray: 6 4;
 }
 
 .calibMarker {
-  fill: var(--canvas-bg);
-  stroke: var(--overlay-warning);
+  fill: var(--canvas);
+  stroke: var(--info);
   stroke-width: 2px;
+}
+
+.underlayImage {
+  mix-blend-mode: var(--underlay-blend);
 }
 
 .underlayMissing {
   fill: none;
-  stroke: var(--overlay-muted);
+  stroke: var(--ink-muted);
   stroke-dasharray: 6 4;
 }

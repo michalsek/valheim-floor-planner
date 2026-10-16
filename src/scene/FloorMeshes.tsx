@@ -1,22 +1,24 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { floorColor } from '../catalog/materialColors';
 import type { PlacedPiece } from '../model/types';
 import { useDisplayDerived } from '../store/planHooks';
+import type { ThemeTokens } from '../theme/themeTokens';
 
-import { createSlabResources } from './slabResources';
+import type { SlabStyler } from './slabResources';
+import { useSlabResources } from './useSlabResources';
 
 /** Slab height: well under the wall slabs, which sit from 0 to 0.1. */
 const SLAB = 0.03;
-const OPACITY = 0.6;
 
 /** Style keys are `material:0` / `material:1`, for the two checkerboard shades. */
-const createResources = () =>
-  createSlabResources((key) => {
+const floorStyler =
+  ({ palette, floorOpacity }: ThemeTokens): SlabStyler =>
+  (key) => {
     const [material = '', odd] = key.split(':');
-    return { color: floorColor(material, odd === '1'), opacity: OPACITY };
-  });
+    return { color: floorColor(palette, material, odd === '1'), opacity: floorOpacity };
+  };
 
 /** Which checkerboard shade a tile gets, from its place on its own size's grid. */
 const isOdd = (tile: PlacedPiece): boolean => {
@@ -33,10 +35,9 @@ const isOdd = (tile: PlacedPiece): boolean => {
 export const FloorMeshes = () => {
   const { pieces } = useDisplayDerived();
   const invalidate = useThree((s) => s.invalidate);
-  const [resources] = useState(createResources);
+  const resources = useSlabResources(floorStyler);
   const tiles = pieces.filter((p) => p.kind === 'floor');
 
-  useEffect(() => () => resources.dispose(), [resources]);
   useEffect(() => {
     invalidate();
   }, [pieces, invalidate]);

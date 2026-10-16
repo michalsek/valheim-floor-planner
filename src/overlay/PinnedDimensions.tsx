@@ -11,7 +11,7 @@ import { DimensionLine, type DimensionTone } from './DimensionLine';
 
 /**
  * Dimensions stored in the plan (as drawn, so a move previews). A selected one is in
- * the accent colour; a hovered one is highlighted, or red in the Dimension tool, where
+ * the selection colour; a hovered one is highlighted, or red in the Dimension tool, where
  * Delete would remove it.
  */
 export const PinnedDimensions = () => {

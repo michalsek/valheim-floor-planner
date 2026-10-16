@@ -12,16 +12,17 @@ import { PieceFootprints } from './PieceFootprints';
 import { RunPath } from './RunPath';
 
 const TONES = {
-  selected: { piece: styles.selectedPiece, line: styles.selectedLine },
-  hover: { piece: styles.hoverPiece, line: styles.hoverLine },
+  selected: { piece: styles.selectedPiece, line: styles.selectedLine, halo: styles.selectedHalo },
+  hover: { piece: styles.hoverPiece, line: styles.hoverLine, halo: undefined },
 } as const;
 
 type Tone = keyof typeof TONES;
 
 /**
- * Selected items in the accent colour, and a faint version on the hovered one (world
- * layer, whatever the tool): the pieces derived from each item plus its highlight
- * lines from `ITEM_KINDS`. Kinds without highlight lines (dimensions) show their own.
+ * Selected items in the selection colour, and a faint version on the hovered one
+ * (world layer, whatever the tool): the pieces derived from each item plus its
+ * highlight lines from `ITEM_KINDS`, haloed when selected so they stand apart from
+ * same-hued fills. Kinds without highlight lines (dimensions) show their own.
  */
 export const SelectionHighlight = () => {
   const selection = useAtomValue(selectionAtom);
@@ -40,14 +41,19 @@ export const SelectionHighlight = () => {
   return (
     <g>
       {items.map(({ item, tone }) => {
-        const { piece, line } = TONES[tone];
+        const { piece, line, halo } = TONES[tone];
         const lines = ITEM_KINDS[item.kind].highlight?.(plan, item.id, library) ?? [];
         return (
           <g key={`${tone}:${item.kind}:${item.id}`}>
             <PieceFootprints
               pieces={pieces.filter((p) => p.sourceId === item.id)}
               className={piece}
+              paint="none"
             />
+            {halo &&
+              lines.map((l, i) => (
+                <RunPath key={`halo${i}`} points={l.points} closed={l.closed} className={halo} />
+              ))}
             {lines.map((l, i) => (
               <RunPath key={i} points={l.points} closed={l.closed} className={line} />
             ))}

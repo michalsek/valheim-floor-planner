@@ -4,8 +4,8 @@
   gap: 16px;
   height: 100%;
   padding: 0 12px;
-  background: var(--panel-bg);
-  border-top: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border-top: 1px solid var(--border);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -28,12 +28,12 @@
 }
 
 .snapOff {
-  color: var(--overlay-warning);
+  color: var(--info);
 }
 
 .badge {
   padding: 1px 6px;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 11px;
 }
