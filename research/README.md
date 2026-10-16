@@ -334,7 +334,7 @@ Sources: valheim.fandom.com (Building, Building stability, Cover, Smoke, Hearth,
 Workbench, Portal, Player base), valheim-modding.github.io/Jotunn piece list, Steam
 news for app 892970, Thunderstore pages for the mods above.
 
-## 9. Tech stack options (to decide)
+## 9. Tech stack options (superseded: see docs/Roadmap.md)
 
 | Option | Pros | Cons |
 |---|---|---|
