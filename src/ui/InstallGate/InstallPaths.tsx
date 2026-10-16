@@ -1,3 +1,5 @@
+import { userPlatform } from '../../install/platform';
+
 import { CopyButton } from './CopyButton';
 import styles from './InstallGate.module.css';
 
@@ -14,14 +16,6 @@ const PLATFORMS = [
   },
   { id: 'linux', label: 'Linux', path: '~/.local/share/Steam/steamapps/common/Valheim' },
 ] as const;
-
-/** The platform this browser runs on, for ordering and tips. */
-export const userPlatform = (): string => {
-  const agent = navigator.userAgent;
-  if (/Mac/.test(agent)) return 'mac';
-  if (/Win/.test(agent)) return 'win';
-  return 'linux';
-};
 
 /** Where Steam puts Valheim on each platform (this one first), with copy buttons. */
 export const InstallPaths = () => {
@@ -47,10 +41,9 @@ export const InstallPaths = () => {
       </p>
       {mine === 'mac' && (
         <p className={styles.note}>
-          <code>~/Library</code> is hidden in the folder dialog: press <kbd>⌘</kbd>
+          In the upload dialog <code>~/Library</code> is hidden: press <kbd>⌘</kbd>
           <kbd>⇧</kbd>
-          <kbd>G</kbd> and paste the path. If it still won't open, drag the folder in instead
-          (above).
+          <kbd>G</kbd> and paste the path.
         </p>
       )}
     </section>

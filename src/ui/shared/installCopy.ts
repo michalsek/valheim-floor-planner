@@ -24,6 +24,10 @@ export const ERROR_MESSAGES: Readonly<Record<GameDataErrorCode, string>> = {
     "The parser couldn't start in this browser (it runs in a module Web Worker). Reload the page and try again, or use a current Chrome, Edge, Firefox or Safari.",
 };
 
+/** Shown after the folder picker closed without a folder. */
+export const PICKER_HINT =
+  'If Chrome said the folder contains system files, drag the Valheim folder onto this page instead.';
+
 export const PHASES: readonly { phase: ExtractPhase; label: string }[] = [
   { phase: 'bundle', label: 'Opening the game data' },
   { phase: 'pieces', label: "Reading the Hammer's pieces" },

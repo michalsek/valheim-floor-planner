@@ -60,13 +60,16 @@ describe('dropped folders', () => {
       webkitGetAsEntry: () => (calls.push(`entry ${entry.name}`), entry),
       getAsFileSystemHandle: () => (calls.push(`handle ${entry.name}`), handle),
     });
-    const drop = captureDrop({
-      items: [
-        { kind: 'string' },
-        item(fileEntry('notes.txt', ''), Promise.resolve(null)),
-        item(app, Promise.reject(new DOMException('blocked', 'NotAllowedError'))),
-      ],
-    } as unknown as DataTransfer);
+    const drop = captureDrop(
+      {
+        items: [
+          { kind: 'string' },
+          item(fileEntry('notes.txt', ''), Promise.resolve(null)),
+          item(app, Promise.reject(new DOMException('blocked', 'NotAllowedError'))),
+        ],
+      } as unknown as DataTransfer,
+      true
+    );
     expect(calls).toEqual([
       'handle notes.txt',
       'entry notes.txt',

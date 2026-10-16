@@ -413,9 +413,16 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    `webkitGetAsEntry()` (any browser, this visit only; files are looked up by path,
    never by listing the 4 GB folder).
 2. **`getAsFileSystemHandle()` can stay pending forever**: it never settled for
-   DevTools-synthesized drops, which would leave the gate stuck. It is raced against a
-   2 s timeout, then the entry is used. Whether a real Finder drop gives a usable handle
-   for `~/Library/Application Support/…` (so later visits only need a permission click)
-   is unverified.
+   DevTools-synthesized drops in headless Chrome, which would leave the gate stuck. It
+   is raced against a 2 s timeout, then the entry is used.
 3. **A drop outside a drop target in the editor** (e.g. on the canvas) opens the folder
    in a new tab, as browsers do by default. Only the open install menu takes drops.
+4. **Chrome's blocklist covers all of `~/Library`**, so on macOS the folder picker can
+   never open Steam's default library (the user saw the "contains system files"
+   dialog). In headed Chrome, a drop of the install path made `getAsFileSystemHandle()`
+   reject with AbortError ("The user aborted a request.") after 4.5–6.5 s, while a drop
+   from `~/Documents` resolved in 5 ms to a listable handle. So on macOS and Windows
+   (Program Files) drops use the entry only and nothing is persisted; the gate leads
+   with the drop zone on macOS and offers the cached catalogue first on return visits.
+   A picker cancel (which is also how the blocklist refusal ends) shows a dismissible
+   hint about dragging the folder in.

@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent } from 'react';
 
 import { captureDrop } from '../../install/dropFolder';
 import { chooseDrop } from '../../install/loadInstall';
+import { steamFolderBlocked } from '../../install/platform';
 
 const carriesFiles = (event: DragEvent) => event.dataTransfer.types.includes('Files');
 
@@ -37,7 +38,7 @@ export const useFolderDrop = () => {
       depth.current = 0;
       setDragging(false);
       // Synchronously: the items are unreadable once the event returns.
-      const drop = captureDrop(event.dataTransfer);
+      const drop = captureDrop(event.dataTransfer, !steamFolderBlocked());
       if (drop) void chooseDrop(drop);
     },
   };

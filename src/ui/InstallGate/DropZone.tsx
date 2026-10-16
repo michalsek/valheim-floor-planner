@@ -1,17 +1,26 @@
+import { userPlatform } from '../../install/platform';
+
 import { CopyButton } from './CopyButton';
 import styles from './InstallGate.module.css';
-import { userPlatform } from './InstallPaths';
 
 const OPEN_IN_FINDER = 'open "$HOME/Library/Application Support/Steam/steamapps/common/Valheim"';
 
 /**
  * The drop target's affordance (the whole gate page accepts the drop). On macOS this
- * is the dependable route: the folder dialog hides `~/Library`, but Finder doesn't.
+ * is the dependable route (`lead`): Chrome's picker refuses `~/Library`, Finder doesn't.
  */
-export const DropZone = ({ dragging }: { dragging: boolean }) => (
-  <section className={dragging ? `${styles.dropZone} ${styles.dropActive}` : styles.dropZone}>
+export const DropZone = ({ dragging, lead }: { dragging: boolean; lead: boolean }) => (
+  <section
+    className={[styles.dropZone, lead && styles.dropLead, dragging && styles.dropActive]
+      .filter(Boolean)
+      .join(' ')}
+  >
     <p className={styles.dropTitle}>
-      {dragging ? 'Drop to open it' : 'Or drop your Valheim folder here'}
+      {dragging
+        ? 'Drop to open it'
+        : lead
+          ? 'Drop your Valheim folder here'
+          : 'Or drop your Valheim folder here'}
     </p>
     {userPlatform() === 'mac' ? (
       <>

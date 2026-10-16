@@ -9,7 +9,7 @@ import {
   rescan,
   type InstallStatus,
 } from '../../install/loadInstall';
-import { ERROR_MESSAGES, formatScanDate, phaseLabel } from '../shared/installCopy';
+import { ERROR_MESSAGES, formatScanDate, phaseLabel, PICKER_HINT } from '../shared/installCopy';
 import { Row } from '../shared/PanelList';
 import { useFolderDrop } from '../shared/useFolderDrop';
 import { useFolderInput } from '../shared/useFolderInput';
@@ -50,7 +50,7 @@ const ScanStatus = ({ status }: { status: InstallStatus }) => {
  * with where it came from, Re-scan and Change folder (both reload the page).
  */
 export const InstallMenu = () => {
-  const { status, loaded, hasHandle } = useInstall();
+  const { status, loaded, hasHandle, pickerHint } = useInstall();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const folderInput = useFolderInput((files) => void chooseFiles(files));
@@ -126,6 +126,7 @@ export const InstallMenu = () => {
               Change folder…
             </button>
           </div>
+          {pickerHint && <p className={styles.menuNote}>{PICKER_HINT}</p>}
           <p className={styles.menuNote}>
             {dragging ? 'Drop to open this install' : 'Or drop a Valheim folder on this menu.'}
           </p>

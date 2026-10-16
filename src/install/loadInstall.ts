@@ -13,6 +13,7 @@ import { buildLibrary } from '../catalog/buildLibrary';
 import type { Library } from '../catalog/library';
 import { GameDataError, type GameDataErrorCode } from '../gameData/GameDataError';
 import type { ExtractPhase } from '../gameData/valheim/extractCatalogue';
+import { getLocalStorage } from '../store/browserStorage';
 import { hasLibrary, setLibrary } from '../store/libraryInstance';
 
 import { fileListDir, handleDir, pickDirectory, readPermission, type DirLike } from './directory';
@@ -47,6 +48,8 @@ export interface InstallState {
   loaded: InstallInfo | null;
   /** A stored folder handle exists (re-scan can use it). */
   hasHandle: boolean;
+  /** The folder picker closed without a folder: maybe Chrome's "system files" refusal. */
+  pickerHint: boolean;
 }
 
 let state: InstallState = {
@@ -54,6 +57,7 @@ let state: InstallState = {
   cached: null,
   loaded: null,
   hasHandle: false,
+  pickerHint: false,
 };
 const listeners = new Set<() => void>();
 let cache: CachedCatalogue | null = null;
@@ -222,14 +226,33 @@ export const reconnect = async (force = false): Promise<void> => {
   }
 };
 
-/** Opens the native folder picker (Chromium), scans what was picked, then remembers it. */
+const PICKER_HINT_DISMISSED_KEY = 'valheimInstall.pickerHintDismissed';
+
+/**
+ * Opens the native folder picker (Chromium), scans what was picked, then remembers it.
+ * Chrome's refusal of a blocklisted folder looks like a cancel (AbortError), so either
+ * one shows a hint about dragging the folder in, until it is dismissed.
+ */
 export const chooseFolder = async (): Promise<void> => {
   try {
     const picked = await pickDirectory();
     if (picked) await scan(handleDir(picked), hasLibrary(), picked);
+    else if ((getLocalStorage()?.getItem(PICKER_HINT_DISMISSED_KEY) ?? null) === null) {
+      update({ pickerHint: true });
+    }
   } catch (error) {
     fail(error);
   }
+};
+
+/** Hides the picker hint for good. */
+export const dismissPickerHint = (): void => {
+  try {
+    getLocalStorage()?.setItem(PICKER_HINT_DISMISSED_KEY, '1');
+  } catch {
+    // Shown again next time; harmless.
+  }
+  update({ pickerHint: false });
 };
 
 /** Scans the files of a folder input (every browser); on success forgets any stored handle. */

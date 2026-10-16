@@ -189,6 +189,10 @@
   border-radius: 8px;
 }
 
+.dropLead {
+  border-color: var(--accent);
+}
+
 .dropActive {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -211,4 +215,20 @@
 
 .command .code {
   flex: 1;
+}
+
+.hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--info);
+  border-radius: 4px;
+  background: var(--surface-sunken);
+}
+
+.hint p {
+  flex: 1;
+  margin: 0;
 }

@@ -2,7 +2,10 @@
  * A folder dropped on the page (from Finder, Explorer or a file manager). macOS hides
  * `~/Library` in the folder dialog and treats `Valheim.app` as a file, but both drag
  * in fine. Two ways to read a drop, tried in order:
- * - a File System Access handle (Chromium), which can be stored for later visits;
+ * - a File System Access handle (Chromium), which can be stored for later visits.
+ *   Not asked for where Steam's default folder is blocklisted: for a drop from
+ *   `~/Library` Chrome shows its "contains system files" dialog, then rejects with
+ *   AbortError after several seconds;
  * - a `FileSystemDirectoryEntry` (every browser), read for this visit only.
  */
 import { GameDataError } from '../gameData/GameDataError';
@@ -24,11 +27,12 @@ interface HandleItem {
 /**
  * Reads the drop's items; call it inside the drop event, before any `await`. Prefers
  * a folder when several items are dropped. Null when nothing file-like was dropped.
+ * `withHandle` also asks Chromium for a storable handle.
  */
-export const captureDrop = (data: DataTransfer): DroppedItem | null => {
+export const captureDrop = (data: DataTransfer, withHandle: boolean): DroppedItem | null => {
   const items = Array.from(data.items).filter((item) => item.kind === 'file');
   const captured = items.map((item) => ({
-    handle: (item as HandleItem).getAsFileSystemHandle?.call(item) ?? null,
+    handle: (withHandle && (item as HandleItem).getAsFileSystemHandle?.call(item)) || null,
     entry: item.webkitGetAsEntry(),
   }));
   // Unused handle promises may reject (e.g. a blocked folder); that's handled later.
