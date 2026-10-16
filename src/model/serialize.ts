@@ -1,9 +1,17 @@
 /**
  * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
- * throws on a bad shape. Collections added by later milestones default to `{}`.
+ * throws on a bad shape. Collections added by later milestones default to `{}`, and a
+ * missing name to "Untitled".
  */
 import { samePoint } from './geometry/polyline';
-import type { Dimension, Plan, Vec2, WallRun, WallSide } from './types';
+import {
+  DEFAULT_PLAN_NAME,
+  type Dimension,
+  type Plan,
+  type Vec2,
+  type WallRun,
+  type WallSide,
+} from './types';
 
 export const serializePlan = (plan: Plan): string => JSON.stringify(plan);
 
@@ -87,11 +95,16 @@ const parseCollection = <T>(
     ])
   );
 
+/** Lenient: files from before plans had names (or with a blank one) load as "Untitled". */
+const parseName = (value: unknown): string =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : DEFAULT_PLAN_NAME;
+
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
   if (root.version !== 1) fail('$.version', '1');
   return {
     version: 1,
+    name: parseName(root.name),
     walls: parseCollection(root.walls, '$.walls', parseWall),
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension),
   };

@@ -1,4 +1,4 @@
-import type { PlacedPiece, Vec2, WallSide } from '../types';
+import type { PlacedPiece, Vec2, WallRun, WallSide } from '../types';
 
 /** Tolerance for comparing lengths and coordinates in metres. */
 export const EPS = 1e-6;
@@ -91,6 +91,18 @@ export const segments = (points: readonly Vec2[], closed: boolean): Segment[] =>
   }
   return result;
 };
+
+/**
+ * A run's segments after normalisation: the numbering `splitWall` uses, so segment
+ * indices from hit tests and the Inspector match the pieces'.
+ */
+export const runSegments = (run: Pick<WallRun, 'points' | 'closed'>): Segment[] => {
+  const points = normalizeRun(run.points, run.closed);
+  return segments(points, run.closed && points.length > 2);
+};
+
+/** `p` moved by `d`. */
+export const addVec = (p: Vec2, d: Vec2): Vec2 => ({ x: p.x + d.x, z: p.z + d.z });
 
 /** Unit normal pointing to `side` of a segment heading along `dir` (as seen on screen). */
 export const sideNormal = (dir: Vec2, side: WallSide): Vec2 =>

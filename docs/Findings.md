@@ -134,3 +134,37 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 11. **Region maths cost.** Clear floors subtract the whole plan's wall solid per room
     (O(slabs × intervals)). Fine at house scale; clip the solid to each room's box if
     big plans get slow.
+
+## From M4 implementation
+
+1. **Corner drags re-orient loops instead of flipping `side`.** A loop dragged inside
+   out is stored clockwise again (points reversed, `side` unchanged), so "closed loops
+   are clockwise, right = inside" stays true. The plan's "flip `side`" would have left an
+   anticlockwise loop. Vertex numbering changes on inversion; the drag always works
+   from the run as it was at press time, so that's invisible.
+2. **The Inspector's height is the family's height buttons**, not a free number input:
+   it reuses `WallSettingsFields`, whose heights are the ones the family can build. A
+   hand-edited odd height shows no active button until one is picked.
+3. **Open uses a fresh `<input type=file>` per pick** (`files.ts`), not a hidden input in
+   the header, so Mod+O and the button share it and re-picking the same file works. A
+   dismissed picker relies on the input's `cancel` event (Chrome 113+, Firefox 91+,
+   Safari 16.4+); in an older browser a dismissed picker would leave the `opening` guard
+   set, so Open would stay dead until reload.
+4. **Hover is still stale after a wheel zoom or pan** until the pointer moves (M3
+   finding 10 applies to the Select tool too). `hoverAtom` could be recomputed from
+   `cursorAtom` in a derived atom instead of on pointer moves.
+5. **The snap cursor crosshair shows in the Select tool.** It helps when aligning moves
+   but is noisy while just selecting; it could hide unless a gesture is under way.
+6. **No Save vs Save as.** Every Save opens the picker; remembering the
+   `FileSystemFileHandle` would allow a silent re-save (see plan finding 4: no unsaved
+   indicator or `beforeunload` prompt either).
+7. **Nudges are one history entry per key press** (plan finding 7), holding an arrow key
+   fills the 20-entry history list quickly.
+8. **Box select tests drawn lines**, not footprints: a box that only touches a block
+   wall's strip (not its face line) doesn't select it in crossing mode.
+9. **Per-kind selection facts live in `model/itemKinds.ts`** (fix round): collection,
+   noun, lines for box tests and highlights, translate, remove and duplicate. Hit tiers
+   stay an ordered list in `model/hitTest.ts`, since their order isn't per kind
+   (M6 splits props across two tiers).
+10. **The right column order is PlanHeader, Inspector, BOM** (the plan had the Inspector
+    first), so the name and file buttons don't jump when the selection empties.

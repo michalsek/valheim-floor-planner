@@ -1,10 +1,14 @@
+import { useAtomValue } from 'jotai';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { catalog, wallFamilyById } from '../catalog';
 import { derivePlan, type Derived } from '../model/derivePlan';
 import type { Plan } from '../model/types';
 
+import { applyCommands, type PlanCommand } from '../model/commands';
 import { planStore } from './planInstance';
+import type { HistoryLabels } from './planStore';
+import { editPreviewAtom } from './selection';
 
 const subscribe = (onChange: () => void) => planStore.subscribe(onChange);
 
@@ -66,3 +70,32 @@ export const getDerived = (plan: Plan): Derived => {
 };
 
 export const useDerivedPlan = (): Derived => getDerived(usePlan());
+
+/** History labels for the history list (see `PlanStore.historyLabels`). */
+export const useHistory = (): HistoryLabels =>
+  useSyncExternalStore(subscribe, planStore.historyLabels);
+
+// One shared entry, so every component drawing the same preview frame gets the same
+// plan object (and `getDerived` splits it once).
+let lastDisplay: { plan: Plan; preview: readonly PlanCommand[] | null; result: Plan } | null = null;
+
+/** `plan` with an in-progress edit applied; the committed plan if the edit no longer applies. */
+const getDisplayPlan = (plan: Plan, preview: readonly PlanCommand[] | null): Plan => {
+  if (!preview) return plan;
+  if (lastDisplay?.plan === plan && lastDisplay.preview === preview) return lastDisplay.result;
+  let result = plan;
+  try {
+    result = applyCommands(plan, preview);
+  } catch (error) {
+    // E.g. a file opened mid-drag removed the dragged wall.
+    console.warn('Edit preview no longer applies.', error);
+  }
+  lastDisplay = { plan, preview, result };
+  return result;
+};
+
+/** The plan as the canvas draws it: committed, plus the move or corner drag in progress. */
+export const useDisplayPlan = (): Plan => getDisplayPlan(usePlan(), useAtomValue(editPreviewAtom));
+
+/** Derived data for `useDisplayPlan` (the BOM panel keeps the committed plan's). */
+export const useDisplayDerived = (): Derived => getDerived(useDisplayPlan());

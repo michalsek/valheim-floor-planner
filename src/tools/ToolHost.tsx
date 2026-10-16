@@ -1,3 +1,4 @@
+import { useAtomValue } from 'jotai';
 import {
   useCallback,
   useEffect,
@@ -12,6 +13,7 @@ import { useActiveToolId, useModifiers } from '../store/hooks';
 import {
   activeToolIdAtom,
   cursorAtom,
+  cursorStyleAtom,
   modifiersAtom,
   panViewport,
   pointerScreenAtom,
@@ -37,9 +39,9 @@ type Gesture =
 
 /**
  * The canvas container and the only owner of pointer input (r3f events are unused).
- * Pans on middle drag, Space + drag, or a left drag when the tool asks for it;
- * everything else goes to the active tool as a `ToolPointerEvent`. Either way the
- * pointer is captured until it is released or cancelled.
+ * Pans on middle drag or Space + drag; everything else goes to the active tool as a
+ * `ToolPointerEvent`. Either way the pointer is captured until it is released or
+ * cancelled.
  */
 export const ToolHost = ({ children }: { children: ReactNode }) => {
   const ctx = useToolContext();
@@ -48,6 +50,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
   const [isPanning, setIsPanning] = useState(false);
   const tool = getTool(useActiveToolId());
   const { space } = useModifiers();
+  const toolCursor = useAtomValue(cursorStyleAtom);
 
   useViewportControls(containerRef);
   useToolKeyboard();
@@ -100,8 +103,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     const screen = trackPointer(e);
     const current = activeTool();
     const startsPan =
-      e.button === MIDDLE_BUTTON ||
-      (e.button === PRIMARY_BUTTON && (ctx.get(modifiersAtom).space || current.panOnPrimaryDrag));
+      e.button === MIDDLE_BUTTON || (e.button === PRIMARY_BUTTON && ctx.get(modifiersAtom).space);
 
     e.currentTarget.setPointerCapture(e.pointerId);
     if (startsPan) {
@@ -136,7 +138,10 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     endGesture(false);
     if (gesture.kind === 'tool') {
       const event = toToolEvent(e, screen);
+      // Without a world point the release can't be handled; cancel rather than leave a
+      // tool mid-gesture.
       if (event) activeTool().onPointerUp?.(event, ctx);
+      else activeTool().onPointerCancel?.(ctx);
     }
   };
 
@@ -147,13 +152,11 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
 
   const onDoubleClick = (e: HostMouseEvent) => {
     if (e.button !== PRIMARY_BUTTON || ctx.get(modifiersAtom).space) return;
-    const current = activeTool();
-    if (current.panOnPrimaryDrag) return;
     const event = toToolEvent(e, localPoint(e.currentTarget, e));
-    if (event) current.onDoubleClick?.(event, ctx);
+    if (event) activeTool().onDoubleClick?.(event, ctx);
   };
 
-  const cursor = isPanning ? 'grabbing' : space ? 'grab' : tool.cursor;
+  const cursor = isPanning ? 'grabbing' : space ? 'grab' : (toolCursor ?? tool.cursor);
 
   return (
     <div

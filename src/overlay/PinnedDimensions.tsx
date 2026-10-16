@@ -1,18 +1,32 @@
 import { useAtomValue } from 'jotai';
 
 import { isAxisAligned } from '../model/geometry/dimension';
-import type { Plan } from '../model/types';
-import { usePlanSelector } from '../store/planHooks';
-import { dimensionHoverIdAtom } from '../tools/Dimension/dimensionState';
+import { isSelected } from '../model/selection';
+import type { DimId } from '../model/types';
+import { useActiveToolId } from '../store/hooks';
+import { useDisplayPlan } from '../store/planHooks';
+import { hoverAtom, selectionAtom } from '../store/selection';
 
-import { DimensionLine } from './DimensionLine';
+import { DimensionLine, type DimensionTone } from './DimensionLine';
 
-const dimensionsOf = (plan: Plan) => plan.dimensions;
-
-/** Dimensions stored in the plan; the hovered one shows that Delete would remove it. */
+/**
+ * Dimensions stored in the plan (as drawn, so a move previews). A selected one is in
+ * the accent colour; a hovered one is highlighted, or red in the Dimension tool, where
+ * Delete would remove it.
+ */
 export const PinnedDimensions = () => {
-  const dimensions = usePlanSelector(dimensionsOf);
-  const hoverId = useAtomValue(dimensionHoverIdAtom);
+  const { dimensions } = useDisplayPlan();
+  const selection = useAtomValue(selectionAtom);
+  const hover = useAtomValue(hoverAtom);
+  const deletes = useActiveToolId() === 'dimension';
+
+  const toneOf = (id: DimId): DimensionTone => {
+    const hovered = hover?.kind === 'dimension' && hover.id === id;
+    if (hovered && deletes) return 'danger';
+    if (isSelected(selection, { kind: 'dimension', id })) return 'selected';
+    return hovered ? 'hover' : 'pinned';
+  };
+
   return (
     <g>
       {Object.values(dimensions).map(({ id, a, b, offset }) => (
@@ -22,7 +36,7 @@ export const PinnedDimensions = () => {
           b={b}
           offset={offset}
           showDelta={!isAxisAligned(a, b)}
-          tone={id === hoverId ? 'danger' : 'pinned'}
+          tone={toneOf(id)}
         />
       ))}
     </g>

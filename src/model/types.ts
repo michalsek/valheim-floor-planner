@@ -35,11 +35,20 @@ export interface Dimension {
 /** The plan document: everything the user draws, and the only thing in undo history. */
 export interface Plan {
   version: 1;
+  /** Shown in the plan header and used for the file name. */
+  name: string;
   walls: Record<WallId, WallRun>;
   dimensions: Record<DimId, Dimension>;
 }
 
-export const emptyPlan = (): Plan => ({ version: 1, walls: {}, dimensions: {} });
+export const DEFAULT_PLAN_NAME = 'Untitled';
+
+export const emptyPlan = (): Plan => ({
+  version: 1,
+  name: DEFAULT_PLAN_NAME,
+  walls: {},
+  dimensions: {},
+});
 
 /** One game piece, derived from the plan (never stored). */
 export interface PlacedPiece {

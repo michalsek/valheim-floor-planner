@@ -1,10 +1,8 @@
 .panel {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
   min-height: 0;
-  background: var(--panel-bg);
-  border-left: 1px solid var(--panel-border);
 }
 
 .header {
@@ -12,10 +10,6 @@
   gap: 6px;
   padding: 8px;
   border-bottom: 1px solid var(--panel-border);
-}
-
-.spacer {
-  flex: 1;
 }
 
 .action {
@@ -44,32 +38,6 @@
 
 .empty {
   color: var(--text-muted);
-}
-
-.section + .section {
-  margin-top: 8px;
-}
-
-.heading {
-  margin: 12px 0 6px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 3px 0;
 }
 
 .value {
@@ -108,4 +76,48 @@
 .summaryLabel {
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.history {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.historySummary {
+  padding: 6px 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.historyList {
+  margin: 0;
+  padding: 0 8px 8px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.historyEntry {
+  display: block;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.historyEntry:hover {
+  background: var(--hover-bg);
+}
+
+.historyCurrent,
+.historyCurrent:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.historyRedo {
+  color: var(--text-muted);
 }

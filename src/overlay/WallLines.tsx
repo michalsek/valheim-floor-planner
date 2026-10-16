@@ -1,5 +1,5 @@
 import { useViewport } from '../store/hooks';
-import { useDerivedPlan, usePlan } from '../store/planHooks';
+import { useDisplayDerived, useDisplayPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { PieceFootprints } from './PieceFootprints';
@@ -13,8 +13,8 @@ const FAR_ZOOM = 12;
 
 /** Thin lines along committed runs, plus solid footprints when zoomed far out. */
 export const WallLines = () => {
-  const { walls } = usePlan();
-  const { pieces } = useDerivedPlan();
+  const { walls } = useDisplayPlan();
+  const { pieces } = useDisplayDerived();
   const { zoom } = useViewport();
 
   return (

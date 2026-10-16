@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import { nextSnapStep } from '../model/geometry/snap';
+import { openPlanFile, saveCurrentPlan } from '../store/fileActions';
 import {
   activeToolIdAtom,
   resetModifiers,
@@ -55,6 +56,12 @@ const KEYMAP: readonly KeyBinding[] = [
   { test: isRedoKey, repeat: true, run: (s) => s.plan.redo() },
 ];
 
+/** Checked before anything else, even in text fields, so the browser's own never open. */
+const FILE_KEYMAP: readonly KeyBinding[] = [
+  { keys: ['s'], mod: true, run: (s) => void saveCurrentPlan(s) },
+  { keys: ['o'], mod: true, run: (s) => void openPlanFile(s) },
+];
+
 const matchesKeys = (binding: KeyBinding, e: KeyboardEvent): boolean =>
   (binding.keys ?? []).includes(e.key.toLowerCase()) &&
   (e.ctrlKey || e.metaKey) === (binding.mod ?? false) &&
@@ -69,14 +76,22 @@ const isEditableTarget = (target: EventTarget | null): boolean =>
   (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 /**
- * Window-level keyboard handling. Order: modifiers (Space, Alt), then the active
- * tool (every key, modified ones included), then `KEYMAP`.
+ * Window-level keyboard handling. Order: file keys (Mod+S, Mod+O), then, outside
+ * text fields, modifiers (Space, Alt), the active tool (every key, modified ones
+ * included) and `KEYMAP`.
  */
 export const useToolKeyboard = (): void => {
   const ctx = useToolContext();
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const fileBinding = FILE_KEYMAP.find((b) => matchesKeys(b, e));
+      if (fileBinding) {
+        // Repeats are swallowed too, or a held Mod+S would open the browser's dialog.
+        e.preventDefault();
+        if (!e.repeat) fileBinding.run(ctx);
+        return;
+      }
       if (isEditableTarget(e.target)) return;
       if (e.key === ' ' || e.key === 'Alt') {
         // Space would scroll or re-click a focused button; Alt would focus the menu bar.

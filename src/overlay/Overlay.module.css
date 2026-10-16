@@ -150,3 +150,65 @@
 .labelDanger {
   fill: var(--overlay-danger);
 }
+
+.toneSelected {
+  stroke: var(--overlay-accent);
+  stroke-width: 2px;
+}
+
+.toneHover {
+  stroke: var(--overlay-pinned);
+  stroke-width: 2.5px;
+}
+
+.selectBox {
+  fill: var(--overlay-accent);
+  fill-opacity: 0.08;
+  stroke: var(--overlay-accent);
+  stroke-width: 1px;
+}
+
+.selectBoxTouch {
+  stroke-dasharray: 5 3;
+}
+
+.handle {
+  fill: var(--canvas-bg);
+  stroke: var(--overlay-accent);
+  stroke-width: 1.5px;
+}
+
+.handleHot {
+  fill: var(--overlay-accent);
+}
+
+.selectedPiece,
+.hoverPiece {
+  fill: var(--overlay-accent);
+  stroke: var(--overlay-accent);
+  stroke-width: 1px;
+}
+
+.selectedPiece {
+  fill-opacity: 0.35;
+}
+
+.hoverPiece {
+  fill-opacity: 0.12;
+  stroke-opacity: 0.5;
+}
+
+.selectedLine,
+.hoverLine {
+  fill: none;
+  stroke: var(--overlay-accent);
+}
+
+.selectedLine {
+  stroke-width: 2px;
+}
+
+.hoverLine {
+  stroke-width: 1.5px;
+  stroke-opacity: 0.5;
+}

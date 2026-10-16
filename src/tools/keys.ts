@@ -1,4 +1,5 @@
-const isMod = (e: KeyboardEvent): boolean => e.ctrlKey || e.metaKey;
+/** Ctrl (or ⌘ on a Mac) is held. */
+export const isMod = (e: KeyboardEvent): boolean => e.ctrlKey || e.metaKey;
 
 /** Ctrl/Cmd+Z, without Shift or Alt. */
 export const isUndoKey = (e: KeyboardEvent): boolean =>

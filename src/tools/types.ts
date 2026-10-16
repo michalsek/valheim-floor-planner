@@ -39,10 +39,8 @@ export interface Tool {
   shortcut: string;
   /** 20 × 20 icon for the ToolRail (draws with `currentColor`). */
   icon: ComponentType;
-  /** CSS cursor shown over the canvas while the tool is active. */
+  /** CSS cursor shown over the canvas while the tool is active (see `cursorStyleAtom`). */
   cursor: string;
-  /** When true, a left-button drag pans the view instead of reaching the tool. */
-  panOnPrimaryDrag?: boolean;
   onActivate?(ctx: ToolContext): void;
   onDeactivate?(ctx: ToolContext): void;
   /** The pointer is captured from here until pointer-up or cancel. */

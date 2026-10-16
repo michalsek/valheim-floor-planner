@@ -97,3 +97,6 @@ export const resetModifiers = (store: SessionAccess): void => {
   setModifier(store, 'alt', false);
   setModifier(store, 'space', false);
 };
+
+/** A cursor the active tool asks for over what it hovers (e.g. `move`); null for its default. */
+export const cursorStyleAtom = atom<string | null>(null);

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { parsePlan, serializePlan } from './serialize';
-import type { Plan } from './types';
+import { emptyPlan, type Plan } from './types';
 
 const plan: Plan = {
   version: 1,
+  name: 'Longhouse',
   walls: {
     a: {
       id: 'a',
@@ -26,8 +27,9 @@ describe('serialize', () => {
     expect(parsePlan(JSON.parse(serializePlan(plan)))).toEqual(plan);
   });
 
-  it('defaults a missing dimensions collection to {}', () => {
-    expect(parsePlan({ version: 1, walls: {} }).dimensions).toEqual({});
+  it('loads an M2-era file: name "Untitled", dimensions {}', () => {
+    expect(parsePlan({ version: 1, walls: {} })).toEqual(emptyPlan());
+    expect(parsePlan({ version: 1, name: '  ', walls: {} }).name).toBe('Untitled');
   });
 
   it.each([

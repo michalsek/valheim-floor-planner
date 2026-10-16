@@ -3,14 +3,8 @@ import type { UndoRedoState } from '../../store/planHooks';
 
 import styles from './BomPanel.module.css';
 
-interface PlanActionsProps {
-  undoRedo: UndoRedoState;
-  canClear: boolean;
-  onClear(): void;
-}
-
-/** Undo, redo and clear, above the bill of materials. */
-export const PlanActions = ({ undoRedo, canClear, onClear }: PlanActionsProps) => {
+/** Undo and redo, above the bill of materials; tooltips name the entry. */
+export const PlanActions = ({ undoRedo }: { undoRedo: UndoRedoState }) => {
   const { undo, redo, canUndo, canRedo, undoLabel, redoLabel } = undoRedo;
   return (
     <header className={styles.header}>
@@ -33,17 +27,6 @@ export const PlanActions = ({ undoRedo, canClear, onClear }: PlanActionsProps) =
         onClick={redo}
       >
         Redo
-      </button>
-      <span className={styles.spacer} />
-      <button
-        type="button"
-        className={styles.action}
-        disabled={!canClear}
-        title={canClear ? 'Remove all walls and dimensions (undoable)' : 'The plan is empty'}
-        onMouseDown={keepFocus}
-        onClick={onClear}
-      >
-        Clear plan…
       </button>
     </header>
   );

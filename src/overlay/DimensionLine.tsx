@@ -12,12 +12,17 @@ const LABEL_OFFSET = 14;
 /** Extension lines run this far past the dimension line. */
 const OVERSHOOT = 4;
 
-/** live: being measured; pinned: stored in the plan; danger: a click deletes it. */
-type DimensionTone = 'live' | 'pinned' | 'danger';
+/**
+ * live: being measured; pinned: stored in the plan; selected / hover: in the Select
+ * tool; danger: Delete or Alt+click removes it.
+ */
+export type DimensionTone = 'live' | 'pinned' | 'selected' | 'hover' | 'danger';
 
 const TONE_CLASS: Record<DimensionTone, string> = {
   live: '',
   pinned: styles.tonePinned ?? '',
+  selected: styles.toneSelected ?? '',
+  hover: styles.toneHover ?? '',
   danger: styles.toneDanger ?? '',
 };
 

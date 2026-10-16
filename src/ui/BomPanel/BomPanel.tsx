@@ -1,38 +1,22 @@
-import type { ReactNode } from 'react';
-
 import { itemLabel } from '../../catalog/items';
-import { emptyPlan, type Plan } from '../../model/types';
-import { planStore } from '../../store/planInstance';
-import { useDerivedPlan, usePlanSelector, useUndoRedo } from '../../store/planHooks';
+import { useDerivedPlan, useUndoRedo } from '../../store/planHooks';
+import { Row, Section } from '../shared/PanelList';
 
-import styles from './BomPanel.module.css';
 import { AutosaveNotice } from './AutosaveNotice';
+import styles from './BomPanel.module.css';
 import { BuildingSummary } from './BuildingSummary';
+import { HistoryList } from './HistoryList';
 import { PlanActions } from './PlanActions';
 
-const isEmpty = (plan: Plan) =>
-  Object.keys(plan.walls).length === 0 && Object.keys(plan.dimensions).length === 0;
-
-/** Bill of materials: piece counts, total resources and plan warnings. */
+/** Undo history, then the bill of materials: piece counts, resources and warnings. */
 export const BomPanel = () => {
   const { bom, warnings } = useDerivedPlan();
-  const empty = usePlanSelector(isEmpty);
   const undoRedo = useUndoRedo();
 
   return (
     <aside className={styles.panel} aria-label="Bill of materials">
-      <PlanActions
-        undoRedo={undoRedo}
-        canClear={!empty}
-        onClear={() => {
-          if (window.confirm('Clear the whole plan? You can undo this.')) {
-            planStore.dispatch(
-              { type: 'plan.replace', plan: emptyPlan() },
-              { label: 'Clear plan' }
-            );
-          }
-        }}
-      />
+      <PlanActions undoRedo={undoRedo} />
+      <HistoryList />
       <AutosaveNotice />
       <div className={styles.body}>
         <BuildingSummary />
@@ -65,17 +49,3 @@ export const BomPanel = () => {
     </aside>
   );
 };
-
-const Section = ({ title, children }: { title: string; children: ReactNode }) => (
-  <section className={styles.section}>
-    <h2 className={styles.heading}>{title}</h2>
-    <ul className={styles.list}>{children}</ul>
-  </section>
-);
-
-const Row = ({ label, value }: { label: string; value: number }) => (
-  <li className={styles.row}>
-    <span>{label}</span>
-    <span className={styles.value}>{value}</span>
-  </li>
-);

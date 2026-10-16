@@ -6,7 +6,12 @@ import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'imm
 
 import type { Plan } from '../model/types';
 
-import { applyCommand, COMMAND_LABELS, PlanCommandError, type PlanCommand } from './commands';
+import {
+  applyCommand,
+  COMMAND_LABELS,
+  PlanCommandError,
+  type PlanCommand,
+} from '../model/commands';
 
 enablePatches();
 
@@ -16,6 +21,14 @@ export interface PlanChange {
   plan: Plan;
   source: PlanChangeSource;
   label: string;
+}
+
+/** History labels: `undo` oldest first (the last is undone next), `redo` next first. */
+export interface HistoryLabels {
+  undo: readonly string[];
+  redo: readonly string[];
+  /** Older entries were dropped (`historyLimit`), so `undo` doesn't reach the start. */
+  truncated: boolean;
 }
 
 export type DispatchResult = { ok: true } | { ok: false; error: PlanCommandError };
@@ -32,6 +45,8 @@ export interface PlanStore {
   canRedo(): boolean;
   peekUndoLabel(): string | null;
   peekRedoLabel(): string | null;
+  /** The same object until history changes (a stable `useSyncExternalStore` snapshot). */
+  historyLabels(): HistoryLabels;
   /** Replaces the plan and clears history (start-up only). */
   load(plan: Plan): void;
   subscribe(listener: (change: PlanChange) => void): () => void;
@@ -59,9 +74,14 @@ export const createPlanStore = (
   let plan = initial;
   let undoStack: HistoryEntry[] = [];
   let redoStack: HistoryEntry[] = [];
+  let truncated = false;
   const listeners = new Set<(change: PlanChange) => void>();
+  // Bumped on every change; keys the `historyLabels` cache.
+  let version = 0;
+  let labels: { version: number; value: HistoryLabels } | null = null;
 
   const notify = (source: PlanChangeSource, label: string): void => {
+    version += 1;
     for (const listener of listeners) listener({ plan, source, label });
   };
 
@@ -70,7 +90,10 @@ export const createPlanStore = (
     if (entry.patches.length === 0) return { ok: true };
     plan = next;
     undoStack.push(entry);
-    if (undoStack.length > historyLimit) undoStack = undoStack.slice(-historyLimit);
+    if (undoStack.length > historyLimit) {
+      undoStack = undoStack.slice(-historyLimit);
+      truncated = true;
+    }
     redoStack = [];
     notify(source, entry.label);
     return { ok: true };
@@ -122,10 +145,23 @@ export const createPlanStore = (
     peekUndoLabel: () => undoStack[undoStack.length - 1]?.label ?? null,
     peekRedoLabel: () => redoStack[redoStack.length - 1]?.label ?? null,
 
+    historyLabels() {
+      if (labels?.version !== version) {
+        const value = {
+          undo: undoStack.map((e) => e.label),
+          redo: redoStack.map((e) => e.label).reverse(),
+          truncated,
+        };
+        labels = { version, value };
+      }
+      return labels.value;
+    },
+
     load(next) {
       plan = next;
       undoStack = [];
       redoStack = [];
+      truncated = false;
       notify('load', 'Load');
     },
 

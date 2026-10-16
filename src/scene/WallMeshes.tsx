@@ -4,7 +4,7 @@ import { BoxGeometry, MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { materialColor } from '../catalog/materialColors';
 import { groundCourse } from '../model/types';
-import { useDerivedPlan } from '../store/planHooks';
+import { useDisplayDerived } from '../store/planHooks';
 
 /** Gap left between neighbouring pieces, so seams show (metres). */
 const SEAM = 0.06;
@@ -32,7 +32,7 @@ const createResources = () => {
 
 /** The plan's ground-course wall pieces, as flat slabs (the bill counts every course). */
 export const WallMeshes = () => {
-  const { pieces } = useDerivedPlan();
+  const { pieces } = useDisplayDerived();
   const invalidate = useThree((s) => s.invalidate);
   const [resources] = useState(createResources);
 

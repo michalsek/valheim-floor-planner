@@ -1,11 +1,11 @@
-import { useDerivedPlan } from '../store/planHooks';
+import { useDisplayDerived } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { RunPath } from './RunPath';
 
 /** Dashed outlines of every room's clear floor, holes included (world layer). */
 export const RoomOutlines = () => {
-  const { rooms } = useDerivedPlan();
+  const { rooms } = useDisplayDerived();
   return (
     <g>
       {rooms.flatMap((room) =>

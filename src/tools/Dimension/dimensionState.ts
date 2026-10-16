@@ -1,6 +1,6 @@
 import { atom } from 'jotai';
 
-import type { DimId, Vec2 } from '../../model/types';
+import type { Vec2 } from '../../model/types';
 
 /** The dimension being drawn (session state, never in history). */
 type DimensionDraft =
@@ -9,6 +9,3 @@ type DimensionDraft =
 export const DIMENSION_IDLE: DimensionDraft = { phase: 'idle' };
 
 export const dimensionDraftAtom = atom<DimensionDraft>(DIMENSION_IDLE);
-
-/** The pinned dimension Delete or Alt+click would remove (the tool is idle and over it). */
-export const dimensionHoverIdAtom = atom<DimId | null>(null);

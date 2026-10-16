@@ -1,9 +1,9 @@
 .app {
   display: grid;
-  grid-template-columns: var(--rail-width) 1fr var(--bom-width);
+  grid-template-columns: var(--rail-width) 1fr var(--side-width);
   grid-template-rows: 1fr var(--status-height);
   grid-template-areas:
-    'rail canvas bom'
+    'rail canvas side'
     'status status status';
   height: 100%;
 }
@@ -20,9 +20,13 @@
   min-height: 0;
 }
 
-.bom {
-  grid-area: bom;
+.side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
 }
 
 .status {

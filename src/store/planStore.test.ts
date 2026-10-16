@@ -64,6 +64,20 @@ describe('planStore', () => {
     expect(store.getPlan()).toBe(before);
   });
 
+  it('lists history labels in order, with a stable snapshot', () => {
+    const store = createPlanStore(emptyPlan());
+    for (const id of ['a', 'b', 'c']) {
+      store.dispatch({ type: 'wall.insert', wall: wall(id) }, { label: `Add ${id}` });
+    }
+    store.undo();
+    store.undo();
+    const labels = store.historyLabels();
+    expect(labels).toEqual({ undo: ['Add a'], redo: ['Add b', 'Add c'], truncated: false });
+    expect(store.historyLabels()).toBe(labels);
+    store.dispatch({ type: 'plan.rename', name: 'Hall' });
+    expect(store.historyLabels()).toMatchObject({ undo: ['Add a', 'Rename plan'], redo: [] });
+  });
+
   it('keeps at most historyLimit entries, and load clears history', () => {
     const store = createPlanStore(emptyPlan(), { historyLimit: 2 });
     for (const id of ['a', 'b', 'c']) store.dispatch({ type: 'wall.insert', wall: wall(id) });

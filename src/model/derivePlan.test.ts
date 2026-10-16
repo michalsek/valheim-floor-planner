@@ -22,6 +22,7 @@ const wall = (familyId: string): WallRun => ({
 const derive = (...walls: WallRun[]) => {
   const plan: Plan = {
     version: 1,
+    name: 'Test',
     walls: Object.fromEntries(walls.map((w) => [w.id, w])),
     dimensions: {},
   };

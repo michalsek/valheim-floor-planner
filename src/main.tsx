@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { startAutosave } from './store/autosave';
 import { planStorage, planStore } from './store/planInstance';
+import { startSelectionSync } from './store/selection';
 import { autosaveStatusAtom, sessionStore } from './store/session';
 
 const root = document.getElementById('root');
@@ -18,6 +19,9 @@ if (planStorage) {
 } else {
   sessionStore.set(autosaveStatusAtom, 'unavailable');
 }
+
+// Before the first render, so the selection is pruned before React reads it.
+startSelectionSync(planStore, sessionStore);
 
 createRoot(root).render(
   <StrictMode>

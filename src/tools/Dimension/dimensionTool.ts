@@ -1,36 +1,32 @@
 import { offsetThrough } from '../../model/geometry/dimension';
+import { hitDimension } from '../../model/hitTest';
 import { samePoint } from '../../model/geometry/polyline';
 import { newId } from '../../model/newId';
 import type { Vec2 } from '../../model/types';
-import { viewportAtom } from '../../store/session';
+import { hoverAtom } from '../../store/selection';
+import { hitTolerance } from '../hitTolerance';
 import { isUndoKey } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool, ToolContext } from '../types';
 
-import { hitDimension } from './dimensionHit';
 import { DimensionIcon } from './DimensionIcon';
 import { DimensionPreview } from './DimensionPreview';
-import { DIMENSION_IDLE, dimensionDraftAtom, dimensionHoverIdAtom } from './dimensionState';
+import { DIMENSION_IDLE, dimensionDraftAtom } from './dimensionState';
 
-/** How close (in screen px) the pointer must be to a dimension line to hover it. */
-const HIT_TOL_PX = 6;
-
+/** Hovers the pinned dimension under `p`: Delete or Alt+click would remove it. */
 const updateHover = (ctx: ToolContext, p: Vec2): void => {
-  const tol = HIT_TOL_PX / ctx.get(viewportAtom).zoom;
-  ctx.set(dimensionHoverIdAtom, hitDimension(ctx.plan.getPlan().dimensions, p, tol));
+  const hit = hitDimension(ctx.plan.getPlan().dimensions, p, hitTolerance(ctx));
+  ctx.set(hoverAtom, hit && { kind: 'dimension', ...hit });
 };
 
 /** Deletes the hovered dimension; false when none is hovered. */
 const deleteHovered = (ctx: ToolContext): boolean => {
-  const id = ctx.get(dimensionHoverIdAtom);
-  if (!id) return false;
-  ctx.plan.dispatch({ type: 'dimension.remove', id });
-  ctx.set(dimensionHoverIdAtom, null);
+  const hover = ctx.get(hoverAtom);
+  if (hover?.kind !== 'dimension') return false;
+  ctx.plan.dispatch({ type: 'dimension.remove', id: hover.id });
+  ctx.set(hoverAtom, null);
   return true;
 };
-
-/** Stops clearing the hover on plan changes (set while the tool is active). */
-let stopHoverReset: (() => void) | null = null;
 
 /** One step back through the draft; false when there is no draft. */
 const stepBack = (ctx: ToolContext): boolean => {
@@ -64,7 +60,7 @@ export const dimensionTool: Tool = {
       case 'idle':
         updateHover(ctx, e.world);
         if (e.altKey && deleteHovered(ctx)) return;
-        ctx.set(dimensionHoverIdAtom, null);
+        ctx.set(hoverAtom, null);
         ctx.set(dimensionDraftAtom, { phase: 'b', a: e.snapped });
         return;
       case 'b':
@@ -90,15 +86,10 @@ export const dimensionTool: Tool = {
     ctx.set(dimensionDraftAtom, DIMENSION_IDLE);
     return true;
   },
-  onActivate(ctx) {
-    // An undo or redo can remove the hovered dimension under the pointer.
-    stopHoverReset = ctx.plan.subscribe(() => ctx.set(dimensionHoverIdAtom, null));
-  },
+  // `startSelectionSync` clears a hover whose dimension an undo removed.
   onDeactivate(ctx) {
-    stopHoverReset?.();
-    stopHoverReset = null;
     ctx.set(dimensionDraftAtom, DIMENSION_IDLE);
-    ctx.set(dimensionHoverIdAtom, null);
+    ctx.set(hoverAtom, null);
   },
   Preview: DimensionPreview,
 };

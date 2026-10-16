@@ -1,0 +1,60 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.name {
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.name:hover {
+  border-color: var(--panel-border);
+}
+
+.name:focus {
+  border-color: var(--accent);
+  outline: none;
+  background: var(--app-bg);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.info,
+.error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.info {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--warning);
+}
+
+.dismiss {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
