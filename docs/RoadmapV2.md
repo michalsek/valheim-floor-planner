@@ -71,7 +71,8 @@ This builds on v1 (M1–M7, see [Roadmap.md](Roadmap.md)). The stack and princip
   - **26° roof:** the eave sits **1 m out from the wall**, measured perpendicular to it, and the roof also runs **1 m past the building's end**, so the gable overhangs too.
   - **45° roof:** the eave sits **1 m out, 1 m down** from the top edge of the wall, and also **1 m past the building's end**. So the corner gets a 1 × 1 × 1 m bracket: one horizontal log out from the corner and one vertical log down.
   - Reference screenshot: the user's `images/4.webp`, kept in the session (a red bracket sketch on an in-game roof corner).
-- Overhang pieces (the logs and the roof pieces past the walls) count toward the bill of materials and toward support.
+  - **Correction from the user:** with this geometry, the roof piece rests directly on the wall's top edge, especially on 45° roofs. So the 1 m logs are only needed to *start* the overhang, not to hold it up. The roof itself is placed 1 m out, resting on the wall's top edge, and needs no log under it.
+- Roof pieces past the walls count toward the bill of materials. For support, they take it from their contact with the wall's top edge, not from logs. M11's integrity check must therefore treat a roof touching a wall edge as a support contact.
 - Roof pieces count toward the bill of materials and toward support.
 
 ## M13 (optional, plan only): Loading game world saves
