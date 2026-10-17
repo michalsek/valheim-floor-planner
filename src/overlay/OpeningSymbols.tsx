@@ -6,7 +6,7 @@ import type { Hit } from '../model/hitTest';
 import type { ResolvedOpening } from '../model/openings';
 import { isSelected, type Selection } from '../model/selection';
 import type { Vec2 } from '../model/types';
-import { useDisplayDerived } from '../store/planHooks';
+import { useLevelDerived } from '../store/planHooks';
 import { hoverAtom, selectionAtom } from '../store/selection';
 
 import styles from './Overlay.module.css';
@@ -115,7 +115,7 @@ const toneFor = (o: ResolvedOpening, selection: Selection, hover: Hit | null) =>
  * the danger colour when it has a problem (and isn't cut).
  */
 export const OpeningSymbols = () => {
-  const { openings } = useDisplayDerived();
+  const { openings } = useLevelDerived();
   const selection = useAtomValue(selectionAtom);
   const hover = useAtomValue(hoverAtom);
 

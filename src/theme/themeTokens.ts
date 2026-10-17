@@ -14,6 +14,15 @@ import { PROP_GROUPS, type PropGroup } from '../catalog/propDefs';
 
 export type PropGroupColors = Readonly<Record<PropGroup | 'fallback', string>>;
 
+/** The support view's colours: grounded, the strong → weak ramp, and collapsing. */
+export interface SupportColors {
+  grounded: string;
+  high: string;
+  mid: string;
+  low: string;
+  broken: string;
+}
+
 export interface ThemeTokens {
   /** Grid line colour, `#rrggbb`. */
   gridLine: string;
@@ -28,12 +37,17 @@ export interface ThemeTokens {
   propGroups: PropGroupColors;
   /** Darkness of the 3D view's ground shadows (0–1). */
   shadowAlpha: number;
+  /** The canvas background: pieces off the current level fade towards it in 3D. */
+  canvas: string;
+  support: SupportColors;
   /** The 3D view's tool drawing: lines, the cursor, valid and invalid ghosts. */
   ink: ToolInk;
 }
 
 /** Overlay colours the 3D view draws with (the same tokens as the 2D overlay's CSS). */
 export interface ToolInk {
+  /** The overlay's text colour: white-ish in dark themes, near-black in light ones. */
+  neutral: string;
   accent: string;
   /** The raw (unsnapped) cursor, and the ward ring. */
   info: string;
@@ -63,7 +77,16 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   selection: '#ff5ad2',
   propGroups: Object.fromEntries(PROP_KEYS.map((g) => [g, '#9aa3ad'])) as PropGroupColors,
   shadowAlpha: 0.4,
+  canvas: '#2a2c30',
+  support: {
+    grounded: '#5d9bd8',
+    high: '#6cc46a',
+    mid: '#e6c74a',
+    low: '#e0613f',
+    broken: '#e04fd8',
+  },
   ink: {
+    neutral: '#f3f5f8',
     accent: '#e8a84e',
     info: '#7cc4ff',
     pinned: '#9fb4ff',
@@ -115,7 +138,16 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
       PROP_KEYS.map((g) => [g, color(`--prop-${g}`, def.propGroups[g])])
     ) as PropGroupColors,
     shadowAlpha: number('--shadow-alpha', def.shadowAlpha, 1),
+    canvas: color('--canvas', def.canvas),
+    support: {
+      grounded: color('--support-grounded', def.support.grounded),
+      high: color('--support-high', def.support.high),
+      mid: color('--support-mid', def.support.mid),
+      low: color('--support-low', def.support.low),
+      broken: color('--support-broken', def.support.broken),
+    },
     ink: {
+      neutral: color('--ink', def.ink.neutral),
       accent: color('--accent', def.ink.accent),
       info: color('--info', def.ink.info),
       pinned: color('--pinned', def.ink.pinned),

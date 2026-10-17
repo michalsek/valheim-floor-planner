@@ -94,10 +94,21 @@ export const effectiveSnapStepAtom = atom<number>((get) =>
 );
 
 /**
- * The height of the plane 3D tools work on (the current level's walking surface). Read
- * by the cursor, picking, the box builders' callers and the ground; M11's levels set it.
+ * The current level: the height of the plane tools work on (its walking surface). The
+ * Levels bar and PageUp / PageDown set it; new objects are stamped with it, 2D shows
+ * that level (and ghosts of the one below), picking sees only it.
  */
 export const workDatumAtom = atom<number>(0);
+
+/** The Levels bar's step: 1 m, or 0.5 m (grausten floors are 0.5 m thick). */
+export type ElevationStep = 1 | 0.5;
+export const elevationStepAtom = atom<ElevationStep>(1);
+
+/** Colour pieces by structural support instead of material (both views). */
+export const supportViewAtom = atom<boolean>(false);
+
+/** The next click on the canvas picks a piece, and the level moves to its top. */
+export const levelPickAtom = atom<boolean>(false);
 
 /** The 3D camera as plain data (`OrbitRig` keeps it current); null outside 3D. */
 export const projection3dAtom = atom<Projection3d | null>(null);

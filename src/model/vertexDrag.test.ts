@@ -13,6 +13,7 @@ const run = (points: Vec2[], closed: boolean): WallRun => ({
   closed,
   side: 'right',
   height: 2,
+  elevation: 0,
 });
 
 // Clockwise on screen (+z down).

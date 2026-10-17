@@ -3,6 +3,7 @@ import { Provider } from 'jotai';
 import styles from './App.module.css';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
 import { FloorOutlines } from './overlay/FloorOutlines';
+import { LevelGhosts } from './overlay/LevelGhosts';
 import { OpeningSymbols } from './overlay/OpeningSymbols';
 import { Overlay } from './overlay/Overlay';
 import { Overlay3d } from './overlay/Overlay3d';
@@ -24,6 +25,7 @@ import { ToolOverlay3d, ToolPreview, ToolWorldPreview } from './tools/ToolPrevie
 import { BomPanel } from './ui/BomPanel/BomPanel';
 import { CatalogBrowser } from './ui/CatalogBrowser/CatalogBrowser';
 import { Inspector } from './ui/Inspector/Inspector';
+import { LevelsBar } from './ui/LevelsBar/LevelsBar';
 import { PlanHeader } from './ui/PlanHeader/PlanHeader';
 import { StatusStrip } from './ui/StatusStrip/StatusStrip';
 import { ToolOptionsBar } from './ui/ToolOptions/ToolOptionsBar';
@@ -35,6 +37,7 @@ const PlanOverlay = () => (
   <Overlay
     world={
       <>
+        <LevelGhosts />
         <FloorOutlines />
         <RoomOutlines />
         <WallLines />
@@ -83,6 +86,7 @@ const CanvasChrome = () => (
   <>
     <CatalogBrowser />
     <ToolOptionsBar />
+    <LevelsBar />
     {useViewMode() === '3d' && <ViewBar />}
   </>
 );

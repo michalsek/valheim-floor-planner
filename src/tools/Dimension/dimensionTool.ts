@@ -4,8 +4,10 @@ import { samePoint } from '../../model/geometry/polyline';
 import { newId } from '../../model/newId';
 import type { Vec2 } from '../../model/types';
 import { hoverAtom } from '../../store/selection';
+import { workDatumAtom } from '../../store/session';
 import { hitTolerance } from '../hitTolerance';
 import { isUndoKey } from '../keys';
+import { levelView } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool, ToolContext } from '../types';
 
@@ -16,7 +18,7 @@ import { DIMENSION_IDLE, dimensionDraftAtom } from './dimensionState';
 
 /** Hovers the pinned dimension under `p`: Delete or Alt+click would remove it. */
 const updateHover = (ctx: ToolContext, p: Vec2): void => {
-  const hit = hitDimension(ctx.plan.getPlan().dimensions, p, hitTolerance(ctx));
+  const hit = hitDimension(levelView(ctx).dimensions, p, hitTolerance(ctx));
   ctx.set(hoverAtom, hit && { kind: 'dimension', ...hit });
 };
 
@@ -72,7 +74,8 @@ export const dimensionTool: Tool = {
       case 'offset': {
         const { a, b } = draft;
         const offset = offsetThrough(a, b, e.snapped);
-        ctx.plan.dispatch({ type: 'dimension.insert', dimension: { id: newId(), a, b, offset } });
+        const dimension = { id: newId(), a, b, offset, elevation: ctx.get(workDatumAtom) };
+        ctx.plan.dispatch({ type: 'dimension.insert', dimension });
         ctx.set(dimensionDraftAtom, DIMENSION_IDLE);
         return;
       }

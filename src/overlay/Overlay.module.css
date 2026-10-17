@@ -199,6 +199,13 @@
   stroke-opacity: 0.5;
 }
 
+/* In the support view pink would read as collapsing: selected pieces tint neutral. */
+.supportView .selectedPiece,
+.supportView .hoverPiece {
+  fill: var(--ink);
+  stroke: var(--ink);
+}
+
 .selectedLine,
 .hoverLine,
 .selectedHalo {
@@ -349,4 +356,22 @@
   fill: none;
   stroke: var(--ink-muted);
   stroke-dasharray: 6 4;
+}
+
+/* The level below, under the current one: faint and without labels. */
+.ghostLevel {
+  opacity: 0.3;
+}
+
+.stairGlyph {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Labels of a level other than the current one (3D). */
+.offLevel {
+  opacity: 0.4;
 }

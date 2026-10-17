@@ -1,4 +1,5 @@
 import { newId } from '../../model/newId';
+import { workDatumAtom } from '../../store/session';
 import type { Vec2 } from '../../model/types';
 import { isUndoKey } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
@@ -19,7 +20,8 @@ import {
 import { WallWorldPreview } from './WallWorldPreview';
 
 const commit = (ctx: ToolContext, points: readonly Vec2[], closed: boolean): void => {
-  const run = draftToRun(newId(), points, closed, ctx.get(wallSettingsAtom));
+  const settings = ctx.get(wallSettingsAtom);
+  const run = draftToRun(newId(), points, closed, settings, ctx.get(workDatumAtom));
   ctx.set(wallDraftAtom, null);
   if (run) ctx.plan.dispatch({ type: 'wall.insert', wall: run }, { label: 'Add wall' });
 };

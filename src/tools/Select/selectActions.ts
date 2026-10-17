@@ -6,11 +6,12 @@ import {
   translateCommands,
 } from '../../model/editCommands';
 import { newId } from '../../model/newId';
-import { allItems, itemsLabel, type Selection } from '../../model/selection';
+import { itemsAt } from '../../model/levels';
+import { itemsLabel, type Selection } from '../../model/selection';
 import type { PlanCommand } from '../../model/commands';
 import { getLibrary } from '../../store/libraryInstance';
 import { selectionAtom } from '../../store/selection';
-import { snapStepAtom } from '../../store/session';
+import { snapStepAtom, workDatumAtom } from '../../store/session';
 import type { ToolContext } from '../types';
 
 /** Commits `cmds` as one history entry; true when it worked (or there was nothing to do). */
@@ -40,8 +41,9 @@ export const clearSelection = (ctx: ToolContext): boolean => {
   return true;
 };
 
+/** Everything on the current level. */
 export const selectAll = (ctx: ToolContext): void => {
-  ctx.set(selectionAtom, allItems(ctx.plan.getPlan()));
+  ctx.set(selectionAtom, itemsAt(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary()));
 };
 
 export const deleteSelection = (ctx: ToolContext): boolean => {

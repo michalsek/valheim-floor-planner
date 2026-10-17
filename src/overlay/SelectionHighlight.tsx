@@ -4,8 +4,9 @@ import { hitItem } from '../model/hitTest';
 import { ITEM_KINDS } from '../model/itemKinds';
 import { isSelected, type SelectionItem } from '../model/selection';
 import { getLibrary } from '../store/libraryInstance';
-import { useDisplayDerived, useDisplayPlan } from '../store/planHooks';
+import { useLevelDerived, useLevelPlan } from '../store/planHooks';
 import { hoverAtom, selectionAtom } from '../store/selection';
+import { supportViewAtom } from '../store/session';
 
 import styles from './Overlay.module.css';
 import { PieceFootprints } from './PieceFootprints';
@@ -27,8 +28,9 @@ type Tone = keyof typeof TONES;
 export const SelectionHighlight = () => {
   const selection = useAtomValue(selectionAtom);
   const hover = useAtomValue(hoverAtom);
-  const plan = useDisplayPlan();
-  const { pieces } = useDisplayDerived();
+  const plan = useLevelPlan();
+  const { pieces } = useLevelDerived();
+  const supportView = useAtomValue(supportViewAtom);
 
   const hovered = hover && hitItem(hover);
   const items: { item: SelectionItem; tone: Tone }[] = [
@@ -39,7 +41,7 @@ export const SelectionHighlight = () => {
   ];
 
   return (
-    <g>
+    <g className={supportView ? styles.supportView : undefined}>
       {items.map(({ item, tone }) => {
         const { piece, line, halo } = TONES[tone];
         const lines = ITEM_KINDS[item.kind].highlight?.(plan, item.id, getLibrary()) ?? [];

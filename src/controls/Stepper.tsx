@@ -6,11 +6,23 @@ interface StepperProps {
   value: number;
   min: number;
   max: number;
+  /** How much a click changes the value (default 1). */
+  step?: number;
+  /** How the value is shown (default as it is). */
+  format?: (value: number) => string;
   onChange(value: number): void;
 }
 
-/** − value + buttons for a small whole number; never takes focus. */
-export const Stepper = ({ label, value, min, max, onChange }: StepperProps) => (
+/** − value + buttons for a small number; never takes focus. */
+export const Stepper = ({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  format = String,
+  onChange,
+}: StepperProps) => (
   <div className={styles.segments} role="group" aria-label={label}>
     <button
       type="button"
@@ -18,18 +30,18 @@ export const Stepper = ({ label, value, min, max, onChange }: StepperProps) => (
       aria-label={`Fewer ${label.toLowerCase()}`}
       disabled={value <= min}
       onMouseDown={keepFocus}
-      onClick={() => onChange(value - 1)}
+      onClick={() => onChange(Math.max(min, value - step))}
     >
       −
     </button>
-    <span className={styles.stepperValue}>{value}</span>
+    <span className={styles.stepperValue}>{format(value)}</span>
     <button
       type="button"
       className={styles.segment}
       aria-label={`More ${label.toLowerCase()}`}
       disabled={value >= max}
       onMouseDown={keepFocus}
-      onClick={() => onChange(value + 1)}
+      onClick={() => onChange(Math.min(max, value + step))}
     >
       +
     </button>

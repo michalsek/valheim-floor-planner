@@ -1,0 +1,81 @@
+.bar {
+  position: absolute;
+  top: 60px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 132px;
+  padding: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  color: var(--text-muted);
+  z-index: 1;
+}
+
+.current {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.current input {
+  flex: 1;
+  min-width: 0;
+}
+
+.levels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.level {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.level:hover {
+  background: var(--surface-hover);
+}
+
+.levelCurrent,
+.levelCurrent:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.levelName {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.count {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.actions > * {
+  flex: 1;
+}

@@ -15,6 +15,7 @@ const run = (points: Vec2[], closed = false): WallRun => ({
   closed,
   side: 'right',
   height: 2,
+  elevation: 0,
 });
 
 const graphOf = (...runs: WallRun[]) =>

@@ -1,4 +1,8 @@
+import { useAtomValue } from 'jotai';
 import { useMemo } from 'react';
+
+import { mixHex } from '../../catalog/materialColors';
+import { sameLevel } from '../../model/elevation';
 
 import { dimensionLine } from '../../model/geometry/dimension';
 import type { Polyline } from '../../model/geometry/box';
@@ -7,6 +11,7 @@ import type { DimensionTone } from '../../overlay/DimensionLine';
 import { useDimensionTone } from '../../overlay/useDimensionTone';
 import { useThemeTokens } from '../../store/hooks';
 import { useDisplayPlan } from '../../store/planHooks';
+import { workDatumAtom } from '../../store/session';
 import type { ThemeTokens } from '../../theme/themeTokens';
 
 import { PlaneLines } from './PlaneLines';
@@ -37,23 +42,53 @@ interface DimensionLines3dProps {
   b: Vec2;
   offset?: number;
   tone?: DimensionTone;
+  /** On another level than the current one: faded, and hidden behind pieces. */
+  offLevel?: boolean;
 }
 
-/** A dimension's line on the work plane, with extension lines back to `a` and `b`. */
-export const DimensionLines3d = ({ a, b, offset = 0, tone = 'live' }: DimensionLines3dProps) => {
+/** How far an off-level dimension fades towards the canvas. */
+const OFF_LEVEL_MIX = 0.6;
+
+/** A dimension's line on its plane (y = 0 here), with extension lines back to `a` and `b`. */
+export const DimensionLines3d = ({
+  a,
+  b,
+  offset = 0,
+  tone = 'live',
+  offLevel = false,
+}: DimensionLines3dProps) => {
   const tokens = useThemeTokens();
   const lines = useMemo(() => dimensionPolylines(a, b, offset), [a, b, offset]);
-  return <PlaneLines lines={lines} color={toneColor(tone, tokens)} />;
+  const color = toneColor(tone, tokens);
+  return (
+    <PlaneLines
+      lines={lines}
+      color={offLevel ? mixHex(color, tokens.canvas, OFF_LEVEL_MIX) : color}
+      throughPieces={!offLevel}
+    />
+  );
 };
 
-/** The plan's pinned dimensions on the work plane (labels: `PinnedDimensionLabels3d`). */
+/**
+ * The plan's pinned dimensions, each on its own level's plane (labels:
+ * `PinnedDimensionLabels3d`).
+ */
 export const Dimensions3d = () => {
   const { dimensions } = useDisplayPlan();
   const toneOf = useDimensionTone();
+  const datum = useAtomValue(workDatumAtom);
   return (
     <>
-      {Object.values(dimensions).map(({ id, a, b, offset }) => (
-        <DimensionLines3d key={id} a={a} b={b} offset={offset} tone={toneOf(id)} />
+      {Object.values(dimensions).map(({ id, a, b, offset, elevation }) => (
+        <group key={id} position-y={elevation}>
+          <DimensionLines3d
+            a={a}
+            b={b}
+            offset={offset}
+            tone={toneOf(id)}
+            offLevel={!sameLevel(elevation, datum)}
+          />
+        </group>
       ))}
     </>
   );

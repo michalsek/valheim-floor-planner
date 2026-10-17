@@ -5,7 +5,7 @@ import { emptyPlan, type Plan } from './types';
 
 const plan: Plan = {
   ...emptyPlan(),
-  dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 1, z: 0 }, offset: 0 } },
+  dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 1, z: 0 }, offset: 0, elevation: 0 } },
 };
 const dim: SelectionItem = { kind: 'dimension', id: 'd' };
 const wall: SelectionItem = { kind: 'wall', id: 'gone' };

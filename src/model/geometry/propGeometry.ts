@@ -28,7 +28,7 @@ const axes = (deg: number): { u: Vec2; v: Vec2 } => {
 };
 
 /** A local offset turned by `deg` (no translation). */
-const rotate = (l: Vec2, deg: number): Vec2 => {
+export const rotate = (l: Vec2, deg: number): Vec2 => {
   const { u, v } = axes(deg);
   return { x: u.x * l.x + v.x * l.z, z: u.z * l.x + v.z * l.z };
 };

@@ -2,6 +2,7 @@
 import type { FloorFamily } from '../catalog/floorFamilies';
 import type { Library } from '../catalog/library';
 
+import { sameLevel } from './elevation';
 import { boxArea, boxIntersection, boxSize } from './geometry/box';
 import { EPS } from './geometry/polyline';
 import { splitFloor, type FloorSplit } from './splitFloor';
@@ -40,11 +41,16 @@ const floorWarning = (id: FloorId, message: string): PlanWarning => ({
   level: 'warning',
 });
 
-/** One warning per later floor of each overlapping pair: both are counted in full. */
+/**
+ * One warning per later floor of each overlapping pair on the same level: both are
+ * counted in full.
+ */
 const overlapWarnings = (floors: readonly Floor[]): PlanWarning[] =>
   floors.flatMap((floor, i) =>
     floors.slice(0, i).flatMap((other) => {
-      const overlap = boxIntersection(floor, other);
+      const overlap = sameLevel(floor.elevation, other.elevation)
+        ? boxIntersection(floor, other)
+        : null;
       const area = overlap ? boxArea(overlap) : 0;
       return area > EPS
         ? [floorWarning(floor.id, `Floors overlap by ${round(area)} m²: tiles counted twice`)]

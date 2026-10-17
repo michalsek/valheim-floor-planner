@@ -6,7 +6,7 @@ import { splitFloor } from './splitFloor';
 
 const split = (familyId: string, w: number, d: number) => {
   const { pieces, leftover } = splitFloor(
-    { id: 'f', familyId, min: { x: 0, z: 0 }, max: { x: w, z: d } },
+    { id: 'f', min: { x: 0, z: 0 }, max: { x: w, z: d } },
     testLibrary.floorFamilies.get(familyId)!
   );
   const counts: Record<string, number> = {};

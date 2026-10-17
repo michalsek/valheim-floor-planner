@@ -24,6 +24,8 @@ interface PlaneLinesProps {
   color: string;
   /** Dash and gap length in metres; solid without. */
   dash?: number | undefined;
+  /** Also show, faintly, where pieces hide them (default true). */
+  throughPieces?: boolean;
 }
 
 type LineMaterial = LineBasicNodeMaterial | LineDashedNodeMaterial;
@@ -68,7 +70,7 @@ const setStyle = (lines: Lines, color: string, dash: number | undefined) => {
   }
 };
 
-const LinesPair = ({ lines, color, dash }: PlaneLinesProps) => {
+const LinesPair = ({ lines, color, dash, throughPieces = true }: PlaneLinesProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const [pair] = useState(() => createLines(dash !== undefined));
 
@@ -92,7 +94,9 @@ const LinesPair = ({ lines, color, dash }: PlaneLinesProps) => {
 
   return (
     <>
-      <primitive object={pair.hidden} renderOrder={HIDDEN_RENDER_ORDER} frustumCulled={false} />
+      {throughPieces && (
+        <primitive object={pair.hidden} renderOrder={HIDDEN_RENDER_ORDER} frustumCulled={false} />
+      )}
       <primitive object={pair.visible} renderOrder={VISIBLE_RENDER_ORDER} frustumCulled={false} />
     </>
   );

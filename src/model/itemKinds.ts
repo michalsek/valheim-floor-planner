@@ -11,6 +11,7 @@ import { boxOutline, type BoxMode, type Polyline, type WorldBox } from './geomet
 import { dimensionLine } from './geometry/dimension';
 import { addVec } from './geometry/polyline';
 import { propBoxTest, propCorners } from './geometry/propGeometry';
+import { roundElevation } from './elevation';
 import { besideOpening, openingsOf, slideOpenings } from './openings';
 import { MAX_PROPS } from './props';
 import { isSelected, type Selection, type SelectionKind } from './selection';
@@ -26,11 +27,23 @@ export interface EditScope {
   items: Selection;
 }
 
+/** The plan records holding objects that carry their own elevation. */
+export type LevelledRecord = 'walls' | 'floors' | 'props' | 'dimensions';
+
 export interface ItemKind {
   /** How one item is named in history labels ("Move wall"). */
   noun: string;
   /** The plan record holding the kind's objects, by id. */
   collection(plan: Plan): Readonly<Record<string, unknown>>;
+  /**
+   * The record, when the kind's objects carry their own elevation (a level); null when
+   * they stand on another object's (openings on their wall).
+   */
+  levelled: LevelledRecord | null;
+  /** The elevation an item stands at (an opening: its wall's); null when it is gone. */
+  elevation(plan: Plan, id: string): number | null;
+  /** Commands raising (or lowering) it by `dy`; none for kinds that ride on another. */
+  raise(plan: Plan, id: string, dy: number): PlanCommand[];
   /** The item's drawn lines; box selection tests these (unless the kind has `inBox`). */
   lines(plan: Plan, id: string, lib: KindLib): Polyline[];
   /** Box selection of an area (props: a rotated footprint the box may lie inside). */
@@ -54,6 +67,9 @@ export interface ItemKind {
 }
 
 const shift = (points: readonly Vec2[], d: Vec2): Vec2[] => points.map((p) => addVec(p, d));
+
+const raised = (o: { elevation: number } | undefined, dy: number) =>
+  o && { elevation: roundElevation(o.elevation + dy) };
 
 const wallLines = (plan: Plan, id: string): Polyline[] => {
   const run = plan.walls[id];
@@ -94,6 +110,12 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   wall: {
     noun: 'wall',
     collection: (plan) => plan.walls,
+    levelled: 'walls',
+    elevation: (plan, id) => plan.walls[id]?.elevation ?? null,
+    raise: (plan, id, dy) => {
+      const changes = raised(plan.walls[id], dy);
+      return changes ? [{ type: 'wall.patch', id, changes }] : [];
+    },
     lines: wallLines,
     highlight: wallLines,
     // The wall's openings move with it.
@@ -126,6 +148,9 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   opening: {
     noun: 'opening',
     collection: (plan) => plan.openings,
+    levelled: null,
+    elevation: (plan, id) => plan.walls[plan.openings[id]?.wallId ?? '']?.elevation ?? null,
+    raise: () => [],
     lines: (plan, id) => {
       const opening = plan.openings[id];
       return opening ? [{ points: [opening.at], closed: false }] : [];
@@ -154,6 +179,12 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   floor: {
     noun: 'floor',
     collection: (plan) => plan.floors,
+    levelled: 'floors',
+    elevation: (plan, id) => plan.floors[id]?.elevation ?? null,
+    raise: (plan, id, dy) => {
+      const changes = raised(plan.floors[id], dy);
+      return changes ? [{ type: 'floor.patch', id, changes }] : [];
+    },
     lines: floorLines,
     highlight: floorLines,
     translate: (plan, id, d) => {
@@ -183,6 +214,12 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   dimension: {
     noun: 'dimension',
     collection: (plan) => plan.dimensions,
+    levelled: 'dimensions',
+    elevation: (plan, id) => plan.dimensions[id]?.elevation ?? null,
+    raise: (plan, id, dy) => {
+      const changes = raised(plan.dimensions[id], dy);
+      return changes ? [{ type: 'dimension.patch', id, changes }] : [];
+    },
     lines: (plan, id) => {
       const dim = plan.dimensions[id];
       if (!dim) return [];
@@ -207,6 +244,12 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   prop: {
     noun: 'item',
     collection: (plan) => plan.props,
+    levelled: 'props',
+    elevation: (plan, id) => plan.props[id]?.elevation ?? null,
+    raise: (plan, id, dy) => {
+      const changes = raised(plan.props[id], dy);
+      return changes ? [{ type: 'prop.patch', id, changes }] : [];
+    },
     lines: propLines,
     highlight: propLines,
     inBox: (plan, id, box, mode, lib) => {
@@ -232,3 +275,9 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
 };
 
 export const SELECTION_KINDS = Object.keys(ITEM_KINDS) as SelectionKind[];
+
+/** The kinds whose objects carry their own elevation, with their plan records. */
+export const LEVELLED_KINDS = SELECTION_KINDS.flatMap((kind) => {
+  const record = ITEM_KINDS[kind].levelled;
+  return record ? [{ kind, record }] : [];
+});

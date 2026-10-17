@@ -1,12 +1,12 @@
 import { isAxisAligned } from '../model/geometry/dimension';
-import { useDisplayPlan } from '../store/planHooks';
+import { useLevelPlan } from '../store/planHooks';
 
 import { DimensionLine } from './DimensionLine';
 import { useDimensionTone } from './useDimensionTone';
 
 /** Dimensions stored in the plan (as drawn, so a move previews), toned by `useDimensionTone`. */
 export const PinnedDimensions = () => {
-  const { dimensions } = useDisplayPlan();
+  const { dimensions } = useLevelPlan();
   const toneOf = useDimensionTone();
 
   return (

@@ -16,6 +16,7 @@ const run = (id: string, familyId: string, points: [number, number][]): WallRun 
   closed: false,
   side: 'right',
   height: 2,
+  elevation: 0,
 });
 
 const planOf = (walls: WallRun[], dims: Plan['dimensions'] = {}): Plan => ({
@@ -74,7 +75,7 @@ describe('hitTest', () => {
         ]),
       ],
       {
-        d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: 0 },
+        d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: 0, elevation: 0 },
       }
     );
     expect(at(plan, 2, 0)).toMatchObject({ kind: 'dimension', id: 'd' });
@@ -90,6 +91,7 @@ describe('hitTest props', () => {
     position: { x, z: 0 },
     rotation: 0,
     upgrades: 0,
+    elevation: 0,
   });
   // A wall runs through a chest (small) and a longship (large).
   const plan: Plan = {

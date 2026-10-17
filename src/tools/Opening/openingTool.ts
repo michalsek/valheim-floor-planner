@@ -5,7 +5,7 @@ import { getLibrary } from '../../store/libraryInstance';
 import { getDerived } from '../../store/planHooks';
 import { openingFamilyAtom } from '../../store/session';
 import { hitTolerance } from '../hitTolerance';
-import { pickWallPoint } from '../picking';
+import { levelView, pickWallPoint } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool, ToolContext, ToolPointerEvent } from '../types';
 
@@ -20,7 +20,7 @@ import { OpeningWorldPreview } from './OpeningWorldPreview';
 const placementAt = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null => {
   const def = ctx.get(openingDefAtom);
   if (!def) return null;
-  const plan = ctx.plan.getPlan();
+  const plan = levelView(ctx);
   const { openings } = getDerived(plan);
   return placeOpening(plan, openings, getLibrary().wallFamilies, def, p, hitTolerance(ctx), free);
 };
@@ -32,7 +32,7 @@ const placementAt = (ctx: ToolContext, p: Vec2, free: boolean): Placement | null
 const hover = (ctx: ToolContext, e: ToolPointerEvent): Placement | null => {
   const p = pickWallPoint(ctx, e);
   const free = e.altKey;
-  const plan = ctx.plan.getPlan();
+  const plan = levelView(ctx);
   const wall = wallAt(plan, p, hitTolerance(ctx), getLibrary().wallFamilies);
   const family = wall && getLibrary().wallFamilies.get(plan.walls[wall.id]?.familyId ?? '');
   if (family && family.openings.length > 0) ctx.set(openingFamilyAtom, family.id);

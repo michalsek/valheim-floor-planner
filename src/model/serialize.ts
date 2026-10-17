@@ -1,8 +1,11 @@
 /**
  * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
  * throws on a bad shape. Collections added by later milestones default to `{}`, a
- * missing underlay to null, and a missing name to "Untitled".
+ * missing underlay to null, and a missing name to "Untitled". Version 1 files (before
+ * levels) load with every elevation at 0; plans are always written as version 2, so an
+ * older app refuses them instead of flattening them.
  */
+import { elevationProblem, MAX_ELEVATION, MIN_ELEVATION } from './elevation';
 import { samePoint } from './geometry/polyline';
 import { normalizeDeg } from './geometry/propGeometry';
 import { MAX_PROPS, propProblem } from './props';
@@ -60,51 +63,84 @@ const asPoint = (value: unknown, path: string): Vec2 => {
 const asSide = (value: unknown, path: string): WallSide =>
   value === 'left' || value === 'right' ? value : fail(path, `'left' or 'right'`);
 
-const parseWall = (value: unknown, key: string, path: string): WallRun => {
-  const w = asRecord(value, path);
-  const id = asString(w.id, `${path}.id`);
-  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-  const { points, closed } = w;
-  if (!Array.isArray(points) || points.length > MAX_POINTS_PER_RUN) {
-    fail(`${path}.points`, `an array of at most ${MAX_POINTS_PER_RUN} points`);
-  }
-  if (typeof closed !== 'boolean') fail(`${path}.closed`, 'a boolean');
-  const height = asFinite(w.height, `${path}.height`);
-  if (height <= 0 || height > MAX_WALL_HEIGHT_M) {
-    fail(`${path}.height`, `a height above 0 and at most ${MAX_WALL_HEIGHT_M} m`);
-  }
-  return {
-    id,
-    familyId: asString(w.familyId, `${path}.familyId`),
-    points: points.map((p: unknown, i) => asPoint(p, `${path}.points[${i}]`)),
-    closed,
-    side: asSide(w.side, `${path}.side`),
-    height,
+/** How an object's elevation is read: required (version 2) or always 0 (version 1). */
+type ElevationReader = (value: unknown, path: string) => number;
+
+const readElevation: ElevationReader = (value, path) => {
+  const elevation = asFinite(value, path);
+  return elevationProblem(elevation)
+    ? fail(path, `an elevation from ${MIN_ELEVATION} to ${MAX_ELEVATION} m`)
+    : elevation;
+};
+
+const groundElevation: ElevationReader = () => 0;
+
+type Parser<T> = (value: unknown, key: string, path: string) => T;
+
+const parseWall =
+  (elevationOf: ElevationReader): Parser<WallRun> =>
+  (value, key, path) => {
+    const w = asRecord(value, path);
+    const id = asString(w.id, `${path}.id`);
+    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+    const { points, closed } = w;
+    if (!Array.isArray(points) || points.length > MAX_POINTS_PER_RUN) {
+      fail(`${path}.points`, `an array of at most ${MAX_POINTS_PER_RUN} points`);
+    }
+    if (typeof closed !== 'boolean') fail(`${path}.closed`, 'a boolean');
+    const height = asFinite(w.height, `${path}.height`);
+    if (height <= 0 || height > MAX_WALL_HEIGHT_M) {
+      fail(`${path}.height`, `a height above 0 and at most ${MAX_WALL_HEIGHT_M} m`);
+    }
+    return {
+      id,
+      familyId: asString(w.familyId, `${path}.familyId`),
+      points: points.map((p: unknown, i) => asPoint(p, `${path}.points[${i}]`)),
+      closed,
+      side: asSide(w.side, `${path}.side`),
+      height,
+      elevation: elevationOf(w.elevation, `${path}.elevation`),
+    };
   };
-};
 
-const parseDimension = (value: unknown, key: string, path: string): Dimension => {
-  const d = asRecord(value, path);
-  const id = asString(d.id, `${path}.id`);
-  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-  const a = asPoint(d.a, `${path}.a`);
-  const b = asPoint(d.b, `${path}.b`);
-  if (samePoint(a, b)) fail(`${path}.b`, 'a point other than a');
-  return { id, a, b, offset: asFinite(d.offset, `${path}.offset`) };
-};
+const parseDimension =
+  (elevationOf: ElevationReader): Parser<Dimension> =>
+  (value, key, path) => {
+    const d = asRecord(value, path);
+    const id = asString(d.id, `${path}.id`);
+    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+    const a = asPoint(d.a, `${path}.a`);
+    const b = asPoint(d.b, `${path}.b`);
+    if (samePoint(a, b)) fail(`${path}.b`, 'a point other than a');
+    return {
+      id,
+      a,
+      b,
+      offset: asFinite(d.offset, `${path}.offset`),
+      elevation: elevationOf(d.elevation, `${path}.elevation`),
+    };
+  };
 
-const parseFloor = (value: unknown, key: string, path: string): Floor => {
-  const f = asRecord(value, path);
-  const id = asString(f.id, `${path}.id`);
-  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-  const min = asPoint(f.min, `${path}.min`);
-  const max = asPoint(f.max, `${path}.max`);
-  if (!(max.x > min.x && max.z > min.z)) fail(`${path}.max`, 'a point beyond min on both axes');
-  if (max.x - min.x > MAX_FLOOR_SIDE_M || max.z - min.z > MAX_FLOOR_SIDE_M) {
-    fail(`${path}.max`, `sides of at most ${MAX_FLOOR_SIDE_M} m`);
-  }
-  return { id, familyId: asString(f.familyId, `${path}.familyId`), min, max };
-};
+const parseFloor =
+  (elevationOf: ElevationReader): Parser<Floor> =>
+  (value, key, path) => {
+    const f = asRecord(value, path);
+    const id = asString(f.id, `${path}.id`);
+    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+    const min = asPoint(f.min, `${path}.min`);
+    const max = asPoint(f.max, `${path}.max`);
+    if (!(max.x > min.x && max.z > min.z)) fail(`${path}.max`, 'a point beyond min on both axes');
+    if (max.x - min.x > MAX_FLOOR_SIDE_M || max.z - min.z > MAX_FLOOR_SIDE_M) {
+      fail(`${path}.max`, `sides of at most ${MAX_FLOOR_SIDE_M} m`);
+    }
+    return {
+      id,
+      familyId: asString(f.familyId, `${path}.familyId`),
+      min,
+      max,
+      elevation: elevationOf(f.elevation, `${path}.elevation`),
+    };
+  };
 
 const parseOpening =
   (walls: Plan['walls']) =>
@@ -123,20 +159,23 @@ const parseOpening =
   };
 
 /** Unknown prefabs load (the plan warns about them). Ranges are `propProblem`'s. */
-const parseProp = (value: unknown, key: string, path: string): Prop => {
-  const p = asRecord(value, path);
-  const id = asString(p.id, `${path}.id`);
-  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-  const prop = {
-    id,
-    prefab: asString(p.prefab, `${path}.prefab`),
-    position: asPoint(p.position, `${path}.position`),
-    rotation: normalizeDeg(asFinite(p.rotation, `${path}.rotation`)),
-    upgrades: p.upgrades === undefined ? 0 : asFinite(p.upgrades, `${path}.upgrades`),
+const parseProp =
+  (elevationOf: ElevationReader): Parser<Prop> =>
+  (value, key, path) => {
+    const p = asRecord(value, path);
+    const id = asString(p.id, `${path}.id`);
+    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+    const prop = {
+      id,
+      prefab: asString(p.prefab, `${path}.prefab`),
+      position: asPoint(p.position, `${path}.position`),
+      rotation: normalizeDeg(asFinite(p.rotation, `${path}.rotation`)),
+      upgrades: p.upgrades === undefined ? 0 : asFinite(p.upgrades, `${path}.upgrades`),
+      elevation: elevationOf(p.elevation, `${path}.elevation`),
+    };
+    const problem = propProblem(prop);
+    return problem ? fail(path, `an item where ${problem}`) : prop;
   };
-  const problem = propProblem(prop);
-  return problem ? fail(path, `an item where ${problem}`) : prop;
-};
 
 /** Shapes are checked here, ranges by `underlayProblem`. */
 const parseUnderlay = (value: unknown, path: string): Underlay | null => {
@@ -173,8 +212,8 @@ const parseCollection = <T>(
     ])
   );
 
-const parseProps = (value: unknown): Plan['props'] => {
-  const props = parseCollection(value, '$.props', parseProp);
+const parseProps = (value: unknown, elevationOf: ElevationReader): Plan['props'] => {
+  const props = parseCollection(value, '$.props', parseProp(elevationOf));
   if (Object.keys(props).length > MAX_PROPS) fail('$.props', `at most ${MAX_PROPS} items`);
   return props;
 };
@@ -185,16 +224,17 @@ const parseName = (value: unknown): string =>
 
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
-  if (root.version !== 1) fail('$.version', '1');
-  const walls = parseCollection(root.walls, '$.walls', parseWall);
+  if (root.version !== 1 && root.version !== 2) fail('$.version', '1 or 2');
+  const elevationOf = root.version === 1 ? groundElevation : readElevation;
+  const walls = parseCollection(root.walls, '$.walls', parseWall(elevationOf));
   return {
-    version: 1,
+    version: 2,
     name: parseName(root.name),
     walls,
-    dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension),
-    floors: parseCollection(root.floors, '$.floors', parseFloor),
+    dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension(elevationOf)),
+    floors: parseCollection(root.floors, '$.floors', parseFloor(elevationOf)),
     openings: parseCollection(root.openings, '$.openings', parseOpening(walls)),
-    props: parseProps(root.props),
+    props: parseProps(root.props, elevationOf),
     underlay: parseUnderlay(root.underlay, '$.underlay'),
   };
 };

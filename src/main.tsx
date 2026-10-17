@@ -9,6 +9,7 @@ import { startAutosave } from './store/autosave';
 import { pruneImages } from './store/imageStore';
 import { planStorage, planStore } from './store/planInstance';
 import { startSelectionSync } from './store/selection';
+import { startSupportSync } from './store/supportSync';
 import { autosaveStatusAtom, sessionStore } from './store/session';
 import { startThemeSync } from './store/theme';
 import { InstallGate } from './ui/InstallGate/InstallGate';
@@ -31,6 +32,9 @@ void pruneImages(new Set(underlay ? [underlay.imageId] : []));
 
 // Before the first render, so the selection is pruned before React reads it.
 startSelectionSync(planStore, sessionStore);
+// Support is worked out when idle, only while something shows it.
+const stopSupportSync = startSupportSync(planStore, sessionStore);
+import.meta.hot?.dispose(stopSupportSync);
 // Before the first render, so the scene starts with the resolved theme's colours.
 const stopThemeSync = startThemeSync(sessionStore);
 import.meta.hot?.dispose(stopThemeSync);

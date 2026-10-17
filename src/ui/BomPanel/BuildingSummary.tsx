@@ -1,5 +1,5 @@
 import { formatArea } from '../../format';
-import { useDerivedPlan } from '../../store/planHooks';
+import type { Derived } from '../../model/derivePlan';
 
 import styles from './BomPanel.module.css';
 
@@ -7,8 +7,8 @@ import styles from './BomPanel.module.css';
  * Room count and floor areas, at the top of the BOM panel once a room or a floor
  * exists. Floored area sums every floor (overlaps count twice, as in the BOM).
  */
-export const BuildingSummary = () => {
-  const { summary, floors } = useDerivedPlan();
+export const BuildingSummary = ({ derived }: { derived: Derived }) => {
+  const { summary, floors } = derived;
   const rooms = summary.roomCount > 0;
   const items: [label: string, value: string, shown: boolean][] = [
     ['Rooms', String(summary.roomCount), rooms],

@@ -54,7 +54,10 @@ export const isOddTile = (tile: PlacedPiece): boolean => {
   return (i + j) % 2 !== 0;
 };
 
-export const splitFloor = (floor: Floor, family: FloorFamily): FloorSplit => {
+export const splitFloor = (
+  floor: Pick<Floor, 'id' | 'min' | 'max'>,
+  family: FloorFamily
+): FloorSplit => {
   const placed: PlacedTile[] = [];
   const leftover = tileRect(floor, family.tiles, placed);
   const pieces = placed.map(({ tile, min }, n): PlacedPiece => ({
@@ -65,7 +68,8 @@ export const splitFloor = (floor: Floor, family: FloorFamily): FloorSplit => {
     sourceId: floor.id,
     segment: 0,
     course: 0,
-    base: 0,
+    // Tiles hang below the floor's elevation (its walking surface).
+    base: -tile.thickness,
     height: tile.thickness,
     center: { x: min.x + tile.size / 2, z: min.z + tile.size / 2 },
     rotation: 0,

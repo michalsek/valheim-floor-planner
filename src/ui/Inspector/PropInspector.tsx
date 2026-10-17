@@ -14,6 +14,7 @@ import { useToolContext } from '../../tools/toolContext';
 import { Row, Section } from '../shared/PanelList';
 
 import styles from './Inspector.module.css';
+import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
 import { PieceCost } from './PieceCost';
@@ -68,6 +69,7 @@ export const PropInspector = ({ id }: { id: PropId }) => {
             ⟳
           </Button>
         </Field>
+        <ElevationField item={{ kind: 'prop', id }} />
         {radius && radius.maxUpgrades > 0 && (
           <Field label="Upgrades">
             <Stepper

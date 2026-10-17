@@ -6,16 +6,21 @@ import { GhostBoxes } from '../../scene/view3d/GhostBoxes';
 import { GroundRing } from '../../scene/view3d/GroundRing';
 import { getLibrary } from '../../store/libraryInstance';
 
+import { useGhostSteps } from './propFlight';
 import { propGhostAtom } from './propState';
 
-/** The armed prop's box where a click would place it, and a station's or ward's ring. */
+/**
+ * The armed prop's box where a click would place it (a stair's whole flight), and a
+ * station's or ward's ring.
+ */
 export const PropPreview3d = () => {
   const ghost = useAtomValue(propGhostAtom);
+  const steps = useGhostSteps();
   const boxes = useMemo(() => {
     if (!ghost) return [];
-    const { def, position, rotation } = ghost;
-    return [propBox({ id: 'preview', prefab: def.prefab, position, rotation }, getLibrary())];
-  }, [ghost]);
+    const prefab = ghost.def.prefab;
+    return steps.map((step, i) => propBox({ id: `preview${i}`, prefab, ...step }, getLibrary()));
+  }, [ghost, steps]);
   if (!ghost) return null;
   return (
     <>

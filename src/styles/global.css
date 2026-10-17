@@ -2,7 +2,8 @@
  * Theme tokens. `index.html` sets `<html data-theme>` before the first paint and
  * `store/theme.ts` keeps it in sync; dark is also the default without the attribute.
  * Scene colours (grid, floors, walls) are read from here by `theme/themeTokens.ts`,
- * so `--grid-line`, `--floor-base`, `--selection`, `--mat-*` and `--prop-*` must stay
+ * so `--grid-line`, `--floor-base`, `--canvas`, `--selection`, `--mat-*`, `--prop-*` and
+ * `--support-*` must stay
  * `#rgb` / `#rrggbb` hex, and `--grid-alpha-scale` / `--floor-material-share` /
  * `--floor-opacity` / `--shadow-alpha` plain numbers.
  */
@@ -60,7 +61,15 @@
   --prop-misc: #a58bd6;
   --prop-ships: #5d9bd8;
   --prop-stairs: #9cc35a;
+  --prop-structure: #c98a64;
   --prop-fallback: #9aa3ad;
+
+  /* Support view: grounded (as in the game), then strong → weak, and collapsing. */
+  --support-grounded: #5d9bd8;
+  --support-high: #6cc46a;
+  --support-mid: #e6c74a;
+  --support-low: #e0613f;
+  --support-broken: #e04fd8;
 
   /* 3D view: ground shadow darkness. */
   --shadow-alpha: 0.45;
@@ -115,7 +124,14 @@
   --prop-misc: #7a5cb8;
   --prop-ships: #2f6fb0;
   --prop-stairs: #5e8a1f;
+  --prop-structure: #8f4f2a;
   --prop-fallback: #7d858f;
+
+  --support-grounded: #2f6fb0;
+  --support-high: #3f9a3c;
+  --support-mid: #c9a21a;
+  --support-low: #c8431f;
+  --support-broken: #b81fb0;
 
   --shadow-alpha: 0.28;
 }

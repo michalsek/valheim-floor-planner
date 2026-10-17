@@ -28,7 +28,7 @@ export const floorPreviewAtom = atom<FloorPreviewState | null>((get) => {
   const box = boxFromCorners(drag.a, drag.b);
   const familyId = get(floorFamilyIdAtom);
   const family = getLibrary().floorFamilies.get(familyId);
-  const split = family ? splitFloor({ id: 'preview', familyId, ...box }, family) : null;
+  const split = family ? splitFloor({ id: 'preview', ...box }, family) : null;
   return { box, family, split };
 });
 

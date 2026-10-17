@@ -4,14 +4,25 @@ import styles from '../../overlay/Overlay.module.css';
 import { PropFootprint } from '../../overlay/PropFootprints';
 import { RadiusRing } from '../../overlay/RadiusRings';
 
+import { useGhostSteps } from './propFlight';
 import { propGhostAtom } from './propState';
 
-/** The armed prop's footprint where a click would place it (world layer). */
+/** The armed prop's footprint where a click would place it (a stair's whole flight). */
 export const PropWorldPreview = () => {
   const ghost = useAtomValue(propGhostAtom);
+  const steps = useGhostSteps();
   if (!ghost) return null;
-  const prop = { prefab: ghost.def.prefab, position: ghost.position, rotation: ghost.rotation };
-  return <PropFootprint prop={prop} className={styles.propGhost} />;
+  return (
+    <>
+      {steps.map((step, i) => (
+        <PropFootprint
+          key={i}
+          prop={{ prefab: ghost.def.prefab, ...step }}
+          className={styles.propGhost}
+        />
+      ))}
+    </>
+  );
 };
 
 /** The armed station's or ward's ring (screen layer). */

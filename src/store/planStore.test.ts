@@ -14,6 +14,7 @@ const wall = (id: string): WallRun => ({
   closed: false,
   side: 'right',
   height: 2,
+  elevation: 0,
 });
 
 const ids = (store: ReturnType<typeof createPlanStore>) => Object.keys(store.getPlan().walls);

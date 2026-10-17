@@ -476,3 +476,76 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     two-finger scroll zooms in 3D; room labels, the "show all" rings and the underlay in 3D;
     touch input; snapping to wall tops and piece snap points; handles at wall tops when a
     floor covers their bases.
+
+## From M11 implementation
+
+1. **Support contacts are by collider overlap**, as recalled from the decompiled
+   `WearNTear.UpdateSupport` (`Physics.OverlapBox`, then `ClosestPoint` on the other
+   collider), not re-verified against the IL. The angle of a support uses the direction
+   from the centre of mass to that closest point; the distance is centre to centre (+0.1).
+   These reproduce every limit in the plan: a wood wall column holds 8 (16 m) and breaks
+   the 9th, log poles hold 12 (24 m) and break the 13th, a wood floor cantilever off a wall
+   top goes 70.6, 40.9, 23.7, 13.8 and breaks the 5th tile (8.0), and a stone tile beside a
+   stone wall gets 0.
+2. **A contact needs a face, not an edge** (fix round): two boxes touch when they come
+   within 0.05 m of each other (each grown by it) *and* share at least 0.1 m in both
+   directions across the contact. Without that, a stone tile beside a 2 m stone wall
+   (1 m courses) edge-touched the lower course below its centre of mass, took mostly
+   vertical loss and stayed up at 141. The face threshold is our choice; the game's
+   `OverlapBox` would count an edge within its margin. Check against the IL.
+3. **The pair rule** (two supports below, ≥ 100° apart on the plan) takes the mean of
+   each support's own vertical-loss value, which is the game's form as recalled and equals
+   the plan's `avg(s)·(1 − v·(avg(d) + 0.1))` when both distances match. A support counts
+   as "below" for it only when its point is below the centre and the direction points down
+   (the plan's rule). If the game only checks `point.y < com.y + 0.05`, level floor rows
+   would prop each other up and cantilevers would reach further; check the IL.
+4. **Perf** (production build, headless Chrome, on a machine with a load average of 5–7
+   from other agents, so real numbers are lower). Support for 3,024 boxes (36 three-level
+   houses) takes about 40 ms (contacts ~22 ms, propagation ~19 ms; about half that at low
+   load). It is never on the commit path: it is worked out only while the support view is
+   on or the Integrity list is open on screen, in an idle callback after the plan settles,
+   and lands 30–50 ms after a nudge. A nudge of a ground-floor wall on that plan mostly has
+   no long task; the occasional one is 54–72 ms, nearly all of it the nudged level's rooms
+   (`findRooms` over its 36 houses, ~33 ms under load). Rooms per level are reused while a
+   level's walls are the same objects, so only the edited level is recomputed; splitting
+   rooms per connected component would take the rest off.
+5. **Stairs and ladders connect levels**: they make no level rows, aren't the "nearest
+   lower level" for ghosts, are skipped by Shift+PageUp / PageDown and by a flight's auto
+   rise. Each piece belongs to the level its flight starts from (the highest level at or
+   below it), so the whole flight draws, picks, selects (Mod+A) and moves with that level.
+6. **A pole hanging from a supported deck stays up**: removing one lower pole of a 4-pole
+   deck leaves the upper pole red, not magenta; it takes (horizontal) support from the deck
+   tile it touches, as attached pieces do in the game. The plan's "column goes magenta"
+   holds for a deck on a single column.
+7. **The support view's selection tint is neutral** (white in dark themes, near-black in
+   light ones), in both views, since the selection pink read as collapsing. In 2D a wall
+   column shows magenta when any course would collapse, blue when its base course is
+   grounded, else its weakest course; props show their band too.
+8. **The 3D work-plane grid above the ground** is a see-through plane over the levels below,
+   so off the ground it is drawn at 40% and only around the orbit target. The shadow
+   catcher stays at the terrain (y = 0). Pinned dimensions on other levels are faded and
+   hidden behind pieces; their labels are faded.
+9. **2D ghosts**: the level below's walls and floors are faint slabs under the current
+   level's (so its floors dim them), its items faint footprints (poles at their full
+   standing height for the reach rule); dimensions and openings aren't ghosted.
+10. **Poles and beams stand on their elevation with their whole collider**: a 0.4 m beam at
+    elevation 2 spans 2–2.4 m. Placing a beam under a floor needs the elevation field (or a
+    0.5 m step). Diagonal beams stay building pieces.
+11. **A stone (1 m) floor at a wall-top datum hangs 1 m into the walls under it.** Laid
+    beside a wall's strip it only touches the wall's face sideways and collapses
+    (horizontal loss 1). A tile whose centre of mass lies inside the wall counts as resting
+    on it straight down and stays up, but its neighbours that only touch the face don't. The Floor tool now
+    says so for floors thicker than 0.5 m on a wall top, with a "+1 m" button that raises
+    the level so the floor rests on the walls.
+12. **Elevation editing for several items** is only Mod+PageUp / PageDown; the Inspector's
+    Elevation field is per item, and the level follows it. Undo doesn't move the current
+    level, except when it leaves the current level empty: then it follows the selection.
+13. **Floor tops are lifted 1 mm** in their boxes, so a floor level with the wall top under
+    it doesn't flicker; contacts and picking are unaffected at that scale.
+14. From the plan's out-of-scope list, still open: level names, rippling when a lower wall's
+    height changes, diagonal beams as wedges, uneven terrain, checking the angle mapping /
+    pair distance / overlap growth / face threshold against the IL, furniture giving
+    support (`m_supports`), and computing support in a worker. The optional "Hide above"
+    toggle wasn't built.
+15. Checked in headless Chrome 155 on WebGPU and `?webgl` (dark and light themes) with real
+    mouse input; not on Safari or a trackpad.

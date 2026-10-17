@@ -9,6 +9,7 @@ import { WallSettingsFields } from '../../tools/Wall/WallSettingsFields';
 import { Row, Section } from '../shared/PanelList';
 
 import styles from './Inspector.module.css';
+import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
 import { PieceCost } from './PieceCost';
@@ -53,6 +54,7 @@ export const WallInspector = ({ id }: { id: WallId }) => {
             ctx.plan.dispatch({ type: 'wall.patch', id, changes }, { label: changeLabel(changes) })
           }
         />
+        <ElevationField item={{ kind: 'wall', id }} />
       </div>
       <ItemWarnings item={{ kind: 'wall', id }} />
       <Section title={wall.closed ? 'Loop' : 'Run'}>

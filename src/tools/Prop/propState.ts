@@ -10,6 +10,11 @@ import { cursorAtom, effectiveSnapStepAtom } from '../../store/session';
 export const armedPrefabAtom = atom<string | null>(null);
 /** The rotation the next prop gets, in degrees (R / Shift+R turn it). */
 export const propRotationAtom = atom<number>(0);
+/**
+ * How high a stair or ladder flight climbs, as set in the options; null for the gap to
+ * the next level up (`riseToNextLevel`).
+ */
+export const flightRiseAtom = atom<number | null>(null);
 
 export const armedDefAtom = atom<PropDef | null>((get) => {
   const prefab = get(armedPrefabAtom);

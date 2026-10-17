@@ -6,7 +6,7 @@ import { parsePlan, serializePlan } from './serialize';
 import { emptyPlan, type Plan } from './types';
 
 const plan: Plan = {
-  version: 1,
+  version: 2,
   name: 'Longhouse',
   walls: {
     a: {
@@ -19,10 +19,13 @@ const plan: Plan = {
       closed: false,
       side: 'right',
       height: 2,
+      elevation: 2,
     },
   },
-  dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: -1.5 } },
-  floors: { f: { id: 'f', familyId: 'wood', min: { x: 0, z: 0 }, max: { x: 4, z: 2 } } },
+  dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: -1.5, elevation: 0 } },
+  floors: {
+    f: { id: 'f', familyId: 'wood', min: { x: 0, z: 0 }, max: { x: 4, z: 2 }, elevation: 2 },
+  },
   openings: { o: { id: 'o', wallId: 'a', prefab: 'wood_door', at: { x: 2, z: 0 } } },
   props: {
     p: {
@@ -31,6 +34,7 @@ const plan: Plan = {
       position: { x: 1, z: 1 },
       rotation: 22.5,
       upgrades: 2,
+      elevation: -0.5,
     },
   },
   underlay: {
@@ -59,15 +63,37 @@ describe('serialize', () => {
     expect(parsePlan({ version: 1, name: '  ', walls: {} }).name).toBe('Untitled');
   });
 
+  it('loads a version 1 file with every elevation at 0, and saves it as version 2', () => {
+    const v1 = JSON.parse(serializePlan(plan));
+    v1.version = 1;
+    for (const kind of ['walls', 'floors', 'props', 'dimensions']) {
+      for (const item of Object.values(v1[kind]) as { elevation?: number }[]) {
+        delete item.elevation;
+      }
+    }
+    const loaded = parsePlan(v1);
+    expect(loaded.version).toBe(2);
+    expect(loaded.walls.a?.elevation).toBe(0);
+    expect(loaded.floors.f?.elevation).toBe(0);
+    expect(loaded.props.p?.elevation).toBe(0);
+    expect(loaded.dimensions.d?.elevation).toBe(0);
+  });
+
   it('defaults upgrades to 0, normalises rotation and keeps unknown prefabs', () => {
     const prop = { prefab: 'piece_from_the_future', position: { x: 0, z: 0 }, rotation: -90 };
-    expect(parsePlan(withProp(prop)).props.p).toMatchObject({ rotation: 270, upgrades: 0 });
+    expect(parsePlan(withProp(prop)).props.p).toMatchObject({
+      rotation: 270,
+      upgrades: 0,
+      elevation: 0,
+    });
   });
 
   it.each([
     null,
     [],
-    { version: 2, walls: {} },
+    { version: 3, walls: {} },
+    { version: 2, walls: { a: { ...plan.walls.a, elevation: 200 } } },
+    { version: 2, props: { p: { ...plan.props.p, elevation: undefined } } },
     { version: 1, walls: { a: { id: 'a' } } },
     { version: 1, dimensions: { d: { id: 'd', a: { x: 1, z: 1 }, b: { x: 1, z: 1 }, offset: 0 } } },
     {
@@ -103,6 +129,7 @@ describe('commands accept only what loads', () => {
     ['opacity above 1', { type: 'underlay.patch', changes: { opacity: 1.5 } }],
     ['upgrades above the cap', { type: 'prop.patch', id: 'p', changes: { upgrades: 21 } }],
     ['an empty prefab', { type: 'prop.insert', prop: { ...bench, id: 'q', prefab: '' } }],
+    ['an elevation out of range', { type: 'wall.patch', id: 'a', changes: { elevation: -20 } }],
   ])('refuses %s', (_case, cmd) => {
     expect(() => applyCommands(plan, [cmd])).toThrow();
   });

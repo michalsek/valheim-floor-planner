@@ -24,6 +24,8 @@ export interface WallRun {
   side: WallSide;
   /** Wall height in metres. */
   height: number;
+  /** The level the run stands on: the height of its bottom (metres). */
+  elevation: number;
 }
 
 export type DimId = string;
@@ -35,16 +37,22 @@ export interface Dimension {
   b: Vec2;
   /** Signed distance along `sideNormal(b − a, 'right')`. */
   offset: number;
+  /** The level it is drawn on (metres). */
+  elevation: number;
 }
 
 export type FloorId = string;
 
-/** A rectangle of floor tiles of one family, from `min` to `max` (x and z). */
+/**
+ * A rectangle of floor tiles of one family, from `min` to `max` (x and z). Its top is
+ * at `elevation`; the tiles hang below it.
+ */
 export interface Floor {
   id: FloorId;
   familyId: string;
   min: Vec2;
   max: Vec2;
+  elevation: number;
 }
 
 export type OpeningId = string;
@@ -75,6 +83,8 @@ export interface Prop {
   rotation: number;
   /** Station upgrades (extensions) counted towards the build radius. */
   upgrades: number;
+  /** The level it stands on (metres). */
+  elevation: number;
 }
 
 /**
@@ -93,9 +103,12 @@ export interface Underlay {
   locked: boolean;
 }
 
-/** The plan document: everything the user draws, and the only thing in undo history. */
+/**
+ * The plan document: everything the user draws, and the only thing in undo history.
+ * Levels aren't stored: they are the distinct elevations of its objects (`levels.ts`).
+ */
 export interface Plan {
-  version: 1;
+  version: 2;
   /** Shown in the plan header and used for the file name. */
   name: string;
   walls: Record<WallId, WallRun>;
@@ -109,7 +122,7 @@ export interface Plan {
 export const DEFAULT_PLAN_NAME = 'Untitled';
 
 export const emptyPlan = (): Plan => ({
-  version: 1,
+  version: 2,
   name: DEFAULT_PLAN_NAME,
   walls: {},
   dimensions: {},
@@ -133,7 +146,10 @@ export interface PlacedPiece {
   segment: number;
   /** Course index, counted in the family's smallest piece height. */
   course: number;
-  /** Height of the piece's bottom edge above the ground, in metres. */
+  /**
+   * Height of the piece's bottom edge above its source's elevation, in metres: 0 and up
+   * for wall courses and openings, −thickness for floor tiles (they hang below it).
+   */
   base: number;
   height: number;
   center: Vec2;

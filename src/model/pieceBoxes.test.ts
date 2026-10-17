@@ -6,9 +6,9 @@ import { derivePlan } from './derivePlan';
 import { PANEL_THICKNESS, pieceBoxes } from './pieceBoxes';
 import { emptyPlan, type Plan } from './types';
 
-const boxesOf = (parts: Partial<Plan>, datum?: number) => {
+const boxesOf = (parts: Partial<Plan>) => {
   const plan: Plan = { ...emptyPlan(), ...parts };
-  return pieceBoxes(derivePlan(plan, testLibrary), plan, testLibrary, datum);
+  return pieceBoxes(derivePlan(plan, testLibrary), plan, testLibrary);
 };
 
 describe('pieceBoxes', () => {
@@ -25,6 +25,7 @@ describe('pieceBoxes', () => {
           closed: false,
           side: 'right',
           height: 4,
+          elevation: 0,
         },
       },
     });
@@ -40,24 +41,31 @@ describe('pieceBoxes', () => {
     }
   });
 
-  it('hangs floors below the datum, whatever their thickness', () => {
+  it('hangs floors below their elevation, whatever their thickness', () => {
     const floor = (id: string, familyId: string, x: number) => ({
       id,
       familyId,
       min: { x, z: 0 },
       max: { x: x + 2, z: 2 },
+      elevation: 1.5,
     });
-    const boxes = boxesOf({ floors: { a: floor('a', 'stone', 0), b: floor('b', 'wood', 2) } }, 1.5);
-    expect(boxes.map((b) => [b.size.y, b.center.y + b.size.y / 2])).toEqual([
-      [1, 1.5],
-      [0.13, 1.5],
-    ]);
+    const boxes = boxesOf({ floors: { a: floor('a', 'stone', 0), b: floor('b', 'wood', 2) } });
+    expect(boxes.map((b) => b.size.y)).toEqual([1, 0.13]);
+    // Tops a millimetre up, so they don't flicker against a wall top at the same height.
+    for (const b of boxes) expect(b.center.y + b.size.y / 2).toBeCloseTo(1.5, 2);
   });
 
   it('centres a turned prop on its offset footprint, at its collider height', () => {
     const [bed] = boxesOf({
       props: {
-        p: { id: 'p', prefab: 'piece_bed02', position: { x: 10, z: 5 }, rotation: 90, upgrades: 0 },
+        p: {
+          id: 'p',
+          prefab: 'piece_bed02',
+          position: { x: 10, z: 5 },
+          rotation: 90,
+          upgrades: 0,
+          elevation: 0,
+        },
       },
     });
     // The collider spans z −1.6…1.835 (centre 0.1175); turned 90° clockwise, that is −x.
@@ -67,7 +75,7 @@ describe('pieceBoxes', () => {
     expect(bed?.center.y).toBeCloseTo(1.455 / 2);
     expect(bed?.size.y).toBeCloseTo(1.455);
     expect(bed?.rotationY).toBeCloseTo(-Math.PI / 2);
-    expect(bed).toMatchObject({ kind: 'prop', group: 'furniture', material: null });
+    expect(bed).toMatchObject({ kind: 'prop', group: 'furniture', material: 'wood' });
   });
 
   it('draws a door as a thin panel of its real height in the wall gap', () => {
@@ -83,6 +91,7 @@ describe('pieceBoxes', () => {
           closed: false,
           side: 'right',
           height: 2,
+          elevation: 0,
         },
       },
       openings: { d: { id: 'd', wallId: 'w', prefab: 'wood_door', at: { x: 4, z: 0 } } },

@@ -17,6 +17,7 @@ const wall = (familyId: string): WallRun => ({
   closed: true,
   side: 'right',
   height: 2,
+  elevation: 0,
 });
 
 const derive = (...walls: WallRun[]) => {

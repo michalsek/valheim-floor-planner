@@ -12,7 +12,7 @@ const run = (
   closed = false,
   side: WallSide = 'right',
   height = 2
-): WallRun => ({ id: 'w', familyId, points, closed, side, height });
+): WallRun => ({ id: 'w', familyId, points, closed, side, height, elevation: 0 });
 
 const split = (r: WallRun, cuts: readonly WallCut[] = []) =>
   splitWall(r, testLibrary.wallFamilies.get(r.familyId)!, cuts).pieces;

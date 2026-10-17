@@ -13,7 +13,7 @@ const run = (
   familyId: string,
   points: Vec2[],
   { closed = false, side = 'right' }: { closed?: boolean; side?: WallSide } = {}
-): WallRun => ({ id: `w${nextId++}`, familyId, points, closed, side, height: 2 });
+): WallRun => ({ id: `w${nextId++}`, familyId, points, closed, side, height: 2, elevation: 0 });
 
 const square = (x: number, z: number, size: number) =>
   pts([x, z], [x + size, z], [x + size, z + size], [x, z + size]);

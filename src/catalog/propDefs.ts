@@ -1,10 +1,11 @@
 /**
- * Props: the non-building pieces placed as single footprints (stations, furniture,
- * misc, ships, stairs). Built from the catalogue; `propGroup` decides what is a prop.
+ * Props: the pieces placed as single footprints (stations, furniture, misc, ships,
+ * stairs and ladders, and the poles, beams and pillars stilts are built from). Built from
+ * the catalogue; `propGroup` decides what is a prop.
  */
-import type { Catalog, PieceDef } from './pieceDefs';
+import { snapExtent, type Catalog, type PieceDef } from './pieceDefs';
 
-export type PropGroup = 'crafting' | 'furniture' | 'misc' | 'ships' | 'stairs';
+export type PropGroup = 'crafting' | 'furniture' | 'misc' | 'ships' | 'stairs' | 'structure';
 
 export const PROP_GROUPS: readonly PropGroup[] = [
   'crafting',
@@ -12,6 +13,7 @@ export const PROP_GROUPS: readonly PropGroup[] = [
   'misc',
   'ships',
   'stairs',
+  'structure',
 ];
 
 export const GROUP_LABELS: Record<PropGroup, string> = {
@@ -20,7 +22,21 @@ export const GROUP_LABELS: Record<PropGroup, string> = {
   misc: 'Misc',
   ships: 'Ships',
   stairs: 'Stairs',
+  structure: 'Poles & beams',
 };
+
+/**
+ * Groups whose pieces stand on their elevation with their whole collider (a pole's
+ * pivot is at its middle) and carry weight: they give support (`model/support`).
+ */
+export const LOAD_BEARING_GROUPS: ReadonlySet<PropGroup> = new Set(['stairs', 'structure']);
+
+/**
+ * Stairs and ladders connect levels rather than make them: a flight's upper pieces
+ * belong to the level it starts from.
+ */
+export const isLevelConnector = (group: PropGroup | null | undefined): boolean =>
+  group === 'stairs';
 
 /** A footprint in the prefab's local space (metres, relative to its pivot). */
 export interface LocalRect {
@@ -41,6 +57,13 @@ export interface PropDef {
   /** The game data has no collider, so `rect` (and `heightRange`) is a 1 × 1 stand-in. */
   approximate: boolean;
   comfort: number;
+  /** Its material (support and colour); null when the game data has none. */
+  material: string | null;
+  /**
+   * Stairs and ladders: how high one piece climbs and how far, along local −z (from its
+   * snap points). Null for other props.
+   */
+  flight: { rise: number; run: number } | null;
   /** Normalised EN name, PL name and prefab, for `filterProps`. */
   search: string;
 }
@@ -58,6 +81,41 @@ const STAIRS = new Set([
   'stone_stair',
   'blackmarble_stair',
   'piece_grausten_stonestair',
+  'wood_stepladder',
+  'Piece_grausten_stone_ladder',
+]);
+
+/** Upright and level poles, beams and pillars (diagonal beams aren't boxes). */
+const STRUCTURE = new Set([
+  'wood_pole',
+  'wood_pole2',
+  'wood_beam_1',
+  'wood_beam',
+  'wood_pole_log',
+  'wood_pole_log_4',
+  'darkwood_pole',
+  'darkwood_pole4',
+  'darkwood_beam',
+  'darkwood_beam4x4',
+  'ashwood_pole_1m',
+  'ashwood_pole_2m',
+  'ashwood_beam_1m',
+  'ashwood_beam_2m',
+  'woodiron_pole',
+  'woodiron_beam',
+  'stave_pole_2m',
+  'stave_pole_4m',
+  'stave_beam_2m',
+  'stave_beam_4m',
+  'Piece_flametal_pillar',
+  'Piece_flametal_beam',
+  'stone_pillar',
+  'Piece_grausten_pillarbase_small',
+  'Piece_grausten_pillarbase_medium',
+  'Piece_grausten_pillarbase_tapered',
+  'Piece_grausten_pillarbase_tapered_inverted',
+  'Piece_grausten_pillarbeam_small',
+  'Piece_grausten_pillarbeam_medium',
 ]);
 
 const GROUP_BY_CATEGORY: Record<string, PropGroup> = {
@@ -68,11 +126,13 @@ const GROUP_BY_CATEGORY: Record<string, PropGroup> = {
 
 /**
  * The prop group of a piece, or null when it isn't a prop: building pieces, structural
- * Deep North pieces (those with snap points) and the repair tool.
+ * Deep North pieces (those with snap points) and the repair tool. Poles and beams are
+ * checked first: the timber ones are Deep North pieces with snap points.
  */
 export const propGroup = (piece: PieceDef): PropGroup | null => {
   if (SHIPS.has(piece.prefab)) return 'ships';
   if (STAIRS.has(piece.prefab)) return 'stairs';
+  if (STRUCTURE.has(piece.prefab)) return 'structure';
   if (piece.category === 'deep-north') return piece.snapPoints.length === 0 ? 'furniture' : null;
   return GROUP_BY_CATEGORY[piece.category] ?? null;
 };
@@ -104,6 +164,9 @@ export const buildPropDefs = (catalog: Catalog): PropDef[] =>
           : APPROX_HEIGHT,
         approximate: rect === null,
         comfort: piece.comfort,
+        material: piece.material,
+        flight:
+          group === 'stairs' ? { rise: snapExtent(piece, 'y'), run: snapExtent(piece, 'z') } : null,
         search: normalizeSearch(`${piece.name} ${piece.namePl} ${piece.prefab}`),
       },
     ];

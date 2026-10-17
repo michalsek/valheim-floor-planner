@@ -38,18 +38,19 @@ export const nextDraftAction = (points: readonly Vec2[], p: Vec2): DraftAction =
 export type WallSettings = Pick<WallRun, 'familyId' | 'side' | 'height'>;
 
 /**
- * The run a draft makes, or null when it is too short to be a wall. Closed loops are
- * stored clockwise on screen (the strip keeps its physical side), so on a committed
- * loop `side: 'right'` always means inside.
+ * The run a draft makes at `elevation`, or null when it is too short to be a wall.
+ * Closed loops are stored clockwise on screen (the strip keeps its physical side), so
+ * on a committed loop `side: 'right'` always means inside.
  */
 export const draftToRun = (
   id: WallId,
   points: readonly Vec2[],
   closed: boolean,
-  settings: WallSettings
+  settings: WallSettings,
+  elevation = 0
 ): WallRun | null => {
   const normalized = normalizeRun(points, closed);
   if (normalized.length < (closed ? 3 : 2)) return null;
-  const run: WallRun = { id, points: normalized, closed, ...settings };
+  const run: WallRun = { id, points: normalized, closed, ...settings, elevation };
   return closed ? orientClockwise(run) : run;
 };

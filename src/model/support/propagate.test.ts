@@ -1,0 +1,166 @@
+import { describe, expect, it } from 'vitest';
+
+import type { MaterialSupport } from '../../catalog/pieceDefs';
+import { testLibrary } from '../../catalog/testLibrary';
+import { derivePlan } from '../derivePlan';
+import { pieceBoxes } from '../pieceBoxes';
+import { emptyPlan, type Plan } from '../types';
+
+import { findContacts } from './contacts';
+import { planSupport } from './planSupport';
+import { propagateSupport, type SupportBody } from './propagate';
+import { boxShape } from './shape';
+
+const MATERIALS: Record<string, MaterialSupport> = {
+  wood: { maxSupport: 100, minSupport: 10, verticalLoss: 0.125, horizontalLoss: 0.2 },
+  hardwood: { maxSupport: 140, minSupport: 10, verticalLoss: 0.1, horizontalLoss: 0.16667 },
+  stone: { maxSupport: 1000, minSupport: 100, verticalLoss: 0.125, horizontalLoss: 1 },
+};
+
+interface TestBox {
+  material: string;
+  /** Min and max corners. */
+  min: [number, number, number];
+  max: [number, number, number];
+  gives?: boolean;
+}
+
+const solve = (boxes: readonly TestBox[]) => {
+  const shaped = boxes.map(({ min, max }) => ({
+    center: { x: (min[0] + max[0]) / 2, y: (min[1] + max[1]) / 2, z: (min[2] + max[2]) / 2 },
+    size: { x: max[0] - min[0], y: max[1] - min[1], z: max[2] - min[2] },
+    rotationY: 0,
+  }));
+  const bodies = boxes.map((box, i): SupportBody => ({
+    com: shaped[i]!.center,
+    bottom: box.min[1],
+    material: MATERIALS[box.material]!,
+    gives: box.gives ?? true,
+  }));
+  return propagateSupport(bodies, findContacts(shaped.map(boxShape)));
+};
+
+/** `n` boxes stacked from the ground, each `h` tall. */
+const column = (material: string, n: number, h: number, half: number): TestBox[] =>
+  Array.from({ length: n }, (_, i) => ({
+    material,
+    min: [-half, i * h, -0.15],
+    max: [half, (i + 1) * h, 0.15],
+  }));
+
+/** A 2 m wood wall on the ground at x = 0, and `n` wood floor tiles out from its top. */
+const cantilever = (n: number): TestBox[] => [
+  { material: 'wood', min: [-0.15, 0, 0], max: [0.15, 2, 2] },
+  ...Array.from({ length: n }, (_, i): TestBox => ({
+    material: 'wood',
+    min: [2 * i, 1.87, 0],
+    max: [2 * i + 2, 2, 2],
+  })),
+];
+
+describe('propagateSupport', () => {
+  it('holds 8 wood walls (16 m) up and breaks the 9th', () => {
+    const { state, value } = solve(column('wood', 9, 2, 1));
+    expect(state.slice(0, 8).every((s) => s !== 'collapsing')).toBe(true);
+    expect(state[8]).toBe('collapsing');
+    expect(value[7]).toBeCloseTo(100 * 0.7375 ** 7, 1);
+  });
+
+  it('holds 12 log poles (24 m) up and breaks the 13th', () => {
+    const { state } = solve(column('hardwood', 13, 2, 0.2));
+    expect(state.slice(0, 12).every((s) => s !== 'collapsing')).toBe(true);
+    expect(state[12]).toBe('collapsing');
+  });
+
+  it('fades a wood floor cantilever off a wall top and breaks the 5th tile', () => {
+    const { state, value } = solve(cantilever(5));
+    const tiles = [...value.slice(1)];
+    [70.6, 40.9, 23.7, 13.8].forEach((expected, i) => {
+      expect(Math.abs(tiles[i]! - expected)).toBeLessThan(0.5);
+    });
+    expect(state.slice(1, 5).every((s) => s === 'supported')).toBe(true);
+    expect(state[5]).toBe('collapsing');
+  });
+
+  it('gives a stone floor beside a stone wall nothing (horizontal loss 1)', () => {
+    const { state, value } = solve([
+      { material: 'stone', min: [-0.5, 0, 0], max: [0.5, 2, 2] },
+      { material: 'stone', min: [0.5, 1, 0], max: [2.5, 2, 2] },
+    ]);
+    expect(value[1]).toBe(0);
+    expect(state[1]).toBe('collapsing');
+  });
+
+  it('holds a stone floor up between two walls better than on one', () => {
+    const wall = (x: number): TestBox => ({
+      material: 'stone',
+      min: [x - 0.5, 0, 0],
+      max: [x + 0.5, 2, 2],
+    });
+    const tile: TestBox = { material: 'stone', min: [0, 2, 0], max: [2, 3, 2] };
+    const both = solve([wall(0), wall(2), tile]).value[2]!;
+    const one = solve([wall(0), tile]).value[1]!;
+    // The pair takes vertical loss only: 1000 · (1 − 0.125 · (|(1, 1.5)| + 0.1)).
+    expect(both).toBeCloseTo(1000 * (1 - 0.125 * (Math.hypot(1, 1.5) + 0.1)), 0);
+    expect(one).toBeLessThan(both);
+  });
+
+  it('caps wood on stone at the wood maximum', () => {
+    const { value } = solve([
+      { material: 'stone', min: [-1, 0, -0.5], max: [1, 2, 0.5] },
+      { material: 'wood', min: [-1, 2, -0.15], max: [1, 4, 0.15] },
+    ]);
+    expect(value[1]).toBe(100);
+  });
+
+  it('leaves a loop floating in the air at 0', () => {
+    const { value, state } = solve([
+      { material: 'wood', min: [0, 10, 0], max: [2, 12, 0.3] },
+      { material: 'wood', min: [2, 10, 0], max: [4, 12, 0.3] },
+    ]);
+    expect([...value]).toEqual([0, 0]);
+    expect(state).toEqual(['collapsing', 'collapsing']);
+  });
+
+  it('lets a broken body hold nothing up', () => {
+    const { value } = solve(column('wood', 10, 2, 1));
+    expect(value[8]).toBeGreaterThan(0);
+    expect(value[9]).toBe(0);
+  });
+});
+
+describe('planSupport', () => {
+  it('drops a stone floor laid beside a stone wall top, edge-touching its lower course', () => {
+    const plan: Plan = {
+      ...emptyPlan(),
+      walls: {
+        w: {
+          id: 'w',
+          familyId: 'stone',
+          points: [
+            { x: 10, z: 10 },
+            { x: 10, z: 12 },
+          ],
+          closed: false,
+          side: 'right',
+          height: 2,
+          elevation: 0,
+        },
+      },
+      floors: {
+        f: {
+          id: 'f',
+          familyId: 'stone',
+          min: { x: 10, z: 10 },
+          max: { x: 12, z: 12 },
+          elevation: 2,
+        },
+      },
+    };
+    const boxes = pieceBoxes(derivePlan(plan, testLibrary), plan, testLibrary);
+    const { byKey, collapsing } = planSupport(boxes, testLibrary.catalog.materialSupport);
+    const tile = boxes.find((b) => b.kind === 'floor')!;
+    expect(byKey.get(tile.key)).toMatchObject({ state: 'collapsing', value: 0 });
+    expect(collapsing).toEqual([{ item: { kind: 'floor', id: 'f' }, count: 1 }]);
+  });
+});

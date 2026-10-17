@@ -1,7 +1,7 @@
 import { boxFromCorners } from '../../model/geometry/box';
 import { EPS } from '../../model/geometry/polyline';
 import { newId } from '../../model/newId';
-import { floorFamilyIdAtom, toolMinSnapAtom } from '../../store/session';
+import { floorFamilyIdAtom, toolMinSnapAtom, workDatumAtom } from '../../store/session';
 import { isUndoKey } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool, ToolContext } from '../types';
@@ -53,7 +53,13 @@ export const floorTool: Tool = {
     ctx.set(floorDragAtom, FLOOR_IDLE);
     const { min, max } = boxFromCorners(drag.a, e.snapped);
     if (max.x - min.x < EPS || max.z - min.z < EPS) return;
-    const floor = { id: newId(), familyId: ctx.get(floorFamilyIdAtom), min, max };
+    const floor = {
+      id: newId(),
+      familyId: ctx.get(floorFamilyIdAtom),
+      min,
+      max,
+      elevation: ctx.get(workDatumAtom),
+    };
     ctx.plan.dispatch({ type: 'floor.insert', floor }, { label: 'Add floor' });
   },
   onPointerCancel: cancel,

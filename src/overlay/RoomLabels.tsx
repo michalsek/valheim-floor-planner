@@ -2,7 +2,7 @@ import { formatArea, formatCompact, formatSize } from '../format';
 import type { Box } from '../model/geometry/rings';
 import type { Room } from '../model/rooms';
 import { useViewport } from '../store/hooks';
-import { useDisplayDerived } from '../store/planHooks';
+import { useLevelDerived } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { roomLabelLevel } from './roomLabelLevel';
@@ -88,7 +88,7 @@ const linesFor = (room: Room, wPx: number, dPx: number): Line[] => {
 
 /** Each room's sizes, area and roof fit, centred in its largest free rectangle. */
 export const RoomLabels = () => {
-  const { rooms } = useDisplayDerived();
+  const { rooms } = useLevelDerived();
   const { zoom } = useViewport();
   const toScreen = useWorldToScreen();
 

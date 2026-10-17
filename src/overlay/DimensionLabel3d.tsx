@@ -1,13 +1,18 @@
+import { useAtomValue } from 'jotai';
+
 import { formatMetres } from '../format';
+import { sameLevel } from '../model/elevation';
 import { dimensionLine } from '../model/geometry/dimension';
 import { measure } from '../model/geometry/measure';
 import type { Vec2 } from '../model/types';
 import { useDisplayPlan } from '../store/planHooks';
+import { workDatumAtom } from '../store/session';
 
 import type { DimensionTone } from './DimensionLine';
 import { Label3d } from './Label3d';
 import styles from './Overlay.module.css';
 import { useDimensionTone } from './useDimensionTone';
+import { OverlayPlaneContext } from './useProject3d';
 
 /** Gap (px) between a dimension line and its length. */
 const LABEL_ABOVE = 12;
@@ -34,14 +39,19 @@ export const DimensionLabel3d = ({ a, b, offset = 0, tone = 'live' }: DimensionL
   );
 };
 
-/** The pinned dimensions' lengths (their lines are `Dimensions3d`). */
+/** The pinned dimensions' lengths, each at its own level (their lines are `Dimensions3d`). */
 export const PinnedDimensionLabels3d = () => {
   const { dimensions } = useDisplayPlan();
   const toneOf = useDimensionTone();
+  const datum = useAtomValue(workDatumAtom);
   return (
     <g>
-      {Object.values(dimensions).map(({ id, a, b, offset }) => (
-        <DimensionLabel3d key={id} a={a} b={b} offset={offset} tone={toneOf(id)} />
+      {Object.values(dimensions).map(({ id, a, b, offset, elevation }) => (
+        <OverlayPlaneContext key={id} value={elevation}>
+          <g className={sameLevel(elevation, datum) ? undefined : styles.offLevel}>
+            <DimensionLabel3d a={a} b={b} offset={offset} tone={toneOf(id)} />
+          </g>
+        </OverlayPlaneContext>
       ))}
     </g>
   );

@@ -1,6 +1,7 @@
 /**
  * What a pointer event is over, for the tools: the only seam that knows which view is
- * showing. In 2D it is the plan hit test at the event's world point. In 3D:
+ * showing. Tools see the current level only (`levelView`): the work datum's objects.
+ * In 2D it is the plan hit test at the event's world point. In 3D:
  *
  * 1. the selected wall's corner handles, by their on-screen distance;
  * 2. the nearest box along the pointer's ray (walls, openings and props win);
@@ -13,10 +14,13 @@ import type { BoxMode } from '../model/geometry/box';
 import { dot, pointAlong, runSegments, sideNormal } from '../model/geometry/polyline';
 import { pickBoxes, pointOnRay } from '../model/geometry/ray';
 import { snapToGrid } from '../model/geometry/snap';
-import { hitTest, itemsInBox, type Hit, type HitOptions } from '../model/hitTest';
+import { hitItem, hitTest, itemsInBox, type Hit, type HitOptions } from '../model/hitTest';
 import { boxFromCorners } from '../model/geometry/box';
+import { ITEM_KINDS } from '../model/itemKinds';
+import { ghostPlan, levelPlan } from '../model/levels';
+import type { PieceBox } from '../model/pieceBoxes';
 import { handleWallId, type SelectionItem } from '../model/selection';
-import type { Vec2, Vec3, WallId } from '../model/types';
+import type { Plan, Vec2, Vec3, WallId } from '../model/types';
 import { wallExtents } from '../model/wallGraph';
 import { getLibrary } from '../store/libraryInstance';
 import { getDerived, getPieceBoxes } from '../store/planHooks';
@@ -43,8 +47,11 @@ const projectionOf = (ctx: ToolContext): Projection3d | null =>
 export const dragThresholdPx = (ctx: ToolContext): number =>
   DRAG_THRESHOLD_PX[ctx.get(viewModeAtom)];
 
-const hitOptions = (ctx: ToolContext, handleTol: number): HitOptions => {
-  const plan = ctx.plan.getPlan();
+/** The committed plan as the current level sees it: what tools pick and edit. */
+export const levelView = (ctx: ToolContext): Plan =>
+  levelPlan(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary());
+
+const hitOptions = (ctx: ToolContext, plan: Plan, handleTol: number): HitOptions => {
   const selection = ctx.get(selectionAtom);
   return {
     families: getLibrary().wallFamilies,
@@ -56,15 +63,15 @@ const hitOptions = (ctx: ToolContext, handleTol: number): HitOptions => {
   };
 };
 
-const planHit = (ctx: ToolContext, p: Vec2, handleTol: number): Hit | null =>
-  hitTest(ctx.plan.getPlan(), p, hitTolerance(ctx), hitOptions(ctx, handleTol));
+const planHit = (ctx: ToolContext, p: Vec2, handleTol: number, plan = levelView(ctx)) =>
+  hitTest(plan, p, hitTolerance(ctx), hitOptions(ctx, plan, handleTol));
 
 /** The selected wall's corner nearest the pointer on screen, within `HANDLE_PX`. */
 const handleAt = (ctx: ToolContext, e: ToolPointerEvent, v: Projection3d): Hit | null => {
   const wallId = handleWallId(ctx.get(selectionAtom));
   const run = wallId ? ctx.plan.getPlan().walls[wallId] : undefined;
   if (!run) return null;
-  const y = ctx.get(workDatumAtom);
+  const y = run.elevation;
   let best: Hit | null = null;
   let bestDistance = HANDLE_PX;
   for (const [index, p] of run.points.entries()) {
@@ -78,13 +85,20 @@ const handleAt = (ctx: ToolContext, e: ToolPointerEvent, v: Projection3d): Hit |
   return best;
 };
 
-/** The nearest piece or prop box under a canvas point in 3D, and where the ray enters it. */
-const surfaceAt = (ctx: ToolContext, screen: ScreenPoint): { hit: Hit; point: Vec3 } | null => {
+/**
+ * The nearest of `boxes` (the current level's by default) under a canvas point in 3D,
+ * and where the ray enters it.
+ */
+const surfaceAt = (
+  ctx: ToolContext,
+  screen: ScreenPoint,
+  boxes: readonly PieceBox[] = getPieceBoxes(levelView(ctx))
+): { box: PieceBox; hit: Hit; point: Vec3 } | null => {
   const v = projectionOf(ctx);
   if (!v) return null;
   const ray = screenRay(screen, v);
-  const found = pickBoxes(ray, getPieceBoxes(ctx.plan.getPlan()));
-  return found && { hit: found.box.hit, point: pointOnRay(ray, found.t) };
+  const found = pickBoxes(ray, boxes);
+  return found && { box: found.box, hit: found.box.hit, point: pointOnRay(ray, found.t) };
 };
 
 /**
@@ -147,7 +161,7 @@ export const itemsInSelectBox = (
   screen: { a: ScreenPoint; b: ScreenPoint },
   mode: BoxMode
 ): SelectionItem[] => {
-  const plan = ctx.plan.getPlan();
+  const plan = levelView(ctx);
   const v = projectionOf(ctx);
   if (!v) return itemsInBox(plan, boxFromCorners(world.a, world.b), mode, getLibrary());
   const rect = screenRectFrom(screen.a, screen.b);
@@ -158,7 +172,7 @@ export const itemsInSelectBox = (
 const wallSegmentOf = (ctx: ToolContext, hit: Hit): { wallId: WallId; segment: number } | null => {
   if (hit.kind === 'wall') return { wallId: hit.id, segment: hit.segment };
   if (hit.kind !== 'opening') return null;
-  const opening = getDerived(ctx.plan.getPlan()).openings.find((o) => o.id === hit.id);
+  const opening = getDerived(levelView(ctx)).openings.find((o) => o.id === hit.id);
   return opening && opening.segment !== null
     ? { wallId: opening.wallId, segment: opening.segment }
     : null;
@@ -185,4 +199,38 @@ export const pickWallPoint = (ctx: ToolContext, e: ToolPointerEvent): Vec2 => {
   const normal = sideNormal(seg.dir, 'right');
   const middle = (right - left) / 2;
   return { x: onLine.x + normal.x * middle, z: onLine.z + normal.z * middle };
+};
+
+const boxTop = (box: PieceBox): number => box.center.y + box.size.y / 2;
+
+/** The top of an item: its highest box, or (a dimension) its elevation. */
+const itemTop = (plan: Plan, item: SelectionItem): number | null => {
+  const tops = getPieceBoxes(plan)
+    .filter((box) => box.item.kind === item.kind && box.item.id === item.id)
+    .map(boxTop);
+  return tops.length > 0 ? Math.max(...tops) : ITEM_KINDS[item.kind].elevation(plan, item.id);
+};
+
+/**
+ * The height of the top of the piece under the event, for the Levels bar's Pick: in 3D
+ * whatever piece the ray meets first, on any level; in 2D the current level's, else a
+ * ghost from the level below. Null over nothing.
+ */
+export const pickTop = (
+  ctx: ToolContext,
+  screen: ScreenPoint,
+  world: Vec2 | null
+): number | null => {
+  const plan = ctx.plan.getPlan();
+  if (projectionOf(ctx)) {
+    const surface = surfaceAt(ctx, screen, getPieceBoxes(plan));
+    return surface && boxTop(surface.box);
+  }
+  if (!world) return null;
+  const datum = ctx.get(workDatumAtom);
+  for (const view of [levelPlan(plan, datum, getLibrary()), ghostPlan(plan, datum, getLibrary())]) {
+    const hit = planHit(ctx, world, 0, view);
+    if (hit) return itemTop(plan, hitItem(hit));
+  }
+  return null;
 };

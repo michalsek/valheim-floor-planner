@@ -15,6 +15,7 @@ const loop = (familyId: string, points: [number, number][]): WallRun => ({
   closed: true,
   side: 'right',
   height: 2,
+  elevation: 0,
 });
 
 // Clockwise on screen: top, right, bottom, left.

@@ -42,12 +42,13 @@ const corners = ({ center, size, rotationY }: TurnedBox): Vec3[] => {
 
 const keyOf = (item: SelectionItem): string => `${item.kind}:${item.id}`;
 
-/** Each item's points in 3D: its boxes' corners, or (with no boxes) its drawn lines on the ground. */
+/** Each item's points in 3D: its boxes' corners, or (with no boxes) its drawn lines on its level. */
 const itemPoints = (
   plan: Plan,
   boxes: readonly PieceBox[],
   lib: KindLib
 ): Map<string, { item: SelectionItem; points: Vec3[] }> => {
+  const elevation = (item: SelectionItem) => ITEM_KINDS[item.kind].elevation(plan, item.id) ?? 0;
   const byKey = new Map<string, Vec3[]>();
   for (const box of boxes) {
     const key = keyOf(box.item);
@@ -60,7 +61,7 @@ const itemPoints = (
         fromBoxes ??
         ITEM_KINDS[item.kind]
           .lines(plan, item.id, lib)
-          .flatMap((line) => line.points.map((p) => ({ x: p.x, y: 0, z: p.z })));
+          .flatMap((line) => line.points.map((p) => ({ x: p.x, y: elevation(item), z: p.z })));
       return [keyOf(item), { item, points }];
     })
   );

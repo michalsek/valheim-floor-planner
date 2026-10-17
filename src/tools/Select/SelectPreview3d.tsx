@@ -1,6 +1,7 @@
 import { useAtomValue } from 'jotai';
 
 import { Marker3d } from '../../overlay/Marker3d';
+import { OverlayPlaneContext } from '../../overlay/useProject3d';
 
 import { HANDLE_DRAWN_PX, handleClass, useHandles } from './handles';
 import { SelectRect } from './SelectPreview';
@@ -14,16 +15,18 @@ const SelectBox3d = () => {
   return <SelectRect a={a} b={b} touch={boxMode(a, b) === 'touch'} />;
 };
 
-/** The selected wall's corner handles, on the work plane under each corner. */
+/** The selected wall's corner handles, at the foot of each corner (on the wall's level). */
 const Handles3d = () => {
   const { run, isHot } = useHandles();
   if (!run) return null;
   return (
-    <g>
-      {run.points.map((p, i) => (
-        <Marker3d key={i} at={p} r={HANDLE_DRAWN_PX} className={handleClass(isHot(i))} />
-      ))}
-    </g>
+    <OverlayPlaneContext value={run.elevation}>
+      <g>
+        {run.points.map((p, i) => (
+          <Marker3d key={i} at={p} r={HANDLE_DRAWN_PX} className={handleClass(isHot(i))} />
+        ))}
+      </g>
+    </OverlayPlaneContext>
   );
 };
 

@@ -1,9 +1,10 @@
 import { propRect, rectSize } from '../catalog/propDefs';
+import { formatCompact } from '../format';
 import { propCentre } from '../model/geometry/propGeometry';
 import type { Prop } from '../model/types';
 import { useViewport } from '../store/hooks';
 import { getLibrary } from '../store/libraryInstance';
-import { useDisplayPlan } from '../store/planHooks';
+import { useLevelPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { textWidth, type TextFont } from './textWidth';
@@ -45,7 +46,9 @@ const PropLabel = ({ prop, zoom }: { prop: Prop; zoom: number }) => {
   const rect = propRect(getLibrary().propDefs, prop.prefab);
   const size = rectSize(rect);
   if (Math.min(size.x, size.z) * zoom < MIN_SIDE_PX) return null;
-  const name = getLibrary().propDefs.get(prop.prefab)?.name ?? prop.prefab;
+  const def = getLibrary().propDefs.get(prop.prefab);
+  // A stair says how far it climbs.
+  const name = def?.flight ? `+${formatCompact(def.flight.rise)} m` : (def?.name ?? prop.prefab);
   const text = fitText(name, labelWidth(size, prop.rotation, zoom) - 2 * PADDING_PX);
   if (!text) return null;
   const { x, y } = toScreen(propCentre(prop.position, prop.rotation, rect));
@@ -59,7 +62,7 @@ const PropLabel = ({ prop, zoom }: { prop: Prop; zoom: number }) => {
 /** Prop names on their footprints, when zoomed in far enough (screen layer). */
 export const PropLabels = () => {
   const { zoom } = useViewport();
-  const props = useDisplayPlan().props;
+  const props = useLevelPlan().props;
   if (zoom < MIN_ZOOM) return null;
   return (
     <g>

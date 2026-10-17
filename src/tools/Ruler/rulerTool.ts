@@ -1,5 +1,6 @@
 import { samePoint } from '../../model/geometry/polyline';
 import { newId } from '../../model/newId';
+import { workDatumAtom } from '../../store/session';
 import { pxToMetresAt } from '../hitTolerance';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { Tool } from '../types';
@@ -39,7 +40,8 @@ export const rulerTool: Tool = {
       // Off the line (to its left), so a pin taken along a wall doesn't sit on top of it.
       const mid = { x: (state.a.x + state.b.x) / 2, z: (state.a.z + state.b.z) / 2 };
       const offset = -Math.round(pxToMetresAt(ctx, PIN_OFFSET_PX, mid) * 100) / 100;
-      const dimension = { id: newId(), a: state.a, b: state.b, offset };
+      const elevation = ctx.get(workDatumAtom);
+      const dimension = { id: newId(), a: state.a, b: state.b, offset, elevation };
       ctx.plan.dispatch({ type: 'dimension.insert', dimension }, { label: 'Pin measurement' });
       ctx.set(rulerAtom, RULER_IDLE);
       return true;

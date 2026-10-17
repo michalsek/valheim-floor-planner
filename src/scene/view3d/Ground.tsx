@@ -12,10 +12,16 @@ import { GRID_LEVELS, type GridLevelAlphas } from '../grid/gridLevels';
 const GROUND_SIZE = 4000;
 /** Just under the floor tops at the work datum, so floors cover the grid. */
 const GRID_DROP = 0.02;
+/** The shadow catcher sits just under the terrain (y = 0), whatever the current level. */
 const CATCHER_DROP = 0.03;
 /** The grid is gone this many orbit distances from the target (at least the minimum). */
 const FADE_DISTANCES = 3;
 const MIN_FADE_RADIUS = 30;
+/**
+ * On a level off the ground the grid is a see-through plane over the levels below it:
+ * fainter, and only around the orbit target.
+ */
+const RAISED = { strength: 0.4, fadeDistances: 1, minFadeRadius: 8 } as const;
 
 /**
  * Each level's strength in 3D, relative to 2D: the 10 m lines are toned down, since at
@@ -51,9 +57,10 @@ const orbitTarget = (controls: unknown): Vector3 | null =>
     : null;
 
 /**
- * The ground: the plan grid (perspective mode) and a shadow catcher just under it.
- * Neither hides what is below the ground, so a floor's thickness shows from a low
- * angle. The grid fades out around the orbit target.
+ * The ground: the plan grid on the work plane (the current level, perspective mode)
+ * and a shadow catcher just under the terrain. Neither hides what is below it, so a
+ * floor's thickness and the levels under the current one show. The grid fades out
+ * around the orbit target.
  */
 export const Ground = () => {
   const datum = useAtomValue(workDatumAtom);
@@ -71,22 +78,25 @@ export const Ground = () => {
     [grid, catcher]
   );
 
+  const raised = datum !== 0;
+  const alphaScale = gridAlphaScale * (raised ? RAISED.strength : 1);
+
   useLayoutEffect(() => {
-    grid.update({ levelAlpha: fullStrength(gridAlphaScale), dpr, color: gridLine });
+    grid.update({ levelAlpha: fullStrength(alphaScale), dpr, color: gridLine });
     catcher.setAlpha(shadowAlpha);
     invalidate();
-  }, [grid, catcher, gridAlphaScale, dpr, gridLine, shadowAlpha, invalidate]);
+  }, [grid, catcher, alphaScale, dpr, gridLine, shadowAlpha, invalidate]);
 
   // Uniforms only: follows the camera on every frame drawn, without asking for more.
   useFrame(({ camera, controls }) => {
     const target = orbitTarget(controls);
     if (!target) return;
-    const fadeRadius = Math.max(
-      camera.position.distanceTo(target) * FADE_DISTANCES,
-      MIN_FADE_RADIUS
-    );
+    const distance = camera.position.distanceTo(target);
+    const fadeRadius = raised
+      ? Math.max(distance * RAISED.fadeDistances, RAISED.minFadeRadius)
+      : Math.max(distance * FADE_DISTANCES, MIN_FADE_RADIUS);
     grid.update({
-      levelAlpha: fullStrength(gridAlphaScale),
+      levelAlpha: fullStrength(alphaScale),
       dpr,
       color: gridLine,
       target: { x: target.x, z: target.z },
@@ -97,7 +107,7 @@ export const Ground = () => {
   return (
     <>
       <mesh
-        position-y={datum - CATCHER_DROP}
+        position-y={-CATCHER_DROP}
         rotation-x={-Math.PI / 2}
         renderOrder={-2}
         material={catcher.material}

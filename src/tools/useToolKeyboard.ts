@@ -7,6 +7,7 @@ import { getLibrary } from '../store/libraryInstance';
 import {
   activeToolIdAtom,
   fitViewTo,
+  levelPickAtom,
   resetModifiers,
   setModifier,
   snapStepAtom,
@@ -17,6 +18,7 @@ import { requestOrbit, toggleViewMode, viewModeAtom } from '../store/view3d';
 import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
 import { isMod, isRedoKey, isUndoKey } from './keys';
+import { jumpLevel, moveSelectionLevel, stepLevel, type LevelDirection } from './levelActions';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, TOOLS } from './toolbox';
 import type { ToolContext } from './types';
@@ -47,6 +49,22 @@ const zoomKey = (ctx: ToolContext, factor: number): void => {
 
 const isPlainDigit = (e: KeyboardEvent, code: string): boolean =>
   e.code === code && !isMod(e) && !e.altKey && !e.shiftKey;
+
+/**
+ * PageUp / PageDown step the current level; with Shift they jump to the next level with
+ * something on it; with Mod they move the selection a step (Mod+Shift: everything from
+ * this level up), and the current level follows.
+ */
+const levelBindings = (key: string, dir: LevelDirection): KeyBinding[] => {
+  const page = (e: KeyboardEvent, mod: boolean, shift: boolean) =>
+    e.key === key && isMod(e) === mod && e.shiftKey === shift && !e.altKey;
+  return [
+    { test: (e) => page(e, false, false), repeat: true, run: (s) => stepLevel(s, dir) },
+    { test: (e) => page(e, false, true), repeat: true, run: (s) => void jumpLevel(s, dir) },
+    { test: (e) => page(e, true, false), run: (s) => void moveSelectionLevel(s, dir, false) },
+    { test: (e) => page(e, true, true), run: (s) => void moveSelectionLevel(s, dir, true) },
+  ];
+};
 
 const KEYMAP: readonly KeyBinding[] = [
   ...TOOLS.map((tool): KeyBinding => ({
@@ -81,6 +99,8 @@ const KEYMAP: readonly KeyBinding[] = [
   // character unshifted (AZERTY).
   { test: (e) => isPlainDigit(e, 'Digit3'), run: toggleViewMode },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
+  ...levelBindings('PageUp', 1),
+  ...levelBindings('PageDown', -1),
   { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },
   { test: isRedoKey, repeat: true, run: (s) => s.plan.redo() },
 ];
@@ -122,6 +142,10 @@ export const useToolKeyboard = (): void => {
         return;
       }
       if (isEditableTarget(e.target)) return;
+      if (e.key === 'Escape' && ctx.get(levelPickAtom)) {
+        ctx.set(levelPickAtom, false);
+        return;
+      }
       if (e.key === ' ' || e.key === 'Alt') {
         // Space would scroll or re-click a focused button; Alt would focus the menu bar.
         e.preventDefault();

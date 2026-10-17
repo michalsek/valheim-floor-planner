@@ -1,6 +1,7 @@
 /** Plan edits. Every change to the plan document goes through one of these. */
 import { produce } from 'immer';
 
+import { elevationProblem } from './elevation';
 import { samePoint } from './geometry/polyline';
 import { MAX_PROPS, propProblem } from './props';
 import type {
@@ -70,18 +71,31 @@ export class PlanCommandError extends Error {
   }
 }
 
-const checkFloor = ({ min, max }: Floor): void => {
+// Commands accept only what `parsePlan` loads, so the autosave always reads back.
+const checkElevation = ({ elevation }: { elevation: number }): void => {
+  const problem = elevationProblem(elevation);
+  if (problem) throw new PlanCommandError(`Invalid elevation: ${problem}`);
+};
+
+const checkFloor = (floor: Floor): void => {
+  const { min, max } = floor;
   if (!(max.x > min.x && max.z > min.z)) throw new PlanCommandError('A floor needs an area');
+  checkElevation(floor);
 };
 
 const checkWall = (plan: Plan, wallId: WallId): void => {
   if (!(wallId in plan.walls)) throw new PlanCommandError(`Wall "${wallId}" does not exist`);
 };
 
-// Commands accept only what `parsePlan` loads, so the autosave always reads back.
 const checkProp = (prop: Prop): void => {
   const problem = propProblem(prop);
   if (problem) throw new PlanCommandError(`Invalid item: ${problem}`);
+  checkElevation(prop);
+};
+
+const checkDimension = (dim: Dimension): void => {
+  if (samePoint(dim.a, dim.b)) throw new PlanCommandError('A dimension needs two different points');
+  checkElevation(dim);
 };
 
 const checkUnderlay = (underlay: Underlay): void => {
@@ -99,12 +113,14 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
       if (cmd.wall.id in draft.walls) {
         throw new PlanCommandError(`Wall "${cmd.wall.id}" already exists`);
       }
+      checkElevation(cmd.wall);
       draft.walls[cmd.wall.id] = cmd.wall;
       return undefined;
     case 'wall.patch': {
       const wall = draft.walls[cmd.id];
       if (!wall) throw new PlanCommandError(`Wall "${cmd.id}" does not exist`);
       Object.assign(wall, cmd.changes);
+      checkElevation(wall);
       return undefined;
     }
     case 'wall.remove':
@@ -119,17 +135,14 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
       if (cmd.dimension.id in draft.dimensions) {
         throw new PlanCommandError(`Dimension "${cmd.dimension.id}" already exists`);
       }
-      if (samePoint(cmd.dimension.a, cmd.dimension.b)) {
-        throw new PlanCommandError('A dimension needs two different points');
-      }
+      checkDimension(cmd.dimension);
       draft.dimensions[cmd.dimension.id] = cmd.dimension;
       return undefined;
     case 'dimension.patch': {
       const dim = draft.dimensions[cmd.id];
       if (!dim) throw new PlanCommandError(`Dimension "${cmd.id}" does not exist`);
       Object.assign(dim, cmd.changes);
-      if (samePoint(dim.a, dim.b))
-        throw new PlanCommandError('A dimension needs two different points');
+      checkDimension(dim);
       return undefined;
     }
     case 'dimension.remove':

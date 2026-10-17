@@ -20,7 +20,7 @@ pnpm test:install   # parses the local Steam install and compares it with resear
 | W   | Wall: click to add corners, Enter or double-click to finish, click the start point to close the loop, F to flip which side a stone wall's strip is on |
 | B   | Floor: drag a rectangle                                                                                                                               |
 | O   | Door or gate, placed on a wall                                                                                                                        |
-| P   | Item: furniture and crafting stations from the catalogue, with EN/PL search; R / Shift+R rotate                                                       |
+| P   | Item: furniture, stations, stairs, poles and beams from the catalogue, with EN/PL search; R / Shift+R rotate; stairs place a whole flight up a rise   |
 | D   | Dimension (Enter in the ruler pins the measurement)                                                                                                   |
 | M   | Ruler                                                                                                                                                 |
 | U   | Underlay: load a reference image, calibrate its scale, set its opacity                                                                                |
@@ -35,9 +35,18 @@ Other keys:
 - Mod+Z / Mod+Shift+Z undo and redo.
 - Mod+S / Mod+O save and open a `.valheimplan.json` file.
 
+## Levels and support
+
+Every wall, floor, item and dimension stands at its own elevation, and the levels are simply the elevations in use. You always work on one level: the Levels bar at the canvas edge lists them ("+2 m · 41"), and new objects go on the current one. 2D shows that level with the one below faintly under it; tools and Mod+A only see the current level; rooms and the bill of materials (This level / All) are per level.
+
+- PageUp / PageDown step the level (1 m, or 0.5 m for grausten floors); Shift jumps to the next level with something on it.
+- Mod+PageUp / PageDown move the selection a step, and the level follows (Mod+Shift: everything from this level up). The Inspector has an Elevation field too.
+- Tops goes up to the highest wall top on this level (where the next floor goes); Pick, then a click on a piece, goes to its top.
+- Support colours every piece by the game's structural support: blue on the ground, green to red as it weakens, magenta where it would collapse. The bill of materials lists what would collapse.
+
 ## 3D view
 
-Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by course, floors at their real thickness, doors and gates as see-through panels, and items as their collider boxes. Every tool except the underlay works in 3D too, on the ground plane: the same clicks, drags, snapping, Alt, keys and undo as in 2D, with ghost pieces and lines showing what a click would build. Pointing at a wall's face puts an opening on that wall, and selecting picks the piece you see. The underlay tool goes back to 2D.
+Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by course, floors at their real thickness, doors and gates as see-through panels, and items as their collider boxes, every level at its height (the ones you aren't on faded). Every tool except the underlay works in 3D too, on the current level's plane: the same clicks, drags, snapping, Alt, keys and undo as in 2D, with ghost pieces and lines showing what a click would build. Pointing at a wall's face puts an opening on that wall, and selecting picks the piece you see. The underlay tool goes back to 2D.
 
 - Left click and drag use the active tool.
 - Right drag orbits.
@@ -48,5 +57,5 @@ Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by cou
 ## Docs
 
 - `research/README.md`: what we know about the game, plus the extracted data (`valheim-pieces.json`, `valheim-items.json`) and the UnityPy scripts that extract it (`research/extract/`). The app parses the install itself (`src/gameData/`); the JSON is now the fixture for tests.
-- `docs/Roadmap.md`: the stack, the architecture and the milestones. Each milestone has a plan in `docs/plans/` (M1–M10; `docs/RoadmapV2.md` covers M8 onwards).
+- `docs/Roadmap.md`: the stack, the architecture and the milestones. Each milestone has a plan in `docs/plans/` (M1–M11; `docs/RoadmapV2.md` covers M8 onwards).
 - `docs/Findings.md`: known issues and follow-ups that agents logged while building it.

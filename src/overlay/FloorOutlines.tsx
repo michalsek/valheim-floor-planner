@@ -2,7 +2,7 @@ import { boxOutline } from '../model/geometry/box';
 import { footprintCorners } from '../model/geometry/polyline';
 import { groundCourse } from '../model/types';
 import { useViewport } from '../store/hooks';
-import { useDisplayDerived, useDisplayPlan } from '../store/planHooks';
+import { useLevelDerived, useLevelPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { RunPath } from './RunPath';
@@ -20,8 +20,8 @@ const MASK_REACH = 1e5;
  * thin outline round each floor.
  */
 export const FloorOutlines = () => {
-  const { floors } = useDisplayPlan();
-  const { pieces } = useDisplayDerived();
+  const { floors } = useLevelPlan();
+  const { pieces } = useLevelDerived();
   const { zoom } = useViewport();
   const tiles = pieces.filter(
     (p) => p.kind === 'floor' && p.footprint.length * zoom >= MIN_TILE_PX

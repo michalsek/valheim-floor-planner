@@ -2,6 +2,7 @@ import { useAtomValue } from 'jotai';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { derivePlan, type Derived } from '../model/derivePlan';
+import { ghostPlan, levelPlan } from '../model/levels';
 import { pieceBoxes, type PieceBox } from '../model/pieceBoxes';
 import type { Plan } from '../model/types';
 
@@ -10,6 +11,7 @@ import { getLibrary } from './libraryInstance';
 import { planStore } from './planInstance';
 import type { HistoryLabels } from './planStore';
 import { editPreviewAtom } from './selection';
+import { workDatumAtom } from './session';
 
 const subscribe = (onChange: () => void) => planStore.subscribe(onChange);
 
@@ -70,13 +72,11 @@ export const getDerived = (plan: Plan): Derived => {
   return derived;
 };
 
-export const useDerivedPlan = (): Derived => getDerived(usePlan());
-
 const boxesCache = new WeakMap<Plan, PieceBox[]>();
 
 /**
- * The plan's pieces and props as 3D boxes, each at its own elevation (0 until M11),
- * not the work datum. Memoised per plan object.
+ * The plan's pieces and props as 3D boxes, each at its own elevation (not the work
+ * datum). Memoised per plan object.
  */
 export const getPieceBoxes = (plan: Plan): PieceBox[] => {
   let boxes = boxesCache.get(plan);
@@ -115,3 +115,13 @@ export const useDisplayPlan = (): Plan => getDisplayPlan(usePlan(), useAtomValue
 
 /** Derived data for `useDisplayPlan` (the BOM panel keeps the committed plan's). */
 export const useDisplayDerived = (): Derived => getDerived(useDisplayPlan());
+
+/** The displayed plan as the current level (the work datum) sees it: what 2D draws. */
+export const useLevelPlan = (): Plan =>
+  levelPlan(useDisplayPlan(), useAtomValue(workDatumAtom), getLibrary());
+
+export const useLevelDerived = (): Derived => getDerived(useLevelPlan());
+
+/** What the current level shows faintly from below (2D). */
+export const useGhostPlan = (): Plan =>
+  ghostPlan(useDisplayPlan(), useAtomValue(workDatumAtom), getLibrary());
