@@ -146,6 +146,17 @@ const storeModels = async (names: readonly string[], postModels: boolean) => {
   await storeTextures([...new Set(textureIds)], false);
 };
 
+/**
+ * Model and texture requests that came in while "Extract all" runs: served between its
+ * batches, so the models a plan shows don't wait for every piece.
+ */
+const urgent: (() => Promise<void>)[] = [];
+let extracting = false;
+
+const serveUrgent = async () => {
+  while (urgent.length > 0) await urgent.shift()!();
+};
+
 const extractAll = async () => {
   const names = modelSource().prefabs();
   const missing: string[] = [];
@@ -155,6 +166,7 @@ const extractAll = async () => {
   let done = names.length - missing.length;
   post({ type: 'progress', done, total: names.length });
   for (let i = 0; i < missing.length; i += BATCH) {
+    await serveUrgent();
     const batch = missing.slice(i, i + BATCH);
     await storeModels(batch, false);
     done += batch.length;
@@ -163,25 +175,37 @@ const extractAll = async () => {
   await writeIndex(dirs !== null);
 };
 
-/** Requests run one at a time, in order. */
+const handle = async (data: AssetRequest) => {
+  try {
+    switch (data.type) {
+      case 'open':
+        return await open(data.bundle, data.key);
+      case 'models':
+        return await storeModels(data.names, true);
+      case 'textures':
+        return await storeTextures(data.ids, true);
+      case 'all':
+        extracting = true;
+        try {
+          return await extractAll();
+        } finally {
+          extracting = false;
+          await serveUrgent();
+        }
+    }
+  } catch (error) {
+    const { code, detail } = asGameDataError(error);
+    post({ type: 'error', code, detail, request: data.type });
+  }
+};
+
+/** Requests run one at a time, in order; during "Extract all", models and textures first. */
 let queue = Promise.resolve();
 
 self.onmessage = ({ data }: MessageEvent<AssetRequest>) => {
-  queue = queue.then(async () => {
-    try {
-      switch (data.type) {
-        case 'open':
-          return await open(data.bundle, data.key);
-        case 'models':
-          return await storeModels(data.names, true);
-        case 'textures':
-          return await storeTextures(data.ids, true);
-        case 'all':
-          return await extractAll();
-      }
-    } catch (error) {
-      const { code, detail } = asGameDataError(error);
-      post({ type: 'error', code, detail, request: data.type });
-    }
-  });
+  if (extracting && (data.type === 'models' || data.type === 'textures')) {
+    urgent.push(() => handle(data));
+  } else {
+    queue = queue.then(() => handle(data));
+  }
 };

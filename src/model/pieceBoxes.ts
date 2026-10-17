@@ -24,6 +24,7 @@ import type { Bounds3 } from './geometry/bounds3';
 import { propCentre } from './geometry/propGeometry';
 import type { Hit } from './hitTest';
 import { ITEM_KINDS } from './itemKinds';
+import { pieceAnchor, pivotFrom, propPivotLift } from './piecePivot';
 import { propArea } from './props';
 import type { SelectionItem } from './selection';
 import { isOddTile } from './splitFloor';
@@ -51,6 +52,10 @@ export interface PieceBox {
   size: Vec3;
   /** Turn about +y (radians, three.js sense: counter-clockwise seen from above). */
   rotationY: number;
+  /** The piece's or prop's prefab (its model); null when unknown. */
+  prefab: string | null;
+  /** Where the prefab's pivot goes, for its model (`piecePivot.ts`). */
+  pivot: Vec3;
 }
 
 /** How far floor boxes are lifted over their elevation (metres): 1 mm. */
@@ -71,6 +76,7 @@ const placedBox = (piece: PlacedPiece, hit: Hit, elevation: number): PieceBox =>
   // Floor tops are lifted a hair, so a floor level with the wall top under it doesn't
   // flicker against it.
   const bottom = elevation + piece.base + (piece.kind === 'floor' ? FLOOR_LIFT : 0);
+  const center = { x: piece.center.x, y: bottom + piece.height / 2, z: piece.center.z };
   return {
     key: piece.key,
     item: { kind: piece.kind, id: piece.sourceId },
@@ -80,10 +86,13 @@ const placedBox = (piece: PlacedPiece, hit: Hit, elevation: number): PieceBox =>
     group: null,
     odd: piece.kind === 'floor' && isOddTile(piece),
     elevation,
-    center: { x: piece.center.x, y: bottom + piece.height / 2, z: piece.center.z },
+    center,
     size: { x: length, y: piece.height, z: across },
     // The plan's angle turns +x towards +z (clockwise seen from above).
     rotationY: -piece.rotation,
+    prefab: piece.prefab,
+    // At the centre until `withAnchor` knows the prefab's anchor.
+    pivot: center,
   };
 };
 
@@ -150,7 +159,15 @@ export const propBox = (
     center: { x: centre.x, y: bottom + height / 2, z: centre.z },
     size: { x: rect.maxX - rect.minX, y: height, z: rect.maxZ - rect.minZ },
     rotationY: -prop.rotation * DEG,
+    prefab: prop.prefab,
+    pivot: { x: prop.position.x, y: prop.elevation + propPivotLift(def), z: prop.position.z },
   };
+};
+
+/** A placed piece's box with its pivot off its prefab's anchor. */
+const withAnchor = (box: PieceBox, lib: Pick<Library, 'catalog'>): PieceBox => {
+  const def = box.prefab === null ? undefined : lib.catalog.pieces.get(box.prefab);
+  return { ...box, pivot: pivotFrom(box.center, box.rotationY, pieceAnchor(def, box.size)) };
 };
 
 const ofKind = (pieces: readonly PlacedPiece[], kind: PlacedPiece['kind']) =>
@@ -160,7 +177,7 @@ const ofKind = (pieces: readonly PlacedPiece[], kind: PlacedPiece['kind']) =>
 export const pieceBoxes = (
   derived: Pick<Derived, 'pieces'>,
   plan: Plan,
-  lib: Pick<Library, 'propDefs'>
+  lib: Pick<Library, 'propDefs' | 'catalog'>
 ): PieceBox[] => {
   const floorArea = (id: string) => {
     const floor = plan.floors[id];
@@ -168,12 +185,15 @@ export const pieceBoxes = (
   };
   const elevationOf = (piece: PlacedPiece): number =>
     ITEM_KINDS[piece.kind].elevation(plan, piece.sourceId) ?? 0;
-  return [
+  const placed = [
     ...ofKind(derived.pieces, 'floor').flatMap((p) =>
       floorPieceBoxes([p], floorArea, elevationOf(p))
     ),
     ...ofKind(derived.pieces, 'wall').flatMap((p) => wallPieceBoxes([p], elevationOf(p))),
     ...ofKind(derived.pieces, 'opening').map((p) => openingBox(p, elevationOf(p))),
+  ];
+  return [
+    ...placed.map((box) => withAnchor(box, lib)),
     ...Object.values(plan.props).map((prop) => propBox(prop, lib)),
   ];
 };

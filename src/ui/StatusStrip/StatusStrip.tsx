@@ -8,6 +8,7 @@ import { usePlanSelector } from '../../store/planHooks';
 import { showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
 
 import { InstallMenu } from './InstallMenu';
+import { ModelToggle } from './ModelToggle';
 import { SnapStepPicker } from './SnapStepPicker';
 import styles from './StatusStrip.module.css';
 import { ThemePicker } from './ThemePicker';
@@ -68,6 +69,7 @@ export const StatusStrip = () => {
       <ViewToggle />
       <PlanReadouts is2d={is2d} />
       <LayerToggles />
+      {!is2d && <ModelToggle />}
       <span className={styles.spacer} />
       <ThemePicker />
       <InstallMenu />

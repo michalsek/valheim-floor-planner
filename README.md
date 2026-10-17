@@ -53,6 +53,7 @@ Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by cou
 - Middle drag, Shift/Ctrl/⌘ + right drag, or Space + drag pans along the ground.
 - The wheel zooms towards the cursor; + and − move the camera in and out.
 - Home or Shift+1 fits the plan; 0 resets the view direction.
+- Boxes / Models in the status strip swaps the boxes for the game's own meshes and textures, read from your install the first time each piece is shown ("Loading models 12/20"). Selection, hover, support colours and the level fading tint them; picking still uses the boxes. If the browser lost access to the folder, "Reconnect folder" asks for it again; pieces without a model stay boxes.
 
 ## Docs
 

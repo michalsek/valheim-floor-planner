@@ -634,3 +634,76 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    This is what the user's screenshot showed: the support values haven't changed, their
    colours have. A wood cantilever now shows 70.6 and 40.9 green, 23.7 orange, 13.8 red,
    and the 5th tile magenta.
+
+## From M14 Phase B
+
+1. **Pivots use a per-axis anchor, not the collider centre.** A box is centred on the
+   middle of the prefab's snap points along each axis where the box spans them (lengths,
+   wall and gate heights), else on the middle of its collider (thicknesses, floor depth,
+   door panels). The collider centre put the hardwood gate 0.19 m sideways and 0.18 m
+   too low (its collider reaches past its snap points); the ashwood door, whose pivot
+   is its hinge, comes out right either way. No wall, floor or opening prefab has a
+   collider whose z size matches its length better than its x size, so the plan's
+   extra 90° turn wasn't needed and isn't implemented.
+2. **Alignment check** (`?modelBoxes` in dev draws every box's wireframe over the
+   models): wood, stone, grausten, ashwood and timber walls drawn both ways (block walls
+   with their strip on either side), wood and stone floors on two levels, the wood and
+   ashwood doors, the wood and hardwood gates, log poles (2 m and 4 m), wood and
+   darkwood beams, workbench, forge, hearth, both chests, the dragon bed and wood stairs,
+   at 0°, 90° and 210°. All line up with their boxes. Parts that stick out by design:
+   the hardwood gate's posts above its box (its collider is 6.4 m tall, its snap points
+   6 m), the bed's carved posts and the forge's handle.
+3. **`_Metallic` is ignored**: the scene has no environment map, so grausten and the
+   forge (`_Metallic` 1) rendered black. Metal reads as plain diffuse.
+4. **Grausten looks like smooth dark grey**, not blocks: its 128 px texture is stretched
+   across the wall by the mesh's UVs. Valheim's piece shader probably maps it in world
+   space; not reproduced.
+5. **Helper meshes**: the ships' `watermask` (a `Custom/Water` mesh that keeps the sea out
+   of the hull) is skipped by name, or it shows as a white sheet. The shield
+   generator's `invisible` material is a cutout with `_Color` alpha 0 and no texture;
+   cutouts now test `_Color` alpha too, so it draws nothing. `blackhole` (under ship
+   decks) draws black, as in the game.
+6. **WebGL2 stalls when 3D opens with models**: 2–8 s of synchronous shader linking
+   (`getProgramParameter`) on each entry, because the 3D view (and its materials) is
+   rebuilt each time. three r186 builds one vertex program per instanced mesh (the
+   instance matrices are a uniform buffer named per buffer): 118 vertex and 7 fragment
+   programs for 58 prefabs. Materials keep their values in uniforms, so fragment programs
+   are shared. WebGPU builds pipelines asynchronously: about 220 ms warm. Keeping the
+   model resources alive across 2D/3D switches, or storage-buffer instance matrices,
+   would help.
+7. **The asset worker now serves on-demand requests between "Extract all" batches**.
+   After a fallback scan, the background "all" made the first model wait 10.8 s; now
+   the 20 prefabs of the check scene load in about 1 s while "all" continues
+   (`install/assets.worker.ts`, a small change to Phase A code).
+8. **Perf**, headless Chrome 155 on an Apple M4 Pro (Metal), 1400 × 900:
+   - Scene: 58 prefabs (7 wall families with doors, 3 floor families, 40 props × 3).
+   - 60 instanced meshes and 118 draw calls, including the shadow pass, so under the
+     ~150 target. 255k triangles.
+   - About 1.7 ms per forced frame. Headless rAF is throttled, so on-screen fps wasn't
+     measured.
+   - GPU memory for models: 1.1 MB of BC textures plus 1.6 MB of geometry.
+   - Memory stays flat: after switching Boxes / Models 10 times, Boxes mode is back at
+     its 5 textures and 5 geometries each time.
+   - Warm load of the 20-prefab scene: about 220 ms on WebGPU. Cold from the install
+     (cache cleared): about 1 s.
+9. **B4 (software BC decoding) wasn't built**. On this Mac, Chrome exposes S3TC,
+   S3TC-sRGB and BPTC on WebGL2, and BC on WebGPU, so every texture uploads as is. A
+   format the renderer can't sample is left out, and the material shows its `_Color`.
+   That path wasn't exercised (no stub).
+10. **Box mode is unchanged**: a 1400 × 900 screenshot of the check scene in Boxes mode
+    matches base 5712221 pixel for pixel in the canvas. Only the status strip differs
+    (the new toggle).
+11. **Doors and gates in Models mode use the panel opacity (0.35)**, as the plan asks.
+    The door models look ghostly; drawing them opaque may read better.
+12. **"Reconnect folder" can't help after a drop**: an install opened by dropping the
+    folder has no stored handle, so the click fails. Its tooltip then says to open the
+    folder again from the install menu, which reloads the page. The stored-handle path
+    still isn't exercised: headless Chrome can't grant it.
+13. **Tool previews stay boxes**, and picking uses the boxes, so parts of a model that
+    stick out of its box (gate posts, bed posts) can't be picked.
+14. **Support tint**: a band colour covers 80% of the texture, and pieces outside
+    support keep their texture. Selection mixes 70% and hover 35%, as for boxes; the
+    level fade (40% towards the canvas) is composed into the same per-instance tint.
+    In the dark theme, faded models get quite dark but stay readable.
+15. Checked in headless Chrome 155 on WebGPU and `?webgl`, in the light and dark themes,
+    with real mouse picking and hover. Not checked in Safari, Firefox or a headed window.
