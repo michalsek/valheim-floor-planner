@@ -269,7 +269,9 @@ Source: IL of the installed `assembly_valheim.dll` and `assembly_utils.dll` (1.0
 disassembled with `dnfile` + `dncil` for interoperability notes (M13 a0). Only the layout
 is recorded here; no game code was copied. **Confidence:** **IL** = read directly in the
 save/load IL; **inf** = inferred from IL around it, not exercised against a real save.
-**No real chunked world has been parsed yet** (see open questions).
+**Validated against a real 1.0.20 world** (2026-10-17, see "Real-world validation" below):
+every table here parsed a 110 186-ZDO world byte-exactly. Corrections from that run are
+marked **real**.
 
 ### Summary
 - **Not encrypted, and the ZDO files are not compressed.** `.chunk` and `.chunks` are
@@ -374,6 +376,10 @@ The planner can skip `.db2`. The legacy `.db` had the same tail, after the ZDOs.
   = 100 000.
 - `cx` and `cy` are aligned with masks `0xFEFE`/`0xFCFC`/`0xF8F8`.
 - **IL** (`DecideChunkSize`, `s_sizeFilters`); the merge policy itself is **inf**.
+- **real:** the merge policy is *not* "merge while below 100 000". A 110 k-ZDO world had
+  8 chunks, **all `size` 1** (1024 m squares), holding 3 072–25 042 ZDOs each. Two
+  `size` 1 neighbours that together held 29 k ZDOs were not merged into a `size` 2.
+  Readers must take `size` from the manifest and never predict it.
 
 **Special chunks:**
 - **Portals** (`Game.PortalPrefabHash`) are saved in the special chunk
@@ -389,7 +395,8 @@ its ZDOs. Positions are absolute world coordinates.
 - **Name:** `sprintf("%02x_%02x__%d_%d.chunk", chunk >> 8, chunk & 0xFF, size, chunkVersion)`.
   The hex is lower-case, and **the high byte (z/cy) comes first**.
 - `chunkVersion` is per chunk and goes up each time that chunk is rewritten. It is not
-  the world version. **IL**
+  the world version. **IL**. **real:** at generation 62 the chunk versions were 1, 1, 1, 1,
+  2, 2, 5 and 47, so they are unrelated to `N` and to each other.
 
 | Field | Type | Conf. |
 |---|---|---|
@@ -439,12 +446,16 @@ All **IL**.
 - **IL**
 
 **Connection:** the type is 1 Portal, 2 SyncTransform, 3 Spawned or 16 Target. The hash is
-a *connection hash*, not a ZDOID. **IL**
+a *connection hash*, not a ZDOID. **IL**. **real:** the type byte is a flag set: a real
+world had 78 ZDOs with type 3 and 55 with type **19** (= 16 | 3). Read it as a byte and
+don't validate it against the list.
 
 **SmallPosition:**
 - The writer uses it only when `y == 0` and x and z are exact integers (clamped to ±20000).
 - So build pieces will almost always use the full `vec3`.
 - **IL** (`Utils.SmallPosition`). Any use in v31–39 files is **inf** (unlikely).
+- **real:** 721 of 110 186 ZDOs used it: 718 `_ZoneCtrl` and 3 `_TerrainCompiler`
+  (type 3, which also carry the rotation flag). None of the 1 142 built pieces did.
 
 **Rotation:**
 - Stored as Unity **Euler angles in degrees, [0, 360)** (`ZDO.SetRotation` keeps
@@ -454,8 +465,17 @@ a *connection hash*, not a ZDOID. **IL**
   - Otherwise `p = a << 16 | nextUint16`, and `x = (p & 1023) × 0.5`,
     `y = (p >> 10 & 1023) × 0.5`, `z = (p >> 20 & 1023) × 0.5`.
 - The writer **truncates** to 0.5° steps (`(uint)(deg × 2)`), and drops x/z within 0.5° of 0/360.
-- So 22.5° and 45° are exact, while for example 359.9° becomes 359.5°.
 - **IL**
+- **real (correction):** 22.5° steps are **not** reliably exact. The Euler angle comes
+  back from the quaternion as e.g. 22.49998°, which truncates to **22.0°**. In a real
+  build, 651 of 1 142 pieces were stored at `k × 22.5 − 0.5` (22.0, 112.0, 202.0, 292.0,
+  269.5, 89.5, …) and the other 491 at exactly `k × 22.5`. No other residual occurred.
+  - **Readers must snap:** the true yaw is in `[stored, stored + 0.5)`, so use
+    `k = round((stored + 0.25) / 22.5)` and `yaw = k × 22.5`.
+  - All 1 142 built pieces used the 2-byte yaw-only form. Pitch and roll were never
+    non-zero. The 4-byte form appeared only on world objects (trees, rocks, pickables),
+    and always with non-zero x or z.
+  - One world ZDO had the rotation flag with a stored yaw of 0, so 0 is a valid value.
 
 **Changes from the pre-1.0 notes in M13 §1:**
 - the sector is removed;
@@ -479,13 +499,21 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
   - Examples (computed): `woodwall` −523056075, `wood_floor` −1045925142,
     `piece_chest_wood` 328745978, `portal_wood` −661882940.
 - **Data keys** are the stable hashes of the `ZDOVars` names. **IL**
+- **real:** the hash is confirmed. All 201 distinct prefab hashes in a real world resolved
+  to names in the game's main asset bundle (5 475 prefab names), with 0 unknown and 0
+  collisions. All the key hashes below were found where expected.
+- **real:** on world-generated pieces with catalogue prefabs (ruins), the `creator` key is
+  **absent**, not 0: 7 468 such ZDOs (for example 3 338 `stone_wall_2x1`). No ZDO outside
+  the hammer catalogue had a creator. Every built piece had a non-zero `creator` long and
+  a `creatorIndex` int.
+- **real:** all built pieces had flags type 2 (Solid).
 
   | Key | Section | Notes |
   |---|---|---|
   | `creator` (881008290) | long | The player ID, from `Piece.SetCreator`. 0 or absent means world-generated. |
   | `creatorIndex` | int | **New:** an index into `.fwl2` `playerHistory`. Personal data, so ignore it. |
-  | `health` (−883022132) | float | Probably present only once damaged or set (**inf**). |
-  | `support` (642166391) | float | |
+  | `health` (−883022132) | float | **real:** on 58 of 1 142 built pieces (5 %): 32 below the catalogue max and 26 equal to it (repaired). Absent means full health. |
+  | `support` (642166391) | float | **real:** never saved (0 of 1 142). |
 
 - The "Has no creator" string mentioned in M13 §1 belongs to `Bed.Interact`, not to pieces.
 
@@ -510,14 +538,41 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
 - Both gave identical piece counts and rotations. **This proves the tables are
   self-consistent, not that they match the game.**
 
-### Open questions (validate on a real save)
-1. Real filenames and sizes: does a small world really end up in one merged `size` 3 chunk?
-2. Do all four `_main.N.*` files survive between sessions on macOS? Is the `.ok` always present?
-3. The prefab hashes and `creator` values on real pieces.
-4. Whether `health` is stored for undamaged pieces.
+### Real-world validation (2026-10-17)
+- **Data:** a read-only copy of the user's 1.0.20 world (work-in-progress base). Only
+  aggregate numbers were recorded. No world data, creator IDs or player history are in
+  the repo.
+- **Generation:** a single complete generation `_main.62.{fwl2,db2,chunks,ok}` and no
+  stale files. `.ok` = `int32 42`.
+- **`.fwl2`:** `int32 len` = 100 = file length − 4. Version 42, `worldGenVersion` 2. It was
+  read only up to `worldGenVersion` (byte 42).
+- **Manifest:** 98 bytes, which is exactly `10 + 8 × 11`. `version` 42, `totalZDOs`
+  110 186 = the sum of the entries. The 8 entries name exactly the 8 `.chunk` files
+  present: no orphans and none missing. All sizes are aligned to their mask.
+- **Chunks:** all 8 have an `int16` 42 header and a count equal to the manifest's. **Every
+  chunk's cursor landed exactly on its last byte** (106 850 to 886 590 bytes).
+- **Chunk index:** every one of the 110 186 ZDO positions maps, through
+  `zone = floor((pos + 32) / 64)` and the size mask, to the chunk file that holds it.
+- **The spike's `vw_read.py` ran unchanged:** 110 186 ZDOs and 1 142 player pieces in
+  0.18 s.
+- **Not exercised by this world:** portals and the portal chunk, the 2-byte section count
+  (the largest section held 32 entries), legacy `.db`, and `.db2` contents.
+- **a1 pitfall:** skip a section by reading the length into a local first. `o += readI32()`
+  in both Python and JS reads `o` *before* the call, so it loses the 4 length bytes. A
+  validator script did exactly this, which shows up as a desync about 600 ZDOs in.
+
+### Open questions
+1. ~~Real filenames and sizes~~. **Answered:** `size` 1 chunks, not one `size` 3 (see above).
+2. ~~Do all four `_main.N.*` files survive?~~ **Answered** for one macOS world: yes, one
+   complete generation and no leftovers.
+3. ~~Prefab hashes and `creator` on real pieces~~. **Answered:** all resolve; ruins have no
+   `creator` key.
+4. ~~`health` on undamaged pieces~~. **Answered:** mostly absent; present after damage, and
+   still present after a repair.
 5. Whether 1.0 still leaves converted `.db`/`.fwl` files next to the new folder after conversion.
 6. Cloud-save (`worlds/`) layout, and the server `-savedir` layout. Both are expected to be
    identical, but are untested.
+7. Portals and the `00_01__0_V` portal chunk: none in the validated world.
 
 ## 8. Implications for the planner's data model
 
