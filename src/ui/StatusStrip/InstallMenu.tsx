@@ -1,14 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
+import {
+  clearAssetCache,
+  extractAll,
+  getAssetState,
+  refreshAssetUsage,
+  subscribeAssets,
+} from '../../install/assetClient';
 import { canPickDirectory } from '../../install/directory';
 import {
   cancelScan,
   chooseFiles,
   chooseFolder,
+  connectAssetFiles,
   dismissError,
   rescan,
   type InstallStatus,
 } from '../../install/loadInstall';
+import { ASSET_NOTE } from '../InstallGate/InstallGate';
 import { ERROR_MESSAGES, formatScanDate, phaseLabel, PICKER_HINT } from '../shared/installCopy';
 import { Row } from '../shared/PanelList';
 import { useFolderDrop } from '../shared/useFolderDrop';
@@ -45,9 +54,80 @@ const ScanStatus = ({ status }: { status: InstallStatus }) => {
   }
 };
 
+const formatMb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+/** Reconnects the stored folder if needed (inside the click), then extracts everything. */
+const extractEverything = () =>
+  void connectAssetFiles()
+    .catch(() => false)
+    .then(() => extractAll())
+    .catch(() => {}); // Shown from the asset state.
+
+/** The model cache: its size, "Extract all" with progress, and clearing it. */
+const ModelCache = ({ busy }: { busy: boolean }) => {
+  const { usage, progress, complete, memoryOnly, error } = useSyncExternalStore(
+    subscribeAssets,
+    getAssetState
+  );
+  useEffect(() => void refreshAssetUsage(), []);
+  const size = usage === null ? '…' : formatMb(usage);
+  return (
+    <>
+      <ul className={styles.menuList}>
+        <Row label="Models" value={complete ? `${size} · all pieces` : `${size} cached`} />
+      </ul>
+      {progress && (
+        <p className={styles.menuNote} role="status">
+          Extracting models… {progress.done}/{progress.total || '…'}
+        </p>
+      )}
+      {memoryOnly && (
+        <p className={styles.menuNote}>
+          This browser can't keep models (private mode, full storage or another tab), so they last
+          for this visit only.
+        </p>
+      )}
+      {error && !progress && (
+        <div className={styles.menuError} role="alert">
+          <p>
+            {error.code === 'permission'
+              ? 'Models are read from the game files: allow access to the Valheim folder again.'
+              : ERROR_MESSAGES[error.code]}
+          </p>
+          {error.detail && <p className={styles.menuDetail}>{error.detail}</p>}
+        </div>
+      )}
+      <div className={styles.menuActions}>
+        {!complete && (
+          <button
+            type="button"
+            className={styles.menuButton}
+            disabled={busy || progress !== null}
+            title="Read every piece's model and textures now (about 35 MB)"
+            onClick={extractEverything}
+          >
+            Extract all models
+          </button>
+        )}
+        <button
+          type="button"
+          className={styles.menuButton}
+          disabled={progress !== null || !usage}
+          title="Delete the models kept in this browser; they are read again when needed"
+          onClick={() => void clearAssetCache()}
+        >
+          Clear cached models ({size})
+        </button>
+      </div>
+      <p className={styles.menuNote}>{ASSET_NOTE}</p>
+    </>
+  );
+};
+
 /**
  * The loaded install in the status strip: piece count and Unity version, and a menu
- * with where it came from, Re-scan and Change folder (both reload the page).
+ * with where it came from, Re-scan and Change folder (both reload the page), and the
+ * model cache.
  */
 export const InstallMenu = () => {
   const { status, loaded, hasHandle, pickerHint } = useInstall();
@@ -127,6 +207,7 @@ export const InstallMenu = () => {
             </button>
           </div>
           {pickerHint && <p className={styles.menuNote}>{PICKER_HINT}</p>}
+          <ModelCache busy={busy} />
           <p className={styles.menuNote}>
             {dragging ? 'Drop to open this install' : 'Or drop a Valheim folder on this menu.'}
           </p>
