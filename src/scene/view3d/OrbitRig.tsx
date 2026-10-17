@@ -39,6 +39,15 @@ const EMPTY_RADIUS = 10;
 const MIN_CAMERA_Y = 0.05;
 /** How much one `+` / `−` press moves the camera in or out. */
 const DOLLY_FACTOR = 1.25;
+/**
+ * The closest the camera orbits its target. Zooming in further pushes the camera and
+ * the target forward together, so close-up steps never shrink to nothing.
+ */
+const MIN_ORBIT_DISTANCE = 2;
+/** The smallest forward step when pushing through the orbit target. */
+const MIN_PUSH_STEP = 0.75;
+/** Pans move at least as fast as they would at this distance from the target. */
+const PAN_FLOOR_DISTANCE = 6;
 
 const createControls = (camera: PerspectiveCamera): OrbitControls => {
   const controls = new OrbitControls(camera);
@@ -48,7 +57,7 @@ const createControls = (camera: PerspectiveCamera): OrbitControls => {
   controls.screenSpacePanning = false;
   controls.zoomToCursor = true;
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
-  controls.minDistance = 0.5;
+  controls.minDistance = MIN_ORBIT_DISTANCE;
   controls.maxDistance = 20_000;
   // Left acts (picking); right orbits (Shift/Ctrl/⌘ + right pans: built in); middle pans.
   controls.mouseButtons = { LEFT: null, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.ROTATE };
@@ -94,7 +103,35 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
    */
   const afterMove = () => {
     if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
-    fitClipPlanes(camera, camera.position.distanceTo(controls.target), radius);
+    const distance = camera.position.distanceTo(controls.target);
+    // Pan speed scales with the distance to the target; keep a floor for close-ups.
+    controls.panSpeed = Math.max(1, PAN_FLOOR_DISTANCE / Math.max(distance, 1e-3));
+    fitClipPlanes(camera, distance, radius);
+  };
+
+  /** True when zooming in can't bring the camera any closer to its target. */
+  const atMinDistance = () =>
+    camera.position.distanceTo(controls.target) <= controls.minDistance + 1e-3;
+
+  /**
+   * Moves the camera and its target forward together, along the view direction (level
+   * when the target would sink below the ground), by a step that never shrinks.
+   */
+  const pushThrough = () => {
+    const forward = controls.target.clone().sub(camera.position).normalize();
+    const step = Math.max(MIN_PUSH_STEP, camera.position.distanceTo(controls.target) * 0.25);
+    if (controls.target.y + forward.y * step < 0) {
+      forward.y = 0;
+      if (forward.lengthSq() < 1e-6) return;
+      forward.normalize();
+    }
+    forward.multiplyScalar(step);
+    const { x, y, z } = camera.position;
+    const t = controls.target;
+    place({
+      position: { x: x + forward.x, y: y + forward.y, z: z + forward.z },
+      target: { x: t.x + forward.x, y: t.y + forward.y, z: t.z + forward.z },
+    });
   };
 
   const place = ({ position, target }: CameraPlacement) => {
@@ -124,8 +161,21 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
       const target = { x, y, z };
       place({ position: along(target, DEFAULT_DIR, camera.position.distanceTo(target)), target });
     },
+    /**
+     * Wheel zoom-in at the closest orbit distance pushes through instead (see
+     * `pushThrough`). Returns whether it did, so the controls skip that wheel step.
+     */
+    wheelIn(): boolean {
+      if (!atMinDistance()) return false;
+      pushThrough();
+      return true;
+    },
     /** Moves the camera `factor` times closer to its target (within the distance limits). */
     dolly(factor: number) {
+      if (factor > 1 && atMinDistance()) {
+        pushThrough();
+        return;
+      }
       const offset = camera.position.clone().sub(controls.target);
       const distance = MathUtils.clamp(
         offset.length() / factor,
@@ -246,6 +296,13 @@ export const OrbitRig = ({
     };
     const applyButtons = () => rig.setPanOnLeft(store.get(modifiersAtom).space);
     applyButtons();
+    // Capture phase: runs before the controls' own wheel listener on the canvas.
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY >= 0 || !rig.wheelIn()) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    gl.domElement.addEventListener('wheel', onWheel, { capture: true, passive: false });
     controls.connect(gl.domElement);
     controls.addEventListener('change', onChange);
     // Published so the ground can follow the orbit target.
@@ -255,6 +312,7 @@ export const OrbitRig = ({
     return () => {
       stopButtons();
       stopPresses();
+      gl.domElement.removeEventListener('wheel', onWheel, { capture: true });
       controls.removeEventListener('change', onChange);
       controls.disconnect();
       setThree({ controls: null });
