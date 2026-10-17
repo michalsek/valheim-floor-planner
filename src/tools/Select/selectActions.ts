@@ -7,7 +7,10 @@ import {
 } from '../../model/editCommands';
 import { newId } from '../../model/newId';
 import { itemsAt } from '../../model/levels';
-import { itemsLabel, type Selection } from '../../model/selection';
+import { snapAnchorAt } from '../../model/geometry/propGeometry';
+import { snapToGrid } from '../../model/geometry/snap';
+import { itemsLabel, type Selection, type SelectionItem } from '../../model/selection';
+import type { Plan, Vec2 } from '../../model/types';
 import type { PlanCommand } from '../../model/commands';
 import { getLibrary } from '../../store/libraryInstance';
 import { selectionAtom } from '../../store/selection';
@@ -54,12 +57,32 @@ export const deleteSelection = (ctx: ToolContext): boolean => {
   return true;
 };
 
-/** Moves the selection by `steps` snap steps along x and z (one "Nudge" entry). */
+/**
+ * The snap anchor of the item a move is about (see `PropDef.snap`): a pole's axis, a
+ * beam's end. Snapped moves put it on the grid; null for other items.
+ */
+export const anchorOf = (plan: Plan, item: SelectionItem | undefined): Vec2 | null => {
+  const prop = item?.kind === 'prop' ? plan.props[item.id] : undefined;
+  return prop ? snapAnchorAt(prop, getLibrary().propDefs.get(prop.prefab)?.snap) : null;
+};
+
+/** `d` adjusted so that `anchor` (if any) ends on the `step` grid. */
+export const anchoredDelta = (anchor: Vec2 | null, d: Vec2, step: number): Vec2 => {
+  if (!anchor) return d;
+  const to = snapToGrid({ x: anchor.x + d.x, z: anchor.z + d.z }, step);
+  return { x: to.x - anchor.x, z: to.z - anchor.z };
+};
+
+/**
+ * Moves the selection by `steps` snap steps along x and z (one "Nudge" entry); a
+ * selected pole or beam first lands its anchor on the grid.
+ */
 export const nudgeSelection = (ctx: ToolContext, dx: number, dz: number): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
   const step = moveStep(items, ctx.get(snapStepAtom));
-  const d = { x: dx * step, z: dz * step };
+  const anchor = anchorOf(ctx.plan.getPlan(), items[0]);
+  const d = anchoredDelta(anchor, { x: dx * step, z: dz * step }, step);
   commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d, getLibrary()));
   return true;
 };

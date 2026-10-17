@@ -609,3 +609,28 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    The menu's "Extract all models" calls it first.
 10. **Not exercised**: the memory fallback (Safari private mode, quota, two tabs), Firefox,
     and the "Reconnect" path with a stored handle (headless Chrome can't grant it).
+
+## From M11.1
+
+1. **Poles, beams, pillars, stairs and ladders snap by their snap points** (`PropDef.snap`):
+   one snap point (the lowest x, then z) goes on the grid, so a pole's axis lands on a wall
+   joint or corner and a beam's end on a grid point, its centre line on the wall line. They
+   turn about the middle of their snap points (a pole about its axis). Grabbing one in a
+   move, or nudging a selection led by one, lands that anchor on the grid; other items in
+   the move keep their offsets. Furniture and stations keep the footprint-corner rule.
+2. **Walls between poles were already in contact with them.** With the old placement
+   (the pole 0.2 m off the line) and the new one alike, every course of a log wall touches
+   the pole at its end. The poles add nothing because support distances are centre of mass
+   to centre of mass, and that's what makes the known limits come out right (a 16 m wood
+   column, a 4-tile cantilever). A 4 m log pole's centre is 2 m up, and a 4 m log beam's is
+   2 m along the wall, so a pole's sideways offer (≤ 91) never beats what the log course
+   below passes up (140, 131.6, 123.7 … 90.8 for 8 courses). Poles do win where they are
+   close, e.g. 2 m logs level with a 4 m pole's middle (113.6 against 109.3 from below).
+3. **The support colours follow the game's scale** (as recalled from
+   `WearNTear.GetSupportColorValue`, not checked against the IL): blue at the material's
+   maximum, which includes capped pieces such as wood on stone, and red → green from the
+   minimum to *half* the maximum, all green above. Before, the ramp ran to the maximum, so
+   a 4 m log wall's upper courses (~91 of 140) showed yellow where the game shows green.
+   This is what the user's screenshot showed: the support values haven't changed, their
+   colours have. A wood cantilever now shows 70.6 and 40.9 green, 23.7 orange, 13.8 red,
+   and the 5th tile magenta.

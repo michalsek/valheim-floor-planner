@@ -14,7 +14,7 @@ import { PROP_GROUPS, type PropGroup } from '../catalog/propDefs';
 
 export type PropGroupColors = Readonly<Record<PropGroup | 'fallback', string>>;
 
-/** The support view's colours: grounded, the strong → weak ramp, and collapsing. */
+/** The support view's colours: at maximum (`grounded`), the strong → weak ramp, and collapsing. */
 export interface SupportColors {
   grounded: string;
   high: string;

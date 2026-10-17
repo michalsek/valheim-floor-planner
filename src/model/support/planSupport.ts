@@ -15,7 +15,12 @@ import { boxShape, type SupportShape } from './shape';
 export interface BoxSupport {
   state: SupportState;
   value: number;
-  /** Where the value sits between the material's minimum (0) and maximum (1). */
+  /** At the material's maximum: on the ground, or capped (wood resting on stone). */
+  full: boolean;
+  /**
+   * The game's colour scale (`WearNTear.GetSupportColorValue`, as recalled): from the
+   * material's minimum (0) to half its maximum (1), clamped.
+   */
   ratio: number;
 }
 
@@ -72,9 +77,10 @@ export const planSupport = (
   boxes.forEach((box, i) => {
     const material = bodies[i]!.material;
     const v = value[i]!;
-    const span = material ? material.maxSupport - material.minSupport : 1;
+    const span = material ? material.maxSupport / 2 - material.minSupport : 1;
     const ratio = material ? Math.min(1, Math.max(0, (v - material.minSupport) / span)) : 0;
-    byKey.set(box.key, { state: state[i]!, value: v, ratio });
+    const full = material !== null && v >= material.maxSupport - 1e-3;
+    byKey.set(box.key, { state: state[i]!, value: v, full, ratio });
     if (state[i] !== 'collapsing') return;
     const key = `${box.item.kind}:${box.item.id}`;
     const line = collapsing.get(key);

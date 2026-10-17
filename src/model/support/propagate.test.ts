@@ -129,6 +129,55 @@ describe('propagateSupport', () => {
   });
 });
 
+describe('poles', () => {
+  /** A pole `size` across and `height` tall from `bottom`, its axis at x. */
+  const pole = (material: string, x: number, height: number, bottom = 0): TestBox => ({
+    material,
+    min: [x - 0.2, bottom, -0.2],
+    max: [x + 0.2, bottom + height, 0.2],
+  });
+
+  it('holds a 4 m log wall between log poles, the poles carrying its middle courses', () => {
+    const courses = Array.from({ length: 8 }, (_, i): TestBox => ({
+      material: 'hardwood',
+      min: [0, 0.5 * i, -0.25],
+      max: [2, 0.5 * i + 0.5, 0.25],
+    }));
+    const { value, state } = solve([pole('hardwood', 0, 4), pole('hardwood', 2, 4), ...courses]);
+    const walls = [...value.slice(2)];
+    expect(state.slice(2).every((s) => s !== 'collapsing')).toBe(true);
+    // Above half the maximum all the way up: green on the game's scale.
+    expect(Math.min(...walls)).toBeGreaterThan(70);
+    // Level with a pole's middle a course takes its sideways support, 1 m from its axis,
+    // over what the course below passes up.
+    const sideways = 140 * (1 - 0.16667 * (Math.hypot(1, 0.25) + 0.1));
+    expect(walls[4]).toBeCloseTo(sideways, 0);
+    expect(walls[4]).toBeGreaterThan(walls[3]! * (1 - 0.1 * 0.6));
+  });
+
+  it('holds 2 m wood walls between stacked wood poles', () => {
+    const { value, state } = solve([
+      pole('wood', 0, 2),
+      pole('wood', 0, 2, 2),
+      pole('wood', 2, 2),
+      pole('wood', 2, 2, 2),
+      { material: 'wood', min: [0, 0, -0.15], max: [2, 2, 0.15] },
+      { material: 'wood', min: [0, 2, -0.15], max: [2, 4, 0.15] },
+    ]);
+    expect(state.every((s) => s !== 'collapsing')).toBe(true);
+    expect(Math.min(...value)).toBeGreaterThan(50);
+  });
+
+  it('holds a 4 m log beam laid with its end on a 2 m log pole top', () => {
+    const { value, state } = solve([
+      pole('hardwood', 0, 2),
+      { material: 'hardwood', min: [0, 2, -0.25], max: [4, 2.5, 0.25] },
+    ]);
+    expect(state[1]).toBe('supported');
+    expect(value[1]).toBeGreaterThan(70);
+  });
+});
+
 describe('planSupport', () => {
   it('drops a stone floor laid beside a stone wall top, edge-touching its lower course', () => {
     const plan: Plan = {

@@ -64,7 +64,7 @@
   --prop-structure: #c98a64;
   --prop-fallback: #9aa3ad;
 
-  /* Support view: grounded (as in the game), then strong → weak, and collapsing. */
+  /* Support view: at maximum (as in the game), then strong → weak, and collapsing. */
   --support-grounded: #5d9bd8;
   --support-high: #6cc46a;
   --support-mid: #e6c74a;

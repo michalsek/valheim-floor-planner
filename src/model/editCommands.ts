@@ -82,7 +82,8 @@ export const rotateCommands = (
   items.flatMap((item): PlanCommand[] => {
     const prop = item.kind === 'prop' ? plan.props[item.id] : undefined;
     if (!prop) return [];
-    const changes = rotateAboutCentre(prop, propRect(lib.propDefs, prop.prefab), deltaDeg);
+    const about = lib.propDefs.get(prop.prefab)?.snap?.centre;
+    const changes = rotateAboutCentre(prop, propRect(lib.propDefs, prop.prefab), deltaDeg, about);
     return [{ type: 'prop.patch', id: prop.id, changes }];
   });
 

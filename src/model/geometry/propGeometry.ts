@@ -3,7 +3,7 @@
  * by `rotation` degrees about the pivot (local x along `(cos, sin)`, as in
  * `footprintCorners`), then moved to the pivot.
  */
-import type { LocalRect } from '../../catalog/propDefs';
+import type { LocalRect, PropSnap } from '../../catalog/propDefs';
 import type { Prop, Vec2 } from '../types';
 
 import type { BoxMode, WorldBox } from './box';
@@ -58,17 +58,24 @@ export const propCentre = (pos: Vec2, deg: number, rect: LocalRect): Vec2 =>
 const isRightAngle = (deg: number): boolean => Math.abs(deg / 90 - Math.round(deg / 90)) < 1e-9;
 
 /**
- * The pivot that puts the footprint's centre near `raw`. With a step, at right angles
- * the footprint's minimum corner snaps (so its edges sit on the grid), at other angles
- * its centre does; without one (Alt) the centre is `raw`.
+ * The pivot that puts the footprint's centre near `raw`. With a step, a prop that snaps
+ * by its snap points (`snap`) puts its anchor on the nearest grid point; others, at right
+ * angles, put the footprint's minimum corner there (so its edges sit on the grid), at
+ * other angles its centre. Without a step (Alt) the centre is `raw`.
  */
 export const placementPosition = (
   raw: Vec2,
   angle: number,
   rect: LocalRect,
-  step: number | null
+  step: number | null,
+  snap: PropSnap | null = null
 ): Vec2 => {
   const deg = normalizeDeg(angle);
+  if (step !== null && snap) {
+    const anchor = plus(raw, rotate(minus(snap.anchor, localCentre(rect)), deg));
+    const onGrid = { x: snapValue(anchor.x, step), z: snapValue(anchor.z, step) };
+    return roundPoint(minus(onGrid, rotate(snap.anchor, deg)));
+  }
   let centre = raw;
   if (step !== null && isRightAngle(deg)) {
     const turned = Math.round(deg / 90) % 2 === 1;
@@ -84,16 +91,26 @@ export const placementPosition = (
   return roundPoint(minus(centre, rotate(localCentre(rect), deg)));
 };
 
-/** The prop turned by `deltaDeg` about its footprint's centre (so the pivot moves). */
+/**
+ * The prop turned by `deltaDeg` about a local point, its footprint's centre by default
+ * (so the pivot moves); a pole turns about its axis (`PropSnap.centre`).
+ */
 export const rotateAboutCentre = (
   prop: Pick<Prop, 'position' | 'rotation'>,
   rect: LocalRect,
-  deltaDeg: number
+  deltaDeg: number,
+  about: Vec2 = localCentre(rect)
 ): Pick<Prop, 'position' | 'rotation'> => {
-  const centre = propCentre(prop.position, prop.rotation, rect);
+  const centre = plus(prop.position, rotate(about, prop.rotation));
   const rotation = normalizeDeg(prop.rotation + deltaDeg);
-  return { position: roundPoint(minus(centre, rotate(localCentre(rect), rotation))), rotation };
+  return { position: roundPoint(minus(centre, rotate(about, rotation))), rotation };
 };
+
+/** Where a snap-point prop's anchor is in the world; null for props without one. */
+export const snapAnchorAt = (
+  prop: Pick<Prop, 'position' | 'rotation'>,
+  snap: PropSnap | null | undefined
+): Vec2 | null => (snap ? plus(prop.position, rotate(snap.anchor, prop.rotation)) : null);
 
 /** Whether `p` is on the footprint, or within `tol` of it. */
 export const pointInProp = (

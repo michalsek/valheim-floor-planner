@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LocalRect } from '../../catalog/propDefs';
+import { testLibrary } from '../../catalog/testLibrary';
 
 import {
   placementPosition,
@@ -30,6 +31,23 @@ describe('propGeometry', () => {
     const [c, d] = propCorners(origin, 90, OFFSET);
     close(c!, 0, -1);
     close(d!, 0, 3);
+  });
+
+  it('snaps poles by their axis and beams by their ends, and turns poles about the axis', () => {
+    const pole = testLibrary.propDefs.get('wood_pole_log')!;
+    const polePos = placementPosition({ x: 3.9, z: 0.1 }, 0, pole.rect, 0.5, pole.snap);
+    close(polePos, 4, 0);
+    const turned = rotateAboutCentre(
+      { position: polePos, rotation: 0 },
+      pole.rect,
+      90,
+      pole.snap!.centre
+    );
+    close(turned.position, 4, 0);
+    // A beam turned 90° runs along z: centred near the cursor, its end (snap point
+    // x = −1) on the grid point (1, −1), so it spans z −1…1 on the line x = 1.
+    const beam = testLibrary.propDefs.get('wood_beam')!;
+    close(placementPosition({ x: 1.1, z: 0.1 }, 90, beam.rect, 1, beam.snap), 1, 0);
   });
 
   it('snaps the minimum corner at right angles and the centre otherwise', () => {

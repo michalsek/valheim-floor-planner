@@ -64,8 +64,26 @@ export interface PropDef {
    * snap points). Null for other props.
    */
   flight: { rise: number; run: number } | null;
+  /**
+   * Poles, beams, pillars, stairs and ladders snap the game's way, by their snap points:
+   * `anchor` (one of them, on the plan) goes on a grid point, so a pole's axis lands on a
+   * wall joint and a beam's end on a corner, and they turn about `centre` (the middle of
+   * their snap points: a pole's axis). Null for other props: their footprint snaps.
+   */
+  snap: PropSnap | null;
   /** Normalised EN name, PL name and prefab, for `filterProps`. */
   search: string;
+}
+
+/** A point in the prefab's local plan (metres from its pivot; x, and z across). */
+export interface LocalPoint {
+  x: number;
+  z: number;
+}
+
+export interface PropSnap {
+  anchor: LocalPoint;
+  centre: LocalPoint;
 }
 
 /** The stand-in footprint for pieces without a collider (and unknown prefabs). */
@@ -141,6 +159,22 @@ export const propGroup = (piece: PieceDef): PropGroup | null => {
 export const normalizeSearch = (s: string): string =>
   s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/_/g, ' ');
 
+const round6 = (n: number): number => Math.round(n * 1e6) / 1e6 + 0;
+
+/** Snap-point snapping for load-bearing props (see `PropDef.snap`); null without points. */
+const snapOf = (piece: PieceDef, group: PropGroup): PropSnap | null => {
+  if (!LOAD_BEARING_GROUPS.has(group) || piece.snapPoints.length === 0) return null;
+  const points = piece.snapPoints.map(([x, , z]) => ({ x: round6(x), z: round6(z) }));
+  const [anchor] = [...points].sort((a, b) => a.x - b.x || a.z - b.z);
+  const xs = points.map((p) => p.x);
+  const zs = points.map((p) => p.z);
+  const centre = {
+    x: round6((Math.min(...xs) + Math.max(...xs)) / 2),
+    z: round6((Math.min(...zs) + Math.max(...zs)) / 2),
+  };
+  return anchor ? { anchor, centre } : null;
+};
+
 const rectOf = (piece: PieceDef): LocalRect | null => {
   if (!piece.colliderBounds) return null;
   const [min, max] = piece.colliderBounds;
@@ -165,6 +199,7 @@ export const buildPropDefs = (catalog: Catalog): PropDef[] =>
         approximate: rect === null,
         comfort: piece.comfort,
         material: piece.material,
+        snap: snapOf(piece, group),
         flight:
           group === 'stairs' ? { rise: snapExtent(piece, 'y'), run: snapExtent(piece, 'z') } : null,
         search: normalizeSearch(`${piece.name} ${piece.namePl} ${piece.prefab}`),

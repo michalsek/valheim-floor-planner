@@ -37,7 +37,8 @@ export const propGhostAtom = atom<PropGhost | null>((get) => {
   if (!def || !cursor) return null;
   const rotation = get(propRotationAtom);
   const step = cursor.snapping ? get(effectiveSnapStepAtom) : null;
-  return { def, rotation, position: placementPosition(cursor.raw, rotation, def.rect, step) };
+  const position = placementPosition(cursor.raw, rotation, def.rect, step, def.snap);
+  return { def, rotation, position };
 });
 
 // The catalogue browser's search and group chips (kept across tool switches).

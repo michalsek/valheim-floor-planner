@@ -29,8 +29,11 @@ export type SelectGesture =
       /** The press selected the hit item, so a Shift+click mustn't toggle it off again. */
       addedOnDown: boolean;
     }
-  /** Dragging the selection along the grab's plane; previewed in `editPreviewAtom`. */
-  | { phase: 'moving'; grab: Grab; items: Selection }
+  /**
+   * Dragging the selection along the grab's plane; previewed in `editPreviewAtom`.
+   * `anchor`: the grabbed pole's or beam's snap anchor, which snapped moves put on the grid.
+   */
+  | { phase: 'moving'; grab: Grab; items: Selection; anchor: Vec2 | null }
   /**
    * Box select: a world rectangle on the work plane, kept in world points so a zoom
    * mid-drag doesn't move it. The screen points decide contain vs touch.

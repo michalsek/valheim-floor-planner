@@ -16,7 +16,7 @@ import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picki
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { ToolContext, ToolPointerEvent } from '../types';
 
-import { commitCommands, moveStep } from './selectActions';
+import { anchoredDelta, anchorOf, commitCommands, moveStep } from './selectActions';
 import {
   boxMode,
   SELECT_IDLE,
@@ -86,7 +86,8 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
   }
   if (hit) {
     ctx.set(cursorStyleAtom, 'move');
-    return { phase: 'moving', grab, items: ctx.get(selectionAtom) };
+    const anchor = anchorOf(ctx.plan.getPlan(), hitItem(hit));
+    return { phase: 'moving', grab, items: ctx.get(selectionAtom), anchor };
   }
   ctx.set(cursorStyleAtom, null);
   const { startScreen } = press;
@@ -102,12 +103,15 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
 
 /**
  * Snapped moves keep an off-grid object's offset (in whole metres when floors or
- * openings move); with Alt (no snapping) the raw delta.
+ * openings move), but a grabbed pole or beam lands its anchor on the grid; with Alt (no
+ * snapping) the raw delta.
  */
 const moveDelta = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEvent): Vec2 => {
   const { world, snapped } = g.grab;
   if (e.altKey) return { x: e.snapped.x - world.x, z: e.snapped.z - world.z };
   const step = moveStep(g.items, ctx.get(snapStepAtom));
+  if (g.anchor)
+    return anchoredDelta(g.anchor, { x: e.world.x - world.x, z: e.world.z - world.z }, step);
   return {
     x: snapValue(e.snapped.x - snapped.x, step),
     z: snapValue(e.snapped.z - snapped.z, step),
