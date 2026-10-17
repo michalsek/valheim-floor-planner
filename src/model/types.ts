@@ -126,6 +126,41 @@ export interface Roof {
   gableWalls: 'none' | GableWallsId;
 }
 
+export type RawPieceId = string;
+
+/**
+ * A game piece the planner can't express as a run, floor, opening, roof or prop (an
+ * imported world build): shown, counted, moved and turned, but not reshaped.
+ */
+export interface RawPiece {
+  id: RawPieceId;
+  prefab: string;
+  /** The prefab's pivot on the plan; `y` is its height above `elevation` (metres). */
+  position: Vec3;
+  /**
+   * Degrees. `yaw` turns clockwise on screen, like `Prop.rotation`, in [0, 360) (as the
+   * game's yaw does seen from above, north up); `pitch` and `roll` are the game's Euler
+   * x and z, for the odd tilted placement (`rawBoxes.ts` mirrors them).
+   */
+  rotation: { yaw: number; pitch: number; roll: number };
+  /** The level it belongs to (metres). */
+  elevation: number;
+}
+
+/**
+ * Where an imported build came from. Plan point (x, z) turned clockwise on screen by
+ * `yaw` is `u`; the world point is (origin.x + u.x, origin.z − u.z) (the planner mirrors
+ * the game's z), and plan height y is world height `origin.y + y`. A plan yaw plus
+ * `yaw` is the game's yaw. Kept for exporting back (a PlanBuild blueprint).
+ */
+export interface ImportFrame {
+  worldName: string;
+  /** World coordinates (the game's own axes). */
+  origin: Vec3;
+  /** Degrees, the game's yaw of the plan's x axis, in [0, 360). */
+  yaw: number;
+}
+
 /**
  * A reference image under the plan. The image itself lives in IndexedDB under
  * `imageId` (and optionally in saved files); the plan holds where it goes.
@@ -147,7 +182,7 @@ export interface Underlay {
  * Levels aren't stored: they are the distinct elevations of its objects (`levels.ts`).
  */
 export interface Plan {
-  version: 3;
+  version: 4;
   /** Shown in the plan header and used for the file name. */
   name: string;
   walls: Record<WallId, WallRun>;
@@ -156,13 +191,16 @@ export interface Plan {
   openings: Record<OpeningId, Opening>;
   props: Record<PropId, Prop>;
   roofs: Record<RoofId, Roof>;
+  rawPieces: Record<RawPieceId, RawPiece>;
   underlay: Underlay | null;
+  /** Set on a plan imported from a world save. */
+  importFrame: ImportFrame | null;
 }
 
 export const DEFAULT_PLAN_NAME = 'Untitled';
 
 export const emptyPlan = (): Plan => ({
-  version: 3,
+  version: 4,
   name: DEFAULT_PLAN_NAME,
   walls: {},
   dimensions: {},
@@ -170,7 +208,9 @@ export const emptyPlan = (): Plan => ({
   openings: {},
   props: {},
   roofs: {},
+  rawPieces: {},
   underlay: null,
+  importFrame: null,
 });
 
 /** One game piece, derived from the plan (never stored). */

@@ -1,26 +1,31 @@
 /**
  * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
  * throws on a bad shape. Collections added by later milestones default to `{}`, a
- * missing underlay to null, and a missing name to "Untitled". Version 1 files (before
- * levels) load with every elevation at 0, version 2 ones (before roofs) without roofs;
- * plans are always written as version 3, so an older app refuses them instead of
- * dropping what it doesn't know.
+ * missing underlay and import frame to null, and a missing name to "Untitled". Version 1
+ * files (before levels) load with every elevation at 0, version 2 ones (before roofs)
+ * without roofs, version 3 ones (before world imports) without raw pieces; plans are
+ * always written as version 4, so an older app refuses them instead of dropping what it
+ * doesn't know.
  */
 import { elevationProblem, MAX_ELEVATION, MIN_ELEVATION } from './elevation';
 import { samePoint } from './geometry/polyline';
 import { normalizeDeg } from './geometry/propGeometry';
 import { MAX_PROPS, propProblem } from './props';
+import { MAX_RAW_PIECES, rawPieceProblem } from './rawPieces';
 import {
   DEFAULT_PLAN_NAME,
   type Dimension,
   type Floor,
+  type ImportFrame,
   type Opening,
   type Plan,
   type Prop,
+  type RawPiece,
   type Roof,
   type RoofKind,
   type Underlay,
   type Vec2,
+  type Vec3,
   type WallRun,
   type WallSide,
 } from './types';
@@ -62,6 +67,15 @@ const asString = (value: unknown, path: string): string =>
 const asPoint = (value: unknown, path: string): Vec2 => {
   const p = asRecord(value, path);
   return { x: asFinite(p.x, `${path}.x`), z: asFinite(p.z, `${path}.z`) };
+};
+
+const asPoint3 = (value: unknown, path: string): Vec3 => {
+  const p = asRecord(value, path);
+  return {
+    x: asFinite(p.x, `${path}.x`),
+    y: asFinite(p.y, `${path}.y`),
+    z: asFinite(p.z, `${path}.z`),
+  };
 };
 
 const asSide = (value: unknown, path: string): WallSide =>
@@ -208,6 +222,45 @@ const parseRoof: Parser<Roof> = (value, key, path) => {
   return problem ? fail(path, `a roof where ${problem}`) : roof;
 };
 
+/** Unknown prefabs load (the plan warns about them). Ranges are `rawPieceProblem`'s. */
+const parseRawPiece: Parser<RawPiece> = (value, key, path) => {
+  const p = asRecord(value, path);
+  const id = asString(p.id, `${path}.id`);
+  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+  const rotation = asRecord(p.rotation, `${path}.rotation`);
+  const piece = {
+    id,
+    prefab: asString(p.prefab, `${path}.prefab`),
+    position: asPoint3(p.position, `${path}.position`),
+    rotation: {
+      yaw: normalizeDeg(asFinite(rotation.yaw, `${path}.rotation.yaw`)),
+      pitch: asFinite(rotation.pitch, `${path}.rotation.pitch`),
+      roll: asFinite(rotation.roll, `${path}.rotation.roll`),
+    },
+    elevation: readElevation(p.elevation, `${path}.elevation`),
+  };
+  const problem = rawPieceProblem(piece);
+  return problem ? fail(path, `a piece where ${problem}`) : piece;
+};
+
+const parseRawPieces = (value: unknown): Plan['rawPieces'] => {
+  const pieces = parseCollection(value, '$.rawPieces', parseRawPiece);
+  if (Object.keys(pieces).length > MAX_RAW_PIECES) {
+    fail('$.rawPieces', `at most ${MAX_RAW_PIECES} pieces`);
+  }
+  return pieces;
+};
+
+const parseImportFrame = (value: unknown, path: string): ImportFrame | null => {
+  if (value === undefined || value === null) return null;
+  const f = asRecord(value, path);
+  return {
+    worldName: asString(f.worldName, `${path}.worldName`),
+    origin: asPoint3(f.origin, `${path}.origin`),
+    yaw: normalizeDeg(asFinite(f.yaw, `${path}.yaw`)),
+  };
+};
+
 /** Shapes are checked here, ranges by `underlayProblem`. */
 const parseUnderlay = (value: unknown, path: string): Underlay | null => {
   if (value === undefined || value === null) return null;
@@ -255,20 +308,23 @@ const parseName = (value: unknown): string =>
 
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
-  if (root.version !== 1 && root.version !== 2 && root.version !== 3) {
-    fail('$.version', '1, 2 or 3');
+  const { version } = root;
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4) {
+    fail('$.version', '1, 2, 3 or 4');
   }
-  const elevationOf = root.version === 1 ? groundElevation : readElevation;
+  const elevationOf = version === 1 ? groundElevation : readElevation;
   const walls = parseCollection(root.walls, '$.walls', parseWall(elevationOf));
   return {
-    version: 3,
+    version: 4,
     name: parseName(root.name),
     walls,
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension(elevationOf)),
     floors: parseCollection(root.floors, '$.floors', parseFloor(elevationOf)),
     openings: parseCollection(root.openings, '$.openings', parseOpening(walls)),
     props: parseProps(root.props, elevationOf),
-    roofs: root.version === 3 ? parseCollection(root.roofs, '$.roofs', parseRoof) : {},
+    roofs: version >= 3 ? parseCollection(root.roofs, '$.roofs', parseRoof) : {},
+    rawPieces: version === 4 ? parseRawPieces(root.rawPieces) : {},
     underlay: parseUnderlay(root.underlay, '$.underlay'),
+    importFrame: version === 4 ? parseImportFrame(root.importFrame, '$.importFrame') : null,
   };
 };

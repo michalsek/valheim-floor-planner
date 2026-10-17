@@ -103,15 +103,15 @@ export const duplicateSelection = (ctx: ToolContext): boolean => {
 };
 
 /**
- * Turns the props in `items` (the selection by default) by `deltaDeg` about their
- * centres, as one entry; false when there are no props to turn.
+ * Turns the props and raw pieces in `items` (the selection by default) by `deltaDeg`
+ * about their centres, as one entry; false when there is nothing to turn.
  */
 export const rotateItems = (
   ctx: ToolContext,
   deltaDeg: number,
   items: Selection = ctx.get(selectionAtom)
 ): boolean => {
-  const props = items.filter((item) => item.kind === 'prop');
+  const props = items.filter((item) => item.kind === 'prop' || item.kind === 'raw');
   const cmds = rotateCommands(ctx.plan.getPlan(), props, deltaDeg, getLibrary());
   if (cmds.length === 0) return false;
   commitCommands(ctx, itemsLabel('Rotate', props), cmds);

@@ -10,6 +10,7 @@ import { samePoint } from './geometry/polyline';
 import { rotateAboutCentre } from './geometry/propGeometry';
 import { ITEM_KINDS, slidingOpeningIds, type EditScope } from './itemKinds';
 import { carryOpenings, openingsOf, slideOpenings } from './openings';
+import { rotateRaw } from './rawBoxes';
 import { itemExists, type Selection, type SelectionItem } from './selection';
 import type { OpeningId, Plan, Vec2, WallRun } from './types';
 import { dragVertex, moveVertexRaw } from './vertexDrag';
@@ -72,7 +73,7 @@ export const duplicateCommands = (
   return { cmds, items: copies };
 };
 
-/** The selected props turned by `deltaDeg`, each about its footprint's centre. */
+/** The selected props and raw pieces turned by `deltaDeg`, each about its footprint's centre. */
 export const rotateCommands = (
   plan: Plan,
   items: Selection,
@@ -80,6 +81,8 @@ export const rotateCommands = (
   lib: EditLib
 ): PlanCommand[] =>
   items.flatMap((item): PlanCommand[] => {
+    const raw = item.kind === 'raw' ? plan.rawPieces[item.id] : undefined;
+    if (raw) return [{ type: 'raw.patch', id: raw.id, changes: rotateRaw(raw, deltaDeg, lib) }];
     const prop = item.kind === 'prop' ? plan.props[item.id] : undefined;
     if (!prop) return [];
     const about = lib.propDefs.get(prop.prefab)?.snap?.centre;

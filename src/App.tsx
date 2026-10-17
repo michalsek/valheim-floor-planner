@@ -2,6 +2,8 @@ import { Provider } from 'jotai';
 import type { ReactNode } from 'react';
 
 import styles from './App.module.css';
+import { captureDrop } from './install/dropFolder';
+import { dropWorldOnPlanner } from './install/loadWorld';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
 import { FloorOutlines } from './overlay/FloorOutlines';
 import { LevelGhosts } from './overlay/LevelGhosts';
@@ -12,6 +14,7 @@ import { PinnedDimensions } from './overlay/PinnedDimensions';
 import { PropFootprints } from './overlay/PropFootprints';
 import { PropLabels } from './overlay/PropLabels';
 import { RadiusRings } from './overlay/RadiusRings';
+import { RawFootprints } from './overlay/RawFootprints';
 import { RoofLayer } from './overlay/RoofLayer';
 import { RoomLabels } from './overlay/RoomLabels';
 import { RoomOutlines } from './overlay/RoomOutlines';
@@ -32,8 +35,10 @@ import { PlanHeader } from './ui/PlanHeader/PlanHeader';
 import { StatusStrip } from './ui/StatusStrip/StatusStrip';
 import { ToolOptionsBar } from './ui/ToolOptions/ToolOptionsBar';
 import { ToolRail } from './ui/ToolRail/ToolRail';
+import { useFileDrop } from './ui/shared/useFileDrop';
 import { useModelDrop } from './ui/shared/useModelDrop';
 import { ViewBar } from './ui/ViewBar/ViewBar';
+import { WorldPanel } from './ui/WorldPanel/WorldPanel';
 
 /** The 2D overlay: outlines, labels, rings, dimensions and tool previews. */
 const PlanOverlay = () => (
@@ -44,6 +49,7 @@ const PlanOverlay = () => (
         <FloorOutlines />
         <RoomOutlines />
         <WallLines />
+        <RawFootprints />
         <PropFootprints />
         <OpeningSymbols />
         <RoofLayer />
@@ -106,9 +112,25 @@ const CanvasArea = ({ children }: { children: ReactNode }) => {
   );
 };
 
+/**
+ * A world folder dropped anywhere on the planner opens the World panel with it (the
+ * panel, the install menu and the canvas take their own drops first).
+ */
+const usePlannerDrop = () =>
+  useFileDrop((data) => {
+    const drop = captureDrop(data, false);
+    if (drop) void dropWorldOnPlanner(drop);
+  }).dropProps;
+
+const Shell = ({ children }: { children: ReactNode }) => (
+  <div className={styles.app} {...usePlannerDrop()}>
+    {children}
+  </div>
+);
+
 export const App = () => (
   <Provider store={sessionStore}>
-    <div className={styles.app}>
+    <Shell>
       <div className={styles.rail}>
         <ToolRail />
       </div>
@@ -126,6 +148,7 @@ export const App = () => (
       <div className={styles.status}>
         <StatusStrip />
       </div>
-    </div>
+      <WorldPanel />
+    </Shell>
   </Provider>
 );

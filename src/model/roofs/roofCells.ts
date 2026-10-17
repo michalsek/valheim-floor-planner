@@ -26,7 +26,8 @@ export interface RoofCell {
   role: CellRole;
   /**
    * Turn about +y (three.js sense: counter-clockwise seen from above) taking the piece's
-   * local frame (x along the eave, z down the slope) onto the cell.
+   * local frame (x along the eave, −z down the slope: the game's +z, mirrored) onto the
+   * cell.
    */
   yaw: number;
   /** Run at the cell's lowest point, and how much it rises (metres of run). */
@@ -147,7 +148,7 @@ const classify = (g: Grid): Pick<RoofCell, 'role' | 'yaw' | 'rise' | 'fit' | 'do
     if (low && high && centre === 1) {
       return {
         role: 'straight',
-        yaw: yawFor({ x: 0, z: 1 }, side.dir),
+        yaw: yawFor({ x: 0, z: -1 }, side.dir),
         rise: 2,
         fit: 'exact',
         down: side.dir,
@@ -172,7 +173,7 @@ const classify = (g: Grid): Pick<RoofCell, 'role' | 'yaw' | 'rise' | 'fit' | 'do
   if (lows.length === 3 && highs.length === 1) {
     return {
       role: 'outer',
-      yaw: yawFor({ x: -1, z: -1 }, cornerDir(highs[0]!)),
+      yaw: yawFor({ x: -1, z: 1 }, cornerDir(highs[0]!)),
       rise: 2,
       fit: 'exact',
       down: null,
@@ -181,7 +182,7 @@ const classify = (g: Grid): Pick<RoofCell, 'role' | 'yaw' | 'rise' | 'fit' | 'do
   if (highs.length === 3 && lows.length === 1) {
     return {
       role: 'inner',
-      yaw: yawFor({ x: 1, z: 1 }, cornerDir(lows[0]!)),
+      yaw: yawFor({ x: 1, z: -1 }, cornerDir(lows[0]!)),
       rise: 2,
       fit: 'exact',
       down: null,
@@ -190,7 +191,7 @@ const classify = (g: Grid): Pick<RoofCell, 'role' | 'yaw' | 'rise' | 'fit' | 'do
   // Downhill towards the lowest side.
   const mean = (s: Side) => (at(g, s.corners[0]) + at(g, s.corners[1]) + at(g, s.mid)) / 3;
   const down = SIDES.reduce((best, s) => (mean(s) < mean(best) ? s : best)).dir;
-  return { role: 'straight', yaw: yawFor({ x: 0, z: 1 }, down), rise: 2, fit: 'fallback', down };
+  return { role: 'straight', yaw: yawFor({ x: 0, z: -1 }, down), rise: 2, fit: 'fallback', down };
 };
 
 /** Every cell of the roof with its piece. */

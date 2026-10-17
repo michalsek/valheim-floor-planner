@@ -22,7 +22,9 @@ export type GameDataErrorCode =
   /** The remembered folder is gone (moved or deleted). */
   | 'moved'
   /** The parser's worker didn't start. */
-  | 'workerFailed';
+  | 'workerFailed'
+  /** The folder isn't a Valheim world save (no complete `_main.N` generation). */
+  | 'notWorld';
 
 export class GameDataError extends Error {
   readonly code: GameDataErrorCode;

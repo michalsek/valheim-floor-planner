@@ -18,6 +18,7 @@ import { InspectorTitle } from './InspectorTitle';
 import { FloorInspector } from './FloorInspector';
 import { OpeningInspector } from './OpeningInspector';
 import { PropInspector } from './PropInspector';
+import { RawPieceInspector } from './RawPieceInspector';
 import { RoofInspector } from './RoofInspector';
 import { WallInspector } from './WallInspector';
 
@@ -48,6 +49,7 @@ const INSPECTORS: { readonly [K in SelectionKind]: ComponentType<{ id: string }>
   dimension: DimensionInspector,
   prop: PropInspector,
   roof: RoofInspector,
+  raw: RawPieceInspector,
 };
 
 const ItemInspector = ({ item }: { item: SelectionItem }) => {

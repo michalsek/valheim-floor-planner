@@ -77,6 +77,7 @@ const hitOptions = (ctx: ToolContext, plan: Plan, handleTol: number): HitOptions
   return {
     families: getLibrary().wallFamilies,
     propDefs: getLibrary().propDefs,
+    rawLib: getLibrary(),
     openings: getDerived(plan).openings,
     handlesFor: handleTol > 0 ? handleWallId(selection) : null,
     handleTol,

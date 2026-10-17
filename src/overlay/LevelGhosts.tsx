@@ -4,16 +4,19 @@ import { useGhostPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { PropFootprint } from './PropFootprints';
+import { RawGhosts } from './RawFootprints';
 
 /**
  * The items of the level below, faintly, under the current level's (world layer, drawn
  * first); its walls and floors are `GhostMeshes`.
  */
 export const LevelGhosts = () => {
-  const props = propsInDrawOrder(useGhostPlan(), getLibrary().propDefs);
-  if (props.length === 0) return null;
+  const ghost = useGhostPlan();
+  const props = propsInDrawOrder(ghost, getLibrary().propDefs);
+  if (props.length === 0 && Object.keys(ghost.rawPieces).length === 0) return null;
   return (
     <g className={styles.ghostLevel}>
+      <RawGhosts />
       {props.map((prop) => (
         <PropFootprint key={prop.id} prop={prop} />
       ))}

@@ -1,0 +1,104 @@
+import { describe, expect, it } from 'vitest';
+
+import { testLibrary } from '../../catalog/testLibrary';
+import { rotate } from '../geometry/propGeometry';
+import { rawOutline } from '../rawBoxes';
+
+import { describeCluster, groupPieces } from './clusters';
+import { importCluster } from './importCluster';
+import { snapAngle, type PieceCloud } from './pieceCloud';
+
+type Spec = [prefab: string, x: number, y: number, z: number, yaw: number];
+
+const cloudOf = (specs: readonly Spec[]): PieceCloud => {
+  const prefabs = [...new Set(specs.map((s) => s[0]))];
+  return {
+    prefabs,
+    prefabIndex: specs.map((s) => prefabs.indexOf(s[0])),
+    position: specs.flatMap(([, x, y, z]) => [x, y, z]),
+    rotation: specs.flatMap((s) => [0, s[4], 0]),
+  };
+};
+
+const DEG = Math.PI / 180;
+/** A point `(u, v)` of a frame turned by the game's `yaw` and moved to `(ox, oz)`. */
+const world = (u: number, v: number, yaw: number, ox: number, oz: number): [number, number] => [
+  ox + u * Math.cos(yaw * DEG) + v * Math.sin(yaw * DEG),
+  oz - u * Math.sin(yaw * DEG) + v * Math.cos(yaw * DEG),
+];
+
+/** A 2 × 4 m shed turned 45° (saved as 44.5°): two floors, a wall along each long side. */
+const shed = (yaw: number, ox: number, oz: number): Spec[] => {
+  const at = (u: number, v: number) => world(u, v, yaw, ox, oz);
+  const saved = yaw - 0.5;
+  return [
+    ['wood_floor', ...at(1, 1), 31.25, saved],
+    ['wood_floor', ...at(3, 1), 31.25, saved],
+    ['woodwall', ...at(1, 0), 32.25, saved],
+    ['woodwall', ...at(3, 0), 32.25, saved + 180],
+    ['woodwall', ...at(1, 2), 33.25, saved],
+  ].map(([p, x, z, y, r]) => [p, x, y, z, r] as Spec);
+};
+
+describe('world builds', () => {
+  it('snaps truncated angles onto Hammer steps and leaves others', () => {
+    expect([22, 22.5, 269.5, 359.5, 10, 0].map(snapAngle)).toEqual([22.5, 22.5, 270, 0, 10, 0]);
+  });
+
+  it('groups pieces within 4 m and finds each group grid', () => {
+    const cloud = cloudOf([
+      ...shed(45, 100, 100),
+      ...shed(0, 300, 100),
+      ['wood_beam', 400, 0, 0, 0],
+    ]);
+    const groups = groupPieces(cloud);
+    expect(groups.map((g) => g.length)).toEqual([5, 5, 1]);
+    const first = describeCluster(cloud, groups[0]!, () => 'wood');
+    expect(first).toMatchObject({ yaw: 45, aligned: 5, material: 'wood' });
+  });
+
+  it('imports a turned shed axis-aligned, cornered at the origin, on its levels', () => {
+    const cloud = cloudOf(shed(45, 100, 100));
+    const cluster = describeCluster(cloud, groupPieces(cloud)[0]!, () => null);
+    const { plan } = importCluster(cloud, cluster, testLibrary, 'Fixture');
+    const pieces = Object.values(plan.rawPieces);
+    expect(pieces.map((p) => p.rotation.yaw)).toEqual([0, 0, 0, 180, 0]);
+    expect(plan.importFrame).toMatchObject({ worldName: 'Fixture', yaw: 45 });
+    // The floors' edge is on x = 0; the far wall's 0.15 m half-thickness takes z to the
+    // next grid line. The game's local +v is the plan's −z (north up).
+    const corners = pieces.flatMap((p) => rawOutline(p, testLibrary));
+    expect(Math.min(...corners.map((c) => c.x))).toBeCloseTo(-0.01);
+    expect(Math.min(...corners.map((c) => c.z))).toBeCloseTo(0.35);
+    expect(pieces[2]!.position).toMatchObject({ x: 1, y: 1, z: 2.5 });
+    expect(pieces[4]!.position).toMatchObject({ x: 1, y: 2, z: 0.5 });
+    // The frame maps every plan pivot back onto its world point.
+    const frame = plan.importFrame!;
+    const back = (x: number, z: number) => {
+      const u = rotate({ x, z }, frame.yaw);
+      return [frame.origin.x + u.x, frame.origin.z - u.z];
+    };
+    const [wx, wz] = back(pieces[2]!.position.x, pieces[2]!.position.z);
+    expect(wx).toBeCloseTo(cloud.position[6]!);
+    expect(wz).toBeCloseTo(cloud.position[8]!);
+    // Heights from the lowest bottom (31.25, the floors' top); the upper wall has no
+    // floor under it, so it stays on level 0, 1 m up.
+    expect(pieces.map((p) => p.elevation)).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it('keeps north up and turns pieces clockwise as the game does', () => {
+    // A frame of two walls (grid 0°), one 10 m north; a chest east, turned 22.5°.
+    const cloud = cloudOf([
+      ['woodwall', 0, 31, 0, 0],
+      ['woodwall', 0, 31, 10, 0],
+      ['piece_chest_wood', 3, 30, 0, 22.5],
+    ]);
+    const cluster = describeCluster(cloud, [0, 1, 2], () => null);
+    const [south, north, chest] = Object.values(
+      importCluster(cloud, cluster, testLibrary, 'Fixture').plan.rawPieces
+    );
+    expect(north!.position.z).toBeCloseTo(south!.position.z - 10);
+    expect(north!.position.x).toBeCloseTo(south!.position.x);
+    expect(chest!.position.x).toBeCloseTo(south!.position.x + 3);
+    expect(chest!.rotation.yaw).toBe(22.5);
+  });
+});

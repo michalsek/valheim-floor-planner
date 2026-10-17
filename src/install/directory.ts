@@ -13,11 +13,6 @@ export interface DirLike {
 
 const MISSING = new Set(['NotFoundError', 'TypeMismatchError']);
 
-/** Async iteration over a directory (not in TypeScript's DOM lib without DOM.AsyncIterable). */
-interface IterableDirectory {
-  values(): AsyncIterator<unknown>;
-}
-
 /**
  * A missing entry is null, but only while the picked folder itself exists: listing a
  * moved or deleted folder throws `NotFoundError`, which is let through.
@@ -33,7 +28,7 @@ export const handleDir = (handle: FileSystemDirectoryHandle): DirLike => ({
       return await (await dir.getFileHandle(fileName)).getFile();
     } catch (error) {
       if (!(error instanceof DOMException && MISSING.has(error.name))) throw error;
-      await (handle as unknown as IterableDirectory).values().next();
+      await handle.values().next();
       return null;
     }
   },
@@ -48,7 +43,7 @@ export const fileListDir = (files: readonly File[]): DirLike => {
     name ||= top;
     byPath.set(rest.join('/'), file);
   }
-  return { name, file: async (path) => byPath.get(path) ?? null };
+  return { name, file: (path) => Promise.resolve(byPath.get(path) ?? null) };
 };
 
 interface PickerWindow {
@@ -64,10 +59,13 @@ interface PermissionHandle {
 export const canPickDirectory = (): boolean =>
   typeof (window as PickerWindow).showDirectoryPicker === 'function';
 
-/** Opens the native folder picker; null when the user cancels. */
-export const pickDirectory = async (): Promise<FileSystemDirectoryHandle | null> => {
+/**
+ * Opens the native folder picker (remembering its last folder per `id`); null when the
+ * user cancels.
+ */
+export const pickDirectory = async (id = 'valheim'): Promise<FileSystemDirectoryHandle | null> => {
   try {
-    return await (window as PickerWindow).showDirectoryPicker!({ id: 'valheim', mode: 'read' });
+    return await (window as PickerWindow).showDirectoryPicker!({ id, mode: 'read' });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return null;
     throw error;

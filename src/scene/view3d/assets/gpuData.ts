@@ -35,6 +35,7 @@ import {
 import type { TextureData } from '../../../gameData/unity/texture2d';
 import type { Geometry } from '../../../gameData/valheim/bakeModel';
 
+import { mirrorGeometry } from './mirrorGeometry';
 import { MATRIX_ATTRIBUTES, TINT_ATTRIBUTE } from './realMaterial';
 
 const BLOCK_FORMATS: Record<'bc1' | 'bc3' | 'bc7', CompressedPixelFormat> = {
@@ -92,11 +93,13 @@ export const createTexture = (data: TextureData): Texture => {
 };
 
 /**
- * A draw's own geometry over a model group's arrays (no copies), with room for
- * `capacity` instances: their matrices (`MATRIX_ATTRIBUTES`, one interleaved buffer,
- * see `instanceMatrices`) and tints. Disposing it frees its GPU buffers.
+ * A draw's own geometry over a model group's arrays, mirrored into planner space once
+ * (`mirrorGeometry`), with room for `capacity` instances: their matrices
+ * (`MATRIX_ATTRIBUTES`, one interleaved buffer, see `instanceMatrices`) and tints.
+ * Disposing it frees its GPU buffers.
  */
-export const createInstancedGeometry = (geometry: Geometry, capacity: number): BufferGeometry => {
+export const createInstancedGeometry = (raw: Geometry, capacity: number): BufferGeometry => {
+  const geometry = mirrorGeometry(raw);
   const result = new BufferGeometry();
   result.setIndex(new BufferAttribute(geometry.indices, 1));
   result.setAttribute('position', new BufferAttribute(geometry.positions, 3));

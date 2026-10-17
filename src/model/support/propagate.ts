@@ -43,6 +43,11 @@ export interface SupportBody {
   material: MaterialSupport | null;
   /** Whether other bodies can rest on it: walls, floors, poles, stairs; not doors or furniture. */
   gives: boolean;
+  /**
+   * Held up whatever is under it, and not checked (an imported raw piece): it gives its
+   * material's maximum, like a grounded body, and its state is 'none'.
+   */
+  fixed?: boolean;
 }
 
 export type SupportState = 'grounded' | 'supported' | 'collapsing' | 'none';
@@ -192,7 +197,9 @@ export const propagateSupport = (
     pairs: pairsOf(list),
   }));
 
-  const grounded = bodies.map((b) => b.material !== null && b.bottom <= GROUND_HEIGHT);
+  const grounded = bodies.map(
+    (b) => b.material !== null && (b.fixed === true || b.bottom <= GROUND_HEIGHT)
+  );
   const value = new Float64Array(n);
   const published = new Float64Array(n);
   const heap = createHeap();
@@ -221,7 +228,7 @@ export const propagateSupport = (
   }
 
   const state = bodies.map((body, i): SupportState => {
-    if (!body.material) return 'none';
+    if (!body.material || body.fixed) return 'none';
     if (grounded[i]) return 'grounded';
     return published[i]! > 0 ? 'supported' : 'collapsing';
   });

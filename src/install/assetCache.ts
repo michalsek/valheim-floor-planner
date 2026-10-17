@@ -13,6 +13,8 @@ import { ASSET_VERSION } from '../gameData/valheim/constants';
 import type { PrefabModel } from '../gameData/valheim/extractModels';
 import { decodeModel, decodeTexture } from '../gameData/valheim/modelFormat';
 
+import { shortHash } from './shortHash';
+
 const ROOT = 'valheimAssets';
 const MODELS = 'models';
 const TEXTURES = 'textures';
@@ -49,18 +51,7 @@ export interface AssetCache {
 export const modelFile = (name: string): string => `${encodeURIComponent(name)}.bin`;
 export const textureFile = (id: string): string => `${encodeURIComponent(id)}.bin`;
 
-const folderName = async (key: string): Promise<string> => {
-  const data = new TextEncoder().encode(`${key}|${ASSET_VERSION}`);
-  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
-  return Array.from(hash.subarray(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
-};
-
-/** Async iteration over a directory (not in TypeScript's DOM lib). */
-interface IterableDirectory {
-  entries(): AsyncIterable<[string, FileSystemHandle]>;
-}
-const entriesOf = (dir: FileSystemDirectoryHandle) =>
-  (dir as unknown as IterableDirectory).entries();
+const folderName = (key: string): Promise<string> => shortHash(`${key}|${ASSET_VERSION}`);
 
 /** This install's folders, creating them; null without OPFS. */
 export const openAssetDirs = async (key: string): Promise<AssetDirs | null> => {
@@ -86,7 +77,7 @@ const deleteOtherFolders = async (key: string): Promise<void> => {
   const root = await (await navigator.storage.getDirectory()).getDirectoryHandle(ROOT);
   const keep = await folderName(key);
   const others: string[] = [];
-  for await (const [name] of entriesOf(root)) if (name !== keep) others.push(name);
+  for await (const [name] of root.entries()) if (name !== keep) others.push(name);
   await Promise.all(
     others.map((name) => root.removeEntry(name, { recursive: true }).catch(() => {}))
   );
@@ -106,11 +97,8 @@ const readFile = async (
 
 const dirSize = async (dir: FileSystemDirectoryHandle): Promise<number> => {
   let total = 0;
-  for await (const [, handle] of entriesOf(dir)) {
-    total +=
-      handle.kind === 'file'
-        ? (await (handle as FileSystemFileHandle).getFile()).size
-        : await dirSize(handle as FileSystemDirectoryHandle);
+  for await (const [, handle] of dir.entries()) {
+    total += handle.kind === 'file' ? (await handle.getFile()).size : await dirSize(handle);
   }
   return total;
 };

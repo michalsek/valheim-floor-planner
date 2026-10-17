@@ -80,11 +80,6 @@ export const entryDir = (root: FileSystemDirectoryEntry): DirLike => ({
   },
 });
 
-/** Async iteration over a directory handle (not in TypeScript's DOM lib). */
-interface IterableDirectory {
-  values(): AsyncIterator<unknown>;
-}
-
 /**
  * How long to wait for Chromium's handle. It can stay pending forever (seen with
  * DevTools-synthesized drops); the entry reads the folder just as well.
@@ -103,7 +98,7 @@ const readableHandle = async (
     const handle = await Promise.race([pending, timeout]);
     if (handle?.kind !== 'directory') return null;
     const dir = handle as FileSystemDirectoryHandle;
-    await (dir as unknown as IterableDirectory).values().next();
+    await dir.values().next();
     return dir;
   } catch {
     // Refused (blocklisted folder, no permission): the entry may still read it.

@@ -4,8 +4,9 @@
  * piece's snap points; a pitch whose prefabs aren't in the catalogue is left out
  * (older installs lack the 67° Deep North pieces).
  *
- * Piece local space (from the snap points): x along the eave (±1), z down the slope
- * (−1 high, +1 low), y up. Every piece covers 2 m along the eave by 2 m of run.
+ * Piece local space (from the snap points, in planner space: the game's z mirrored): x
+ * along the eave (±1), z up the slope (+1 high, −1 low), y up. Every piece covers 2 m
+ * along the eave by 2 m of run.
  */
 import { snapExtent, type Catalog } from './pieceDefs';
 

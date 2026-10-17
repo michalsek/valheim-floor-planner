@@ -3,7 +3,9 @@ import { produce } from 'immer';
 
 import { elevationProblem } from './elevation';
 import { samePoint } from './geometry/polyline';
+import { normalizeDeg } from './geometry/propGeometry';
 import { MAX_PROPS, propProblem } from './props';
+import { MAX_RAW_PIECES, rawPieceProblem } from './rawPieces';
 import type {
   Dimension,
   DimId,
@@ -14,6 +16,8 @@ import type {
   Plan,
   Prop,
   PropId,
+  RawPiece,
+  RawPieceId,
   Roof,
   RoofId,
   Underlay,
@@ -42,6 +46,9 @@ export type PlanCommand =
   | { type: 'roof.insert'; roof: Roof }
   | { type: 'roof.patch'; id: RoofId; changes: Partial<Omit<Roof, 'id'>> }
   | { type: 'roof.remove'; id: RoofId }
+  | { type: 'raw.insert'; piece: RawPiece }
+  | { type: 'raw.patch'; id: RawPieceId; changes: Partial<Omit<RawPiece, 'id'>> }
+  | { type: 'raw.remove'; id: RawPieceId }
   | { type: 'underlay.set'; underlay: Underlay | null }
   | { type: 'underlay.patch'; changes: Partial<Underlay> }
   | { type: 'plan.rename'; name: string }
@@ -67,6 +74,9 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'roof.insert': 'Add roof',
   'roof.patch': 'Edit roof',
   'roof.remove': 'Delete roof',
+  'raw.insert': 'Add piece',
+  'raw.patch': 'Edit piece',
+  'raw.remove': 'Delete piece',
   'underlay.set': 'Set underlay',
   'underlay.patch': 'Edit underlay',
   'plan.rename': 'Rename plan',
@@ -106,6 +116,17 @@ const checkRoof = (roof: Roof): void => {
   const problem = roofProblem(roof);
   if (problem) throw new PlanCommandError(`Invalid roof: ${problem}`);
 };
+
+const checkRawPiece = (piece: RawPiece): void => {
+  const problem = rawPieceProblem(piece);
+  if (problem) throw new PlanCommandError(`Invalid piece: ${problem}`);
+};
+
+/** The rotation with its yaw in [0, 360), as parsing stores it. */
+const normalYaw = (rotation: RawPiece['rotation']): RawPiece['rotation'] => ({
+  ...rotation,
+  yaw: normalizeDeg(rotation.yaw),
+});
 
 const checkDimension = (dim: Dimension): void => {
   if (samePoint(dim.a, dim.b)) throw new PlanCommandError('A dimension needs two different points');
@@ -241,6 +262,30 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
     case 'roof.remove':
       if (!(cmd.id in draft.roofs)) throw new PlanCommandError(`Roof "${cmd.id}" does not exist`);
       delete draft.roofs[cmd.id];
+      return undefined;
+    case 'raw.insert':
+      if (cmd.piece.id in draft.rawPieces) {
+        throw new PlanCommandError(`Piece "${cmd.piece.id}" already exists`);
+      }
+      if (Object.keys(draft.rawPieces).length >= MAX_RAW_PIECES) {
+        throw new PlanCommandError(`A plan holds at most ${MAX_RAW_PIECES} raw pieces`);
+      }
+      checkRawPiece(cmd.piece);
+      draft.rawPieces[cmd.piece.id] = { ...cmd.piece, rotation: normalYaw(cmd.piece.rotation) };
+      return undefined;
+    case 'raw.patch': {
+      const piece = draft.rawPieces[cmd.id];
+      if (!piece) throw new PlanCommandError(`Piece "${cmd.id}" does not exist`);
+      Object.assign(piece, cmd.changes);
+      checkRawPiece(piece);
+      if (cmd.changes.rotation) piece.rotation = normalYaw(piece.rotation);
+      return undefined;
+    }
+    case 'raw.remove':
+      if (!(cmd.id in draft.rawPieces)) {
+        throw new PlanCommandError(`Piece "${cmd.id}" does not exist`);
+      }
+      delete draft.rawPieces[cmd.id];
       return undefined;
     case 'underlay.set':
       if (cmd.underlay) checkUnderlay(cmd.underlay);

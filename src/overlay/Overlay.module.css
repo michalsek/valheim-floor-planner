@@ -300,6 +300,17 @@
   stroke-width: 1px;
 }
 
+.rawFootprint {
+  fill-opacity: 0.28;
+  stroke-opacity: 0.9;
+  stroke-width: 1px;
+}
+
+.rawRoof {
+  stroke-opacity: 0.85;
+  stroke-width: 1px;
+}
+
 .propApprox {
   stroke-dasharray: 4 3;
 }

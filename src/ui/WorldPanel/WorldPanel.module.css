@@ -1,0 +1,312 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.35);
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  max-height: min(760px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.panel:focus {
+  outline: none;
+}
+
+.dragging {
+  border: 2px dashed var(--accent);
+}
+
+.dropHint {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+}
+
+.close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.body {
+  overflow: auto;
+  padding: 14px;
+}
+
+.text {
+  margin: 0 0 12px;
+}
+
+.note,
+.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.note {
+  margin: 8px 0 0;
+}
+
+.dropZone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+}
+
+.dropZone p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.section {
+  margin-top: 16px;
+}
+
+.heading {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.places {
+  margin: 0;
+}
+
+.places div {
+  margin-bottom: 6px;
+}
+
+.places dt {
+  font-size: 12px;
+}
+
+.places dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button,
+.primary {
+  padding: 3px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.primary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.error p {
+  margin: 0 0 8px;
+}
+
+.overview > p {
+  margin: 0 0 10px;
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(240px, 2fr);
+  gap: 14px;
+}
+
+.map {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--canvas);
+  cursor: grab;
+  touch-action: none;
+}
+
+.mapAxis {
+  stroke: var(--ink-muted);
+  stroke-opacity: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.mapDots {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-opacity: 0.7;
+}
+
+.mapCluster {
+  cursor: pointer;
+}
+
+.mapCluster rect {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.6;
+}
+
+.mapCluster circle {
+  fill: var(--accent);
+  fill-opacity: 0.75;
+}
+
+.mapCluster text,
+.mapNorth {
+  fill: var(--ink);
+}
+
+.mapClusterOn rect {
+  stroke: var(--selection);
+  stroke-opacity: 1;
+  stroke-width: 2px;
+}
+
+.mapClusterOn circle {
+  fill: var(--selection);
+}
+
+.clusterSide {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.minSize input {
+  width: 64px;
+}
+
+.clusters {
+  flex: 1;
+  max-height: 340px;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cluster:hover {
+  background: var(--surface-hover);
+}
+
+.clusterOn {
+  border-color: var(--selection);
+}
+
+.importRow {
+  margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+  .overviewGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -44,6 +44,10 @@ const itemName = (plan: Plan, item: SelectionItem, lib: Library): string => {
       const id = plan.roofs[item.id]?.familyId ?? '';
       return `${lib.roofFamilies.get(id)?.label ?? id} roof`;
     }
+    case 'raw': {
+      const prefab = plan.rawPieces[item.id]?.prefab ?? '';
+      return lib.catalog.pieces.get(prefab)?.name ?? prefab;
+    }
   }
 };
 
@@ -108,6 +112,7 @@ export const IntegrityList = ({ level }: { level: number | null }) => {
     ({ item }) => level === null || sameLevel(levelOfItem(plan, item, getLibrary()) ?? NaN, level)
   );
   const total = lines.reduce((n, l) => n + l.count, 0);
+  const rawCount = Object.keys(plan.rawPieces).length;
   const status = !support || !fresh ? 'checking…' : total === 0 ? 'all held up' : null;
   return (
     <details
@@ -148,6 +153,12 @@ export const IntegrityList = ({ level }: { level: number | null }) => {
           );
         })}
       </ul>
+      {rawCount > 0 && (
+        <p className={styles.advice}>
+          {rawCount} imported {rawCount === 1 ? 'piece is' : 'pieces are'} not checked: raw pieces
+          hold up what rests on them, as if they stood firm.
+        </p>
+      )}
     </details>
   );
 };

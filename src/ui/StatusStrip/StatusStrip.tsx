@@ -13,6 +13,7 @@ import { SnapStepPicker } from './SnapStepPicker';
 import styles from './StatusStrip.module.css';
 import { ThemePicker } from './ThemePicker';
 import { ViewToggle } from './ViewToggle';
+import { WorldButton } from '../WorldPanel/WorldButton';
 
 const hasUnderlay = (plan: Plan) => plan.underlay !== null;
 const hasRoofs = (plan: Plan) => Object.keys(plan.roofs).length > 0;
@@ -84,6 +85,7 @@ export const StatusStrip = () => {
       {!is2d && <ModelToggle />}
       <span className={styles.spacer} />
       <ThemePicker />
+      <WorldButton />
       <InstallMenu />
       <span className={styles.badge}>{backend === 'pending' ? '…' : backend}</span>
     </footer>

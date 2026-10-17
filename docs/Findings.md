@@ -823,3 +823,83 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     walls; adding the ridge beam and poles from the suggestion; roof cover % for
     stations and beds; roofs following wall edits and editing a roof outline by its
     vertices (Re-fit covers the common case).
+
+## From M13 Stage 1
+
+1. **Handedness: fixed in the fix round (below).** Stage 1 kept raw Unity axes, so imports
+   showed the game mirrored like the rest of the planner; the checks that held then
+   (neighbouring pieces stepping along their own axis, the off-grid roof pair, roofs
+   meeting at their ridges) hold unchanged after the unmirror.
+2. **Boxes mode:** raw roof pieces now take M12's roof shapes (fix round). Pieces that
+   match nothing keep their collider's box.
+3. **Pitch and roll**: raw pieces keep them; boxes tilt and roll, and models take the
+   full turn (`PieceBox.modelTurn`). All 1,142 pieces of the real world were yaw-only.
+4. **Levels of an import**: each piece gets the highest floor-top level at or below its
+   bottom (floor tiles by their top), from levels with at least 2 tiles; roof-family
+   pieces and gable walls go on one roof level (their lowest bottom, to 0.5 m). The real
+   build: 0 / +3 (roof) / +4 / +5 / +7 / +8 m with 19 / 273 / 260 / 130 / 96 / 362
+   pieces.
+5. **Grid drift**: wall and floor pivots sit up to 2.7 cm off the 0.5 m lattice in the
+   real build (the a0 note said ±2 cm for edges). The import puts the plan origin on the
+   lattice's modal offset; c2 needs at least a 3 cm snap tolerance.
+6. **The world cache** keeps the 6 most recently used reads, by key (folder name,
+   generation, size and catalogue size), whatever the worlds are called. Without
+   `createWritable` on the page (Safari) nothing is kept.
+7. **Legacy `.db`** is read whole into the worker's memory (no `File.slice` refill), and
+   only the synthetic v34 fixture exercised it; a real 300 MB+ `.db` is untested.
+8. **Timings (headless Chrome 155, M4 Pro, 110,186 ZDOs / 1,142 pieces):** reading the
+   world in the worker 42–75 ms (Node: 83–108 ms); reopening from the cache 3–13 ms;
+   Import to the painted plan 0.6 s; 2D→3D (Boxes) 0.5 s on the first switch; a commit
+   (turning a piece) to the second frame ~32 ms; support with the 1,140 raw pieces in
+   it 12 ms.
+9. **Not exercised:** the portal chunk and a real 2-byte section count (both in the
+   synthetic fixture only), cloud `worlds/` and server save folders, the folder picker
+   and upload-dialog paths (only drops), Safari and Firefox.
+10. **Integrity shows "checking…" while it is scrolled off screen** (existing behaviour,
+    support is only worked out when shown).
+11. **Builder filter dropped** (privacy): creator IDs never leave the ZDO decoder, so
+    there is nothing to filter by.
+
+## From the M13 Stage 1 fix round
+
+1. **The planner is no longer a mirror image of the game.** Unity is left-handed and the
+   planner (three.js) right-handed; game data now enters mirrored in z, at three
+   boundaries:
+   - the catalogue, as it is parsed (`mirrorPiece`): snap points' z negated, collider
+     z ranges swapped and negated. The extractor's output and `research/*.json` stay in
+     Unity space (their goldens compare with UnityPy);
+   - models, as they load (`mirrorGeometry`): positions, normals and tangents negate z,
+     tangent w flips, triangle winding reverses. The OPFS cache keeps Unity data, so no
+     cache version changed and nothing is extracted again;
+   - world imports: a world point (x, z) is plan point (x, −z), so north is up in 2D.
+     The game's yaw turns clockwise seen from above with north up, which is the plan's
+     clockwise yaw: **plan yaw = game yaw − the build's grid yaw** (no sign flip). Pitch
+     and roll mirror to three.js 'YXZ' (−pitch, −yaw, roll).
+   - Planner code that assumed Unity's local axes follows: roof cells now have downhill
+     on local −z (straight pieces, hip corners high at (−x, +z), valleys low at (+x, −z),
+     the shapes mirrored to match, slabs tilt by −slope), and stairs climb along the side
+     their snap points say (`PropDef.flight.towards`, +z in planner space) rather than a
+     fixed −z, in the flight tool and the 2D glyph.
+2. **Evidence on the user's world:** the L's arm now runs north from the east end of the
+   main block, as on the game's map (north up, east right); before, it ran south. The
+   golden test maps every imported pivot back through the import frame onto its world
+   position (1,140 of 1,140), neighbouring pieces still step along their own axes (744
+   along, 2 across), and the one off-grid roof pair still sits side by side along its
+   eave, which a wrong yaw sign would turn across. In 3D the roofs meet at their ridges
+   in Models and Boxes alike, and the default 3D view (from the south) agrees with 2D.
+3. **What changes for existing plans:** positions don't (no migration). Walls, block-wall
+   strips, floors, rooms, roofs, doors, poles and beams are symmetric and look the same;
+   M12's roofs were checked at 26°, 45° (gable) and 67° (hip L) with `?modelBoxes`.
+   Asymmetric pieces turn into their mirror: props whose collider is off-centre (a bed's
+   footprint shifts 0.23 m), stairs (a flight now climbs the other way along its local
+   z, so an existing flight's pieces sit as before but face the other way), door models
+   (hinge side), stations. **Plans imported before the fix must be imported again**: their
+   layout was computed mirrored.
+4. **A stone-stair flight shows "would collapse"** for its upper pieces (exact −1…1
+   colliders that only meet at an edge); wood stairs don't. Not checked whether this
+   predates the unmirror.
+5. **Raw pieces in support** hold up whatever rests on them as if grounded and aren't
+   checked themselves (`SupportBody.fixed`): a wall drawn on an imported floor is held
+   up; the Integrity list notes the raw pieces it left out.
+6. **Diagonal raw beams** are thin boxes rolled up their rise; raw roof pieces with
+   pitch or roll keep their collider box.

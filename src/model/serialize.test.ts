@@ -6,7 +6,7 @@ import { parsePlan, serializePlan } from './serialize';
 import { emptyPlan, type Plan } from './types';
 
 const plan: Plan = {
-  version: 3,
+  version: 4,
   name: 'Longhouse',
   walls: {
     a: {
@@ -57,6 +57,15 @@ const plan: Plan = {
       gableWalls: 'wood',
     },
   },
+  rawPieces: {
+    w: {
+      id: 'w',
+      prefab: 'wood_roof_45',
+      position: { x: 3.5, y: 2.25, z: -1 },
+      rotation: { yaw: 337.5, pitch: 0, roll: 0 },
+      elevation: 4,
+    },
+  },
   underlay: {
     imageId: 'img',
     name: 'plan.png',
@@ -66,6 +75,7 @@ const plan: Plan = {
     opacity: 0.4,
     locked: true,
   },
+  importFrame: { worldName: 'Fixture', origin: { x: 120.5, y: 31, z: -40 }, yaw: 22.5 },
 };
 
 const withProp = (prop: Record<string, unknown>) => ({
@@ -83,15 +93,23 @@ describe('serialize', () => {
     expect(parsePlan({ version: 1, name: '  ', walls: {} }).name).toBe('Untitled');
   });
 
-  it('loads a version 2 file without roofs, and saves it as version 3', () => {
+  it('loads a version 2 file without roofs, and saves it as version 4', () => {
     const v2 = { ...JSON.parse(serializePlan(plan)), version: 2 };
     const loaded = parsePlan(v2);
-    expect(loaded.version).toBe(3);
+    expect(loaded.version).toBe(4);
     expect(loaded.roofs).toEqual({});
+    expect(loaded.rawPieces).toEqual({});
+    expect(loaded.importFrame).toBeNull();
     expect(loaded.walls).toEqual(plan.walls);
   });
 
-  it('loads a version 1 file with every elevation at 0, and saves it as version 3', () => {
+  it('loads a version 3 file with its roofs and without raw pieces', () => {
+    const loaded = parsePlan({ ...JSON.parse(serializePlan(plan)), version: 3 });
+    expect(loaded.roofs).toEqual(plan.roofs);
+    expect(loaded.rawPieces).toEqual({});
+  });
+
+  it('loads a version 1 file with every elevation at 0, and saves it as version 4', () => {
     const v1 = JSON.parse(serializePlan(plan));
     v1.version = 1;
     for (const kind of ['walls', 'floors', 'props', 'dimensions']) {
@@ -100,7 +118,7 @@ describe('serialize', () => {
       }
     }
     const loaded = parsePlan(v1);
-    expect(loaded.version).toBe(3);
+    expect(loaded.version).toBe(4);
     expect(loaded.walls.a?.elevation).toBe(0);
     expect(loaded.floors.f?.elevation).toBe(0);
     expect(loaded.props.p?.elevation).toBe(0);
@@ -119,7 +137,11 @@ describe('serialize', () => {
   it.each([
     null,
     [],
-    { version: 4, walls: {} },
+    { version: 5, walls: {} },
+    { version: 4, rawPieces: { w: { ...plan.rawPieces.w, elevation: 200 } } },
+    { version: 4, rawPieces: { w: { ...plan.rawPieces.w, position: { x: 0, y: 300, z: 0 } } } },
+    { version: 4, rawPieces: { w: { ...plan.rawPieces.w, rotation: { yaw: 0 } } } },
+    { version: 4, importFrame: { ...plan.importFrame, worldName: 7 } },
     { version: 3, roofs: { r: { ...plan.roofs.r, pitch: 30 } } },
     { version: 2, walls: { a: { ...plan.walls.a, elevation: 200 } } },
     { version: 2, props: { p: { ...plan.props.p, elevation: undefined } } },
@@ -159,8 +181,24 @@ describe('commands accept only what loads', () => {
     ['upgrades above the cap', { type: 'prop.patch', id: 'p', changes: { upgrades: 21 } }],
     ['an empty prefab', { type: 'prop.insert', prop: { ...bench, id: 'q', prefab: '' } }],
     ['an elevation out of range', { type: 'wall.patch', id: 'a', changes: { elevation: -20 } }],
+    [
+      'a piece far off its level',
+      { type: 'raw.patch', id: 'w', changes: { position: { x: 0, y: -300, z: 0 } } },
+    ],
+    [
+      'a piece without a prefab',
+      { type: 'raw.insert', piece: { ...plan.rawPieces.w!, id: 'v', prefab: '' } },
+    ],
   ])('refuses %s', (_case, cmd) => {
     expect(() => applyCommands(plan, [cmd])).toThrow();
+  });
+
+  it('normalises a raw piece yaw as parsing does', () => {
+    const w = plan.rawPieces.w!;
+    const turned = applyCommands(plan, [
+      { type: 'raw.patch', id: 'w', changes: { rotation: { ...w.rotation, yaw: -22.5 } } },
+    ]);
+    expect(turned.rawPieces.w?.rotation.yaw).toBe(337.5);
   });
 
   it('refuses an item past the cap', () => {

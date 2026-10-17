@@ -98,6 +98,21 @@ const propWarnings = (plan: Plan, lib: Library): PlanWarning[] =>
         ]
   );
 
+/** Raw pieces whose prefab isn't in the catalogue (a world of a newer game build). */
+const rawWarnings = (plan: Plan, lib: Library): PlanWarning[] =>
+  Object.values(plan.rawPieces).flatMap((piece): PlanWarning[] =>
+    lib.catalog.pieces.has(piece.prefab)
+      ? []
+      : [
+          {
+            source: { kind: 'raw', id: piece.id },
+            segment: null,
+            message: `Unknown piece ${piece.prefab}`,
+            level: 'warning',
+          },
+        ]
+  );
+
 export const derivePlan = (plan: Plan, lib: Library): Derived => {
   const walls = deriveWalls(plan, lib);
   const floors = deriveFloors(plan, lib);
@@ -107,13 +122,17 @@ export const derivePlan = (plan: Plan, lib: Library): Derived => {
   return {
     pieces,
     roofPieces: roofs.pieces,
-    bom: computeBom([...pieces, ...roofs.pieces, ...Object.values(plan.props)], lib.catalog),
+    bom: computeBom(
+      [...pieces, ...roofs.pieces, ...Object.values(plan.props), ...Object.values(plan.rawPieces)],
+      lib.catalog
+    ),
     warnings: [
       ...walls.warnings,
       ...rooms.warnings,
       ...floors.warnings,
       ...roofs.warnings,
       ...propWarnings(plan, lib),
+      ...rawWarnings(plan, lib),
     ],
     rooms: rooms.rooms,
     buildings: rooms.buildings,

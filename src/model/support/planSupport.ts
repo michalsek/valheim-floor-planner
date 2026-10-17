@@ -37,8 +37,12 @@ export interface PlanSupport {
   collapsing: CollapseLine[];
 }
 
-/** Walls, floors, roofs, stairs and poles carry weight; doors, furniture and stations don't. */
+/**
+ * Walls, floors, roofs, stairs and poles carry weight; doors, furniture and stations
+ * don't. Imported raw pieces all do, unchecked (see `SupportBody.fixed`).
+ */
 const gives = (box: PieceBox): boolean =>
+  box.kind === 'raw' ||
   box.kind === 'wall' ||
   box.kind === 'floor' ||
   box.kind === 'roof' ||
@@ -53,6 +57,7 @@ const bodyOf = (
   bottom: shape.aabb.min.y,
   material: (box.material !== null && materials[box.material]) || null,
   gives: gives(box),
+  fixed: box.kind === 'raw',
 });
 
 /**

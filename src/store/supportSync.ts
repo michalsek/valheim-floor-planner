@@ -35,6 +35,7 @@ const whenIdle = (run: () => void): (() => void) => {
   return () => clearTimeout(handle);
 };
 
+/** Raw pieces hold up what rests on them but aren't checked themselves (an info note says so). */
 export const computeSupport = (plan: Plan): PlanSupport =>
   planSupport(
     getPieceBoxes(plan),

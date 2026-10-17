@@ -60,10 +60,11 @@ export interface PropDef {
   /** Its material (support and colour); null when the game data has none. */
   material: string | null;
   /**
-   * Stairs and ladders: how high one piece climbs and how far, along local −z (from its
+   * Stairs and ladders: how high one piece climbs and how far, and which way along local
+   * z (`towards`: +1 or −1; +1 in planner space, which mirrors the game's −z; from its
    * snap points). Null for other props.
    */
-  flight: { rise: number; run: number } | null;
+  flight: { rise: number; run: number; towards: 1 | -1 } | null;
   /**
    * Poles, beams, pillars, stairs and ladders snap the game's way, by their snap points:
    * `anchor` (one of them, on the plan) goes on a grid point, so a pole's axis lands on a
@@ -175,6 +176,15 @@ const snapOf = (piece: PieceDef, group: PropGroup): PropSnap | null => {
   return anchor ? { anchor, centre } : null;
 };
 
+/** A stair's climb from its snap points: up by their height, along z to their top end. */
+const flightOf = (piece: PieceDef): NonNullable<PropDef['flight']> => {
+  const ys = piece.snapPoints.map((p) => p[1]);
+  const top = piece.snapPoints.find((p) => p[1] === Math.max(...ys));
+  const bottom = piece.snapPoints.find((p) => p[1] === Math.min(...ys));
+  const towards = top && bottom && top[2] < bottom[2] ? -1 : 1;
+  return { rise: snapExtent(piece, 'y'), run: snapExtent(piece, 'z'), towards };
+};
+
 const rectOf = (piece: PieceDef): LocalRect | null => {
   if (!piece.colliderBounds) return null;
   const [min, max] = piece.colliderBounds;
@@ -200,8 +210,7 @@ export const buildPropDefs = (catalog: Catalog): PropDef[] =>
         comfort: piece.comfort,
         material: piece.material,
         snap: snapOf(piece, group),
-        flight:
-          group === 'stairs' ? { rise: snapExtent(piece, 'y'), run: snapExtent(piece, 'z') } : null,
+        flight: group === 'stairs' ? flightOf(piece) : null,
         search: normalizeSearch(`${piece.name} ${piece.namePl} ${piece.prefab}`),
       },
     ];

@@ -3,7 +3,12 @@
  * `research/valheim-pieces.json` (the install parser's output, or that fixture in
  * tests). The data is treated as `unknown` and its shape validated.
  *
- * Axes are Unity local space in metres: x = length, y = height, z = thickness.
+ * Axes are the prefab's local space in metres (x = length, y = height, z = thickness),
+ * **mirrored in z**: the game's Unity space is left-handed and the planner's (three.js)
+ * right-handed, so every piece is mirrored as it is parsed (`mirrorPiece`), the models
+ * as they load (`scene/view3d/assets/mirrorGeometry.ts`) and world imports as they read
+ * positions. The planner then shows the game as it is, not its mirror image. The raw
+ * data (the extractor's output, `research/*.json`) stays in Unity space.
  */
 import { asArray, asNullable, asNumber, asNumbers, asRecord, asString, fail } from './parse';
 
@@ -59,7 +64,7 @@ export const parseCatalog = (raw: unknown): Catalog => {
   asArray(root.pieces, '$.pieces').forEach((item, i) => {
     const piece = parsePiece(item, `$.pieces[${i}]`);
     if (pieces.has(piece.prefab)) fail(`$.pieces[${i}].prefab`, `a unique prefab`);
-    pieces.set(piece.prefab, piece);
+    pieces.set(piece.prefab, mirrorPiece(piece));
   });
 
   return {
@@ -71,6 +76,24 @@ export const parseCatalog = (raw: unknown): Catalog => {
       parseBuildRange
     ),
     wardRadius: asNumber(meta.wardRadius_m, '$.meta.wardRadius_m'),
+  };
+};
+
+const flipZ = ([x, y, z]: V3): V3 => [x, y, -z + 0];
+
+/**
+ * A piece in planner space: its local z negated, so snap points flip and the collider's
+ * z range swaps ends (see the header).
+ */
+export const mirrorPiece = (piece: PieceDef): PieceDef => {
+  const bounds = piece.colliderBounds;
+  return {
+    ...piece,
+    snapPoints: piece.snapPoints.map(flipZ),
+    colliderBounds: bounds && [
+      [bounds[0][0], bounds[0][1], -bounds[1][2] + 0],
+      [bounds[1][0], bounds[1][1], -bounds[0][2] + 0],
+    ],
   };
 };
 

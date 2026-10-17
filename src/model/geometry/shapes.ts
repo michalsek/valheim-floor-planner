@@ -3,17 +3,18 @@
  * axis), before the box's size, turn and position. The single source for the 3D view's
  * geometry and for picking (`ray.ts`) and screen selection. Pure.
  *
- * Local frame: x along the piece (a roof's eave), y up, z across it (down a roof's
- * slope). Roof surfaces are thin shells under their top surface.
+ * Local frame: x along the piece (a roof's eave), y up, z across it (up a roof's slope:
+ * the planner mirrors the game's local z, see `catalog/pieceDefs.ts`). Roof surfaces are
+ * thin shells under their top surface.
  */
 
 export type PieceShape =
   | 'box'
   /** A ridge row: two slopes meeting along x at the top. */
   | 'ridge'
-  /** A hip (outer) corner: high at local (−x, −z), low on the other three corners. */
+  /** A hip (outer) corner: high at local (−x, +z), low on the other three corners. */
   | 'hipCorner'
-  /** A valley (inner) corner: low at local (+x, +z), high on the other three corners. */
+  /** A valley (inner) corner: low at local (+x, −z), high on the other three corners. */
   | 'valleyCorner'
   /** A gable's right triangle wall: rising towards +x. */
   | 'triangle'
@@ -76,7 +77,14 @@ const box = (): Tri[] =>
     [-H, H],
   ]);
 
-// Corners of a cell's top: high (y = +H) or low (y = −H).
+/** Triangles mirrored in z (the game's pieces in planner space), still facing out. */
+const mirrorZ = (tris: readonly Tri[]): Tri[] => {
+  const m = ([x, y, z]: V): V => [x, y, -z + 0];
+  return tris.map(([a, b, c]): Tri => [m(a), m(c), m(b)]);
+};
+
+// Corners of a cell's top as the game's pieces have them (high at y = +H, low at −H);
+// the corner shapes are then mirrored into planner space.
 const corner = (x: number, z: number, high: boolean): V => [x, high ? H : -H, z];
 
 const hipA = corner(-H, -H, true);
@@ -100,19 +108,23 @@ const SHAPES: Record<PieceShape, Tri[]> = {
     ],
     SHELL_RIDGE
   ),
-  hipCorner: shell(
-    [
-      [hipA, hipC, hipB],
-      [hipA, hipD, hipC],
-    ],
-    SHELL_CORNER
+  hipCorner: mirrorZ(
+    shell(
+      [
+        [hipA, hipC, hipB],
+        [hipA, hipD, hipC],
+      ],
+      SHELL_CORNER
+    )
   ),
-  valleyCorner: shell(
-    [
-      [valleyA, valleyC, valleyB],
-      [valleyA, valleyD, valleyC],
-    ],
-    SHELL_CORNER
+  valleyCorner: mirrorZ(
+    shell(
+      [
+        [valleyA, valleyC, valleyB],
+        [valleyA, valleyD, valleyC],
+      ],
+      SHELL_CORNER
+    )
   ),
   triangle: prism([
     [-H, -H],

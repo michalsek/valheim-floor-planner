@@ -29,6 +29,7 @@ const TOL = 0.1;
 const opts = {
   families: testLibrary.wallFamilies,
   propDefs: testLibrary.propDefs,
+  rawLib: testLibrary,
   openings: [],
   handlesFor: null,
   handleTol: 0.2,

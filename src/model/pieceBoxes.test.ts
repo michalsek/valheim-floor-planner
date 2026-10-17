@@ -68,8 +68,9 @@ describe('pieceBoxes', () => {
         },
       },
     });
-    // The collider spans z −1.6…1.835 (centre 0.1175); turned 90° clockwise, that is −x.
-    expect(bed?.center.x).toBeCloseTo(10 - 0.1175);
+    // The game's collider spans z −1.6…1.835, so the planner's (mirrored) spans
+    // −1.835…1.6 (centre −0.1175); turned 90° clockwise, local +z is −x.
+    expect(bed?.center.x).toBeCloseTo(10 + 0.1175);
     expect(bed?.center.z).toBeCloseTo(5);
     // Its collider dips 0.045 below the pivot; props stand on the datum.
     expect(bed?.center.y).toBeCloseTo(1.455 / 2);

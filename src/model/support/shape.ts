@@ -184,13 +184,17 @@ const orientedOf = (shape: SupportShape): Obb3 | undefined => {
   return obb;
 };
 
-/** A tilted box (a roof slab): it tests every other box by the general separating axes. */
+/**
+ * A tilted or rolled box (a roof slab, a diagonal beam): it tests every other box by the
+ * general separating axes.
+ */
 const tiltedShape = (box: OrientedBox): SupportShape => {
   const obb = obb3Of({
     center: box.center,
     size: box.size,
     rotationY: box.rotationY,
     tiltX: box.tiltX,
+    rollZ: box.rollZ,
   });
   const shape: SupportShape = {
     aabb: cornersAabb(boxCorners(obb.box)),
@@ -209,9 +213,9 @@ const boxes = new WeakMap<SupportShape, Obb>();
 
 /** A piece's or prop's box as a support shape; its centre is its centre of mass. */
 export const boxShape = (
-  box: Pick<PieceBox, 'center' | 'size' | 'rotationY' | 'tiltX'>
+  box: Pick<PieceBox, 'center' | 'size' | 'rotationY' | 'tiltX' | 'rollZ'>
 ): SupportShape => {
-  if (box.tiltX) return tiltedShape(box);
+  if (box.tiltX || box.rollZ) return tiltedShape(box);
   const c = Math.cos(box.rotationY);
   const s = Math.sin(box.rotationY);
   const obb: Obb = {

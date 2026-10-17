@@ -15,11 +15,17 @@ import { roundElevation } from './elevation';
 import { besideOpening, openingsOf, slideOpenings } from './openings';
 import { roofGeometry } from './roofs/roofGeometry';
 import { MAX_PROPS } from './props';
+import { convexBoxTest } from './geometry/convex';
+import { rawOutline } from './rawBoxes';
+import { MAX_RAW_PIECES } from './rawPieces';
 import { isSelected, type Selection, type SelectionKind } from './selection';
 import type { OpeningId, Plan, Vec2, WallId } from './types';
 
 /** The catalogue data item kinds read. */
-export type KindLib = Pick<Library, 'wallFamilies' | 'openingDefs' | 'propDefs'>;
+export type KindLib = Pick<
+  Library,
+  'wallFamilies' | 'openingDefs' | 'propDefs' | 'catalog' | 'roofFamilies' | 'gableWallSets'
+>;
 
 /** What an edit spans: the catalogue, and every item it acts on together. */
 export interface EditScope {
@@ -29,7 +35,7 @@ export interface EditScope {
 }
 
 /** The plan records holding objects that carry their own elevation. */
-export type LevelledRecord = 'walls' | 'floors' | 'props' | 'dimensions' | 'roofs';
+export type LevelledRecord = 'walls' | 'floors' | 'props' | 'dimensions' | 'roofs' | 'rawPieces';
 
 export interface ItemKind {
   /** How one item is named in history labels ("Move wall"). */
@@ -116,6 +122,11 @@ const roofLines = (plan: Plan, id: string): Polyline[] => {
     { points: roofGeometry(roof).frame.ring, closed: true },
     { points: roof.outline, closed: true },
   ];
+};
+
+const rawLines = (plan: Plan, id: string, lib: KindLib): Polyline[] => {
+  const piece = plan.rawPieces[id];
+  return piece ? [{ points: rawOutline(piece, lib), closed: true }] : [];
 };
 
 /** Key order is `allItems`' order. */
@@ -310,6 +321,36 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
       if (!roof) return [];
       const outline = shift(roof.outline, wholeMetres(d));
       return [{ type: 'roof.insert', roof: { ...roof, id: copy.id, outline } }];
+    },
+  },
+  raw: {
+    noun: 'piece',
+    collection: (plan) => plan.rawPieces,
+    levelled: 'rawPieces',
+    elevation: (plan, id) => plan.rawPieces[id]?.elevation ?? null,
+    raise: (plan, id, dy) => {
+      const changes = raised(plan.rawPieces[id], dy);
+      return changes ? [{ type: 'raw.patch', id, changes }] : [];
+    },
+    lines: rawLines,
+    highlight: rawLines,
+    inBox: (plan, id, box, mode, lib) => {
+      const piece = plan.rawPieces[id];
+      return piece !== undefined && convexBoxTest(rawOutline(piece, lib), box, mode);
+    },
+    translate: (plan, id, d) => {
+      const piece = plan.rawPieces[id];
+      if (!piece) return [];
+      const { x, y, z } = piece.position;
+      return [{ type: 'raw.patch', id, changes: { position: { x: x + d.x, y, z: z + d.z } } }];
+    },
+    remove: (_plan, id) => [{ type: 'raw.remove', id }],
+    duplicate: (plan, id, copy, d) => {
+      const piece = plan.rawPieces[id];
+      if (!piece || Object.keys(plan.rawPieces).length >= MAX_RAW_PIECES) return [];
+      const { x, y, z } = piece.position;
+      const position = { x: x + d.x, y, z: z + d.z };
+      return [{ type: 'raw.insert', piece: { ...piece, id: copy.id, position } }];
     },
   },
 };

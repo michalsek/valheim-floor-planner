@@ -2,6 +2,7 @@ import { useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo } from 'react';
 import {
   Box3,
+  Euler,
   Matrix4,
   Quaternion,
   Sphere,
@@ -43,12 +44,15 @@ const writeMatrices = (mesh: Mesh, boxes: readonly PieceBox[]) => {
   const matrix = new Matrix4();
   const position = new Vector3();
   const turn = new Quaternion();
+  const euler = new Euler(0, 0, 0, 'YXZ');
   const own = modelSphere(mesh);
   const centres = new Box3();
   const centre = new Vector3();
   boxes.forEach((box, i) => {
     position.set(box.pivot.x, box.pivot.y, box.pivot.z);
-    turn.setFromAxisAngle(UP, box.rotationY);
+    if (box.modelTurn)
+      turn.setFromEuler(euler.set(box.modelTurn.x, box.modelTurn.y, box.modelTurn.z));
+    else turn.setFromAxisAngle(UP, box.rotationY);
     matrix.compose(position, turn, ONE).toArray(buffer.array, i * 16);
     centres.expandByPoint(centre.copy(own.center).applyMatrix4(matrix));
   });

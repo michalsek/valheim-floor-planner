@@ -1,7 +1,7 @@
 /**
  * What is under a point, and what lies in a box, for selection.
- * `hitTest` tries tiers in order (vertex handle, dimension, opening, small prop, wall,
- * roof lines, large prop, floor) and the nearest (or smallest) object within the first tier that
+ * `hitTest` tries tiers in order (vertex handle, dimension, opening, small prop, raw
+ * piece, wall, roof lines, large prop, floor) and the nearest (or smallest) object within the first tier that
  * has one wins. Large props (ships, kilns) come after walls, so walls inside them stay
  * clickable.
  */
@@ -23,6 +23,9 @@ import { pointInProp } from './geometry/propGeometry';
 import { ITEM_KINDS, type KindLib } from './itemKinds';
 import type { ResolvedOpening } from './openings';
 import { propArea, propsInDrawOrder } from './props';
+import { pointInConvex } from './geometry/convex';
+import { rawOutline, rawOutlineArea } from './rawBoxes';
+import type { RawShapeLib } from './rawShapes';
 import { roofCreaseLines, roofGeometry } from './roofs/roofGeometry';
 import { allItems, isSelected, type Selection, type SelectionItem } from './selection';
 import type {
@@ -32,6 +35,7 @@ import type {
   OpeningId,
   Plan,
   PropId,
+  RawPieceId,
   RoofId,
   Vec2,
   WallId,
@@ -46,11 +50,14 @@ export type Hit =
   | { kind: 'wall'; id: WallId; segment: number; distance: number }
   | { kind: 'floor'; id: FloorId; area: number }
   | { kind: 'prop'; id: PropId; area: number }
-  | { kind: 'roof'; id: RoofId; distance: number };
+  | { kind: 'roof'; id: RoofId; distance: number }
+  | { kind: 'raw'; id: RawPieceId; area: number };
 
 export interface HitOptions {
   families: ReadonlyMap<string, WallFamily>;
   propDefs: ReadonlyMap<string, PropDef>;
+  /** Raw pieces' shapes. */
+  rawLib: RawShapeLib;
   /** The plan's openings, as derived. */
   openings: readonly ResolvedOpening[];
   /** The wall whose vertices are drag handles (the single selected wall), if any. */
@@ -257,11 +264,29 @@ const propTier =
     return best?.hit ?? null;
   };
 
+/**
+ * The raw piece under `p`: the smallest footprint; of equal ones (a stack of wall
+ * courses), the highest, which is the one seen from above.
+ */
+const rawTier: Tier = (plan, p, tol, { rawLib }) => {
+  let best: { hit: Hit; area: number; top: number } | null = null;
+  for (const piece of Object.values(plan.rawPieces)) {
+    if (!pointInConvex(p, rawOutline(piece, rawLib), tol)) continue;
+    const area = rawOutlineArea(piece, rawLib);
+    const top = piece.elevation + piece.position.y;
+    if (!best || area < best.area - 1e-9 || (area < best.area + 1e-9 && top > best.top)) {
+      best = { hit: { kind: 'raw', id: piece.id, area }, area, top };
+    }
+  }
+  return best?.hit ?? null;
+};
+
 const TIERS: readonly Tier[] = [
   vertexTier,
   dimensionTier,
   openingTier,
   propTier((area) => area <= SMALL_PROP_AREA),
+  rawTier,
   wallTier,
   roofTier,
   propTier((area) => area > SMALL_PROP_AREA),

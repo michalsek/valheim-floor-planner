@@ -4,7 +4,7 @@
  * member to `SelectionItem` and an entry there.
  */
 import { ITEM_KINDS, SELECTION_KINDS } from './itemKinds';
-import type { DimId, FloorId, OpeningId, Plan, PropId, RoofId, WallId } from './types';
+import type { DimId, FloorId, OpeningId, Plan, PropId, RawPieceId, RoofId, WallId } from './types';
 
 export type SelectionItem =
   | { kind: 'wall'; id: WallId }
@@ -12,7 +12,8 @@ export type SelectionItem =
   | { kind: 'floor'; id: FloorId }
   | { kind: 'dimension'; id: DimId }
   | { kind: 'prop'; id: PropId }
-  | { kind: 'roof'; id: RoofId };
+  | { kind: 'roof'; id: RoofId }
+  | { kind: 'raw'; id: RawPieceId };
 
 export type SelectionKind = SelectionItem['kind'];
 

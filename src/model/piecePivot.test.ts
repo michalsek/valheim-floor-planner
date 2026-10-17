@@ -39,7 +39,7 @@ describe('piecePivot', () => {
     expect(pieceAnchor(def('stave_gate'), { x: 2, y: 6, z: 0.12 })).toEqual({
       x: 0,
       y: 3,
-      z: expect.closeTo(-0.002, 3),
+      z: expect.closeTo(0.002, 3),
     });
     // The ashwood door hinges at its pivot; its height (3 m) comes from the collider.
     const door = pieceAnchor(def('ashwood_door'), { x: 2, y: 3, z: 0.12 });

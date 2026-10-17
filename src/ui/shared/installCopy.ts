@@ -22,6 +22,7 @@ export const ERROR_MESSAGES: Readonly<Record<GameDataErrorCode, string>> = {
   moved: 'The folder was moved or deleted. Choose it again.',
   workerFailed:
     "The parser couldn't start in this browser (it runs in a module Web Worker). Reload the page and try again, or use a current Chrome, Edge, Firefox or Safari.",
+  notWorld: "This folder isn't a Valheim world.",
 };
 
 /** Shown after the folder picker closed without a folder. */

@@ -1,6 +1,6 @@
 /**
  * Levels, derived from the plan rather than stored: a level is a distinct elevation of
- * its walls, floors, props, dimensions and roofs (`LEVELLED_KINDS`; openings stand on
+ * its walls, floors, props, dimensions, roofs and raw pieces (`LEVELLED_KINDS`; openings stand on
  * their wall's). Stairs and ladders connect levels rather than make them: each piece of a
  * flight belongs to the level the flight starts from. Pure.
  *
@@ -155,6 +155,7 @@ const filterPlan = (plan: Plan, cacheKey: string, keep: Keep, propsKey = cacheKe
     props: filterRecord(plan.props, key('props'), keep.props),
     dimensions: filterRecord(plan.dimensions, key('dimensions'), keep.dimensions),
     roofs: filterRecord(plan.roofs, key('roofs'), keep.roofs),
+    rawPieces: filterRecord(plan.rawPieces, key('rawPieces'), keep.rawPieces),
     openings:
       walls === plan.walls
         ? plan.openings
@@ -192,6 +193,7 @@ export const levelPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
         floors: on,
         dimensions: on,
         roofs: on,
+        rawPieces: on,
         props: (p) => sameLevel(index.levelOf(p.elevation, isConnector(p, lib)), level),
       },
       propsKey
@@ -221,6 +223,8 @@ export const ghostPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
         const level = index.levelOf(p.elevation, isConnector(p, lib));
         return ghost(level, p.elevation + span.bottom + span.height);
       },
+      // A raw piece reaches up to about its pivot.
+      rawPieces: (r) => ghost(r.elevation, r.elevation + r.position.y),
       dimensions: () => false,
       roofs: () => false,
     });

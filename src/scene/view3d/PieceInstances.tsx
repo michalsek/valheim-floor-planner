@@ -59,7 +59,7 @@ const writeMatrices = (mesh: InstancedMesh, boxes: readonly PieceBox[]) => {
   const scale = new Vector3();
   boxes.forEach((box, i) => {
     position.set(box.center.x, box.center.y, box.center.z);
-    turn.setFromEuler(euler.set(box.tiltX ?? 0, box.rotationY, 0, 'YXZ'));
+    turn.setFromEuler(euler.set(box.tiltX ?? 0, box.rotationY, box.rollZ ?? 0, 'YXZ'));
     scale.set(box.size.x, box.size.y, box.size.z);
     mesh.setMatrixAt(i, matrix.compose(position, turn, scale));
   });

@@ -10,6 +10,8 @@ pnpm dev            # http://localhost:5173  (append ?webgl to force the WebGL2 
 pnpm verify         # typecheck, lint, tests, build
 pnpm test:install   # parses the local Steam install and compares it with research/*.json
                     # (VALHEIM_DIR=/path/to/Valheim to point elsewhere)
+VALHEIM_WORLD_TEST=/path/to/world pnpm test:world
+                    # reads a real 1.0 world folder (golden numbers of the author's world)
 ```
 
 ## Tools
@@ -59,6 +61,14 @@ Press 3 (or use 2D / 3D in the status strip) to see the plan in 3D: walls by cou
 - The wheel zooms towards the cursor; + and − move the camera in and out.
 - Home or Shift+1 fits the plan; 0 resets the view direction.
 - Boxes / Models in the status strip swaps the boxes for the game's own meshes and textures, read from your install the first time each piece is shown ("Loading models 12/20"). Selection, hover, support colours and the level fading tint them; picking still uses the boxes. If the models need the game files and the browser no longer has them (an install opened by dragging the folder in, or the saved catalogue), the strip says "Drop your Valheim folder here to load models": drop it on the view and they load without a reload. With a remembered folder, "Reconnect folder" asks for access again. Pieces without a model stay boxes; door and gate models are drawn solid.
+
+## Importing from a world save
+
+World… in the status strip finds your builds in a Valheim world save and imports one as a new plan. Drop a world's folder (`_main.N.fwl2`, `.chunks` and `.chunk` files), a whole `worlds_local` / `worlds` folder, or an old `.db` onto the panel; on macOS they are in `~/Library/Application Support/IronGate/Valheim/worlds_local/` (Steam Cloud: `~/Library/Application Support/Steam/userdata/<id>/892970/remote/worlds/`), which Chrome's folder dialog refuses, so drag them from Finder. The save is read in a Web Worker and never changed or uploaded; only the built pieces (prefab, position, rotation) are kept, in this browser, until Forget. Player IDs and the world's player list are never read.
+
+The panel shows the builds on a map (north up, as in the game) with their size, material and grid direction; builds under 5 pieces are hidden (adjustable). Import turns the build onto its own grid, puts its corner at the origin and its lowest piece at 0, and gives each piece the level of the floor it stands on (roof pieces and gable walls share a roof level). The pieces come in as raw pieces: drawn as their outline from above (roofs outlined only) in 2D and as boxes (roof pieces as M12's roof shapes) or the game models in 3D, counted in the bill of materials, and movable, turnable (R) and deletable, but not reshaped into walls or floors yet. Support isn't checked for them; they hold up what you build on them. A world folder dropped anywhere on the planner opens the World panel with it.
+
+The planner shows the game the right way round: north (+z in the game) is up in 2D, and a build looks in the planner as it does in the game. (Before M13's fix round it showed a mirror image.) Plans saved earlier keep their positions; symmetric pieces look the same, while asymmetric ones (stairs, beds, stations, door models) show as their mirror, so turn them if they matter. Plans imported from a world before then should be imported again.
 
 ## Docs
 

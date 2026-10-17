@@ -23,11 +23,11 @@ export const flightCount = (flight: Flight, rise: number): number =>
 
 /**
  * The pieces of a flight from `start` (the first piece) climbing `rise`. Stairs climb
- * towards their local −z, so piece i is i rises up and i runs along that, turned with
- * the piece.
+ * along their local z (`flight.towards`), so piece i is i rises up and i runs along
+ * that, turned with the piece.
  */
 export const flightSteps = (flight: Flight, start: FlightStep, rise: number): FlightStep[] => {
-  const up: Vec2 = rotate({ x: 0, z: -1 }, start.rotation);
+  const up: Vec2 = rotate({ x: 0, z: flight.towards }, start.rotation);
   return Array.from({ length: flightCount(flight, rise) }, (_, i) => ({
     position: {
       x: start.position.x + up.x * flight.run * i,

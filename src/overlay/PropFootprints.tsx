@@ -25,22 +25,34 @@ interface PropFootprintProps {
 /** Treads drawn across a stair's footprint. */
 const TREADS = 4;
 
-/** Stairs and ladders: treads across the footprint and an arrow up the flight (local −z). */
-const StairGlyph = ({ prop, rect }: { prop: PropFootprintProps['prop']; rect: LocalRect }) => {
+/** Stairs and ladders: treads across the footprint and an arrow up the flight. */
+const StairGlyph = ({
+  prop,
+  rect,
+  towards,
+}: {
+  prop: PropFootprintProps['prop'];
+  rect: LocalRect;
+  towards: 1 | -1;
+}) => {
   const at = (x: number, z: number): Vec2 => {
     const p = rotate({ x, z }, prop.rotation);
     return { x: prop.position.x + p.x, z: prop.position.z + p.z };
   };
   const run = rect.maxZ - rect.minZ;
   const cx = (rect.minX + rect.maxX) / 2;
+  // Local z from the foot (0) of the flight to its top (run).
+  const foot = towards > 0 ? rect.minZ : rect.maxZ;
+  const along = (t: number) => foot + towards * t;
   const treads = Array.from({ length: TREADS }, (_, i) => {
-    const z = rect.maxZ - ((i + 1) * run) / (TREADS + 1);
+    const z = along(((i + 1) * run) / (TREADS + 1));
     return [at(rect.minX, z), at(rect.maxX, z)];
   });
   const head = Math.min(run, rect.maxX - rect.minX) * 0.2;
-  const tip = rect.minZ + run * 0.12;
-  const arrow = [at(cx, rect.maxZ - run * 0.12), at(cx, tip)];
-  const barbs = [at(cx - head, tip + head), at(cx, tip), at(cx + head, tip + head)];
+  const tip = along(run * 0.88);
+  const back = along(run * 0.88 - head);
+  const arrow = [at(cx, along(run * 0.12)), at(cx, tip)];
+  const barbs = [at(cx - head, back), at(cx, tip), at(cx + head, back)];
   return (
     <g className={styles.stairGlyph}>
       {[...treads, arrow, barbs].map((points, i) => (
@@ -69,7 +81,7 @@ export const PropFootprint = ({ prop, className, color: override }: PropFootprin
         style={{ fill: color, stroke: color }}
         vectorEffect="non-scaling-stroke"
       />
-      {def?.flight && <StairGlyph prop={prop} rect={rect} />}
+      {def?.flight && <StairGlyph prop={prop} rect={rect} towards={def.flight.towards} />}
     </>
   );
 };
