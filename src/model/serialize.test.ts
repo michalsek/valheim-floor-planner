@@ -6,7 +6,7 @@ import { parsePlan, serializePlan } from './serialize';
 import { emptyPlan, type Plan } from './types';
 
 const plan: Plan = {
-  version: 2,
+  version: 3,
   name: 'Longhouse',
   walls: {
     a: {
@@ -37,6 +37,26 @@ const plan: Plan = {
       elevation: -0.5,
     },
   },
+  roofs: {
+    r: {
+      id: 'r',
+      elevation: 2,
+      base: 2,
+      outline: [
+        { x: 0, z: 0 },
+        { x: 4, z: 0 },
+        { x: 4, z: 2 },
+        { x: 0, z: 2 },
+      ],
+      familyId: 'thatch',
+      pitch: 26,
+      kind: 'gable',
+      ridgeAxis: 'x',
+      lowSide: '-z',
+      overhang: { eave: 1, gable: 1 },
+      gableWalls: 'wood',
+    },
+  },
   underlay: {
     imageId: 'img',
     name: 'plan.png',
@@ -63,7 +83,15 @@ describe('serialize', () => {
     expect(parsePlan({ version: 1, name: '  ', walls: {} }).name).toBe('Untitled');
   });
 
-  it('loads a version 1 file with every elevation at 0, and saves it as version 2', () => {
+  it('loads a version 2 file without roofs, and saves it as version 3', () => {
+    const v2 = { ...JSON.parse(serializePlan(plan)), version: 2 };
+    const loaded = parsePlan(v2);
+    expect(loaded.version).toBe(3);
+    expect(loaded.roofs).toEqual({});
+    expect(loaded.walls).toEqual(plan.walls);
+  });
+
+  it('loads a version 1 file with every elevation at 0, and saves it as version 3', () => {
     const v1 = JSON.parse(serializePlan(plan));
     v1.version = 1;
     for (const kind of ['walls', 'floors', 'props', 'dimensions']) {
@@ -72,7 +100,7 @@ describe('serialize', () => {
       }
     }
     const loaded = parsePlan(v1);
-    expect(loaded.version).toBe(2);
+    expect(loaded.version).toBe(3);
     expect(loaded.walls.a?.elevation).toBe(0);
     expect(loaded.floors.f?.elevation).toBe(0);
     expect(loaded.props.p?.elevation).toBe(0);
@@ -91,7 +119,8 @@ describe('serialize', () => {
   it.each([
     null,
     [],
-    { version: 3, walls: {} },
+    { version: 4, walls: {} },
+    { version: 3, roofs: { r: { ...plan.roofs.r, pitch: 30 } } },
     { version: 2, walls: { a: { ...plan.walls.a, elevation: 200 } } },
     { version: 2, props: { p: { ...plan.props.p, elevation: undefined } } },
     { version: 1, walls: { a: { id: 'a' } } },

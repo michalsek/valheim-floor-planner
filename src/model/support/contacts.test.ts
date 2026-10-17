@@ -39,4 +39,20 @@ describe('findContacts', () => {
     const [inside] = findContacts([box(0, 0, 0.2, 0.2), box(0, 0, 4, 4)]);
     expect(inside?.point).toEqual({ x: 0, y: 1, z: 0 });
   });
+
+  it('rests a tilted roof slab on a wall top edge, and not across a 0.2 m gap', () => {
+    // A 26° slab (0.12 thick) whose underside passes through the top edge of a wall at
+    // x = 0, y = 2; the wall's top is 0.3 wide.
+    const slope = Math.atan(0.5);
+    const slab = (lift: number) =>
+      boxShape({
+        center: { x: 0, y: 2 + lift + 0.06 / Math.cos(slope), z: 0 },
+        size: { x: 2, y: 0.12, z: Math.hypot(2, 1) },
+        rotationY: -Math.PI / 2,
+        tiltX: slope,
+      });
+    const wall = box(0, 0, 0.3, 2);
+    expect(pairs([wall, slab(0)])).toHaveLength(2);
+    expect(pairs([wall, slab(0.2)])).toEqual([]);
+  });
 });

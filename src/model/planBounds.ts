@@ -3,10 +3,14 @@ import { propRect } from '../catalog/propDefs';
 
 import type { WorldBox } from './geometry/box';
 import { propCorners } from './geometry/propGeometry';
+import { roofGeometry } from './roofs/roofGeometry';
 import type { Plan, Vec2 } from './types';
 import { underlayRect } from './underlay';
 
-/** The box around everything in the plan (underlay included); null for an empty plan. */
+/**
+ * The box around everything in the plan (roofs' eaves and the underlay included); null
+ * for an empty plan.
+ */
 export const planBounds = (plan: Plan, lib: Pick<Library, 'propDefs'>): WorldBox | null => {
   const underlay = plan.underlay && underlayRect(plan.underlay);
   const points: Vec2[] = [
@@ -16,6 +20,7 @@ export const planBounds = (plan: Plan, lib: Pick<Library, 'propDefs'>): WorldBox
     ...Object.values(plan.props).flatMap((p) =>
       propCorners(p.position, p.rotation, propRect(lib.propDefs, p.prefab))
     ),
+    ...Object.values(plan.roofs).flatMap((r) => roofGeometry(r).frame.ring),
     ...(underlay ? [underlay.min, underlay.max] : []),
   ];
   if (points.length === 0) return null;

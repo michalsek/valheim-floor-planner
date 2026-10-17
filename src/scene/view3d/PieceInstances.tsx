@@ -1,8 +1,11 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   BoxGeometry,
+  BufferGeometry,
   Color,
+  Euler,
+  Float32BufferAttribute,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
@@ -11,6 +14,7 @@ import {
   type Material,
 } from 'three/webgpu';
 
+import { SHAPE_TRIANGLES, type PieceShape } from '../../model/geometry/shapes';
 import type { PieceBox } from '../../model/pieceBoxes';
 
 import type { PieceColorer } from './pieceColors';
@@ -18,19 +22,29 @@ import type { PieceColorer } from './pieceColors';
 export interface PieceInstancesProps {
   boxes: readonly PieceBox[];
   colorOf: PieceColorer;
+  /** For boxes (it may darken their edges). */
   material: Material;
+  /** For the other shapes (roof corners, gable triangles); `material` without one. */
+  shapeMaterial?: Material | undefined;
   castShadow: boolean;
   /** Room for at least this many boxes (default: the next power of two of the count). */
   capacity?: number | undefined;
 }
 
-const UP = new Vector3(0, 1, 0);
-
 const nextPow2 = (n: number): number => 2 ** Math.ceil(Math.log2(Math.max(n, 1)));
 
-const createMesh = (material: Material, capacity: number): InstancedMesh => {
-  // Its own unit box: disposing the geometry is what frees the instance buffers.
-  const mesh = new InstancedMesh(new BoxGeometry(1, 1, 1), material, capacity);
+/** A shape's unit geometry: the unit box, or its triangles with flat normals. */
+const shapeGeometry = (shape: PieceShape): BufferGeometry => {
+  if (shape === 'box') return new BoxGeometry(1, 1, 1);
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(SHAPE_TRIANGLES[shape], 3));
+  geometry.computeVertexNormals();
+  return geometry;
+};
+
+const createMesh = (shape: PieceShape, material: Material, capacity: number): InstancedMesh => {
+  // Its own geometry: disposing it is what frees the instance buffers.
+  const mesh = new InstancedMesh(shapeGeometry(shape), material, capacity);
   // Before the first render: the node graph is built once, with or without colours.
   mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
   mesh.count = 0;
@@ -40,11 +54,12 @@ const createMesh = (material: Material, capacity: number): InstancedMesh => {
 const writeMatrices = (mesh: InstancedMesh, boxes: readonly PieceBox[]) => {
   const matrix = new Matrix4();
   const position = new Vector3();
+  const euler = new Euler(0, 0, 0, 'YXZ');
   const turn = new Quaternion();
   const scale = new Vector3();
   boxes.forEach((box, i) => {
     position.set(box.center.x, box.center.y, box.center.z);
-    turn.setFromAxisAngle(UP, box.rotationY);
+    turn.setFromEuler(euler.set(box.tiltX ?? 0, box.rotationY, 0, 'YXZ'));
     scale.set(box.size.x, box.size.y, box.size.z);
     mesh.setMatrixAt(i, matrix.compose(position, turn, scale));
   });
@@ -61,15 +76,18 @@ const writeColors = (mesh: InstancedMesh, boxes: readonly PieceBox[], colorOf: P
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 };
 
-const Instances = ({
-  capacity,
-  boxes,
-  colorOf,
-  material,
-  castShadow,
-}: PieceInstancesProps & { capacity: number }) => {
+interface InstancesProps {
+  shape: PieceShape;
+  capacity: number;
+  boxes: readonly PieceBox[];
+  colorOf: PieceColorer;
+  material: Material;
+  castShadow: boolean;
+}
+
+const Instances = ({ shape, capacity, boxes, colorOf, material, castShadow }: InstancesProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  const [mesh] = useState(() => createMesh(material, capacity));
+  const [mesh] = useState(() => createMesh(shape, material, capacity));
 
   useLayoutEffect(() => {
     writeMatrices(mesh, boxes);
@@ -95,11 +113,38 @@ const Instances = ({
 };
 
 /**
- * Boxes as one instanced mesh (one draw call), coloured per instance. Its capacity is
- * a power of two at least the count (and `capacity`); a change remounts the mesh with
- * new buffers.
+ * Boxes as instanced meshes, one per shape (one draw call each), coloured per instance
+ * and turned (and tilted) as each box is. A mesh's capacity is a power of two at least
+ * its count (and, for boxes, `capacity`); a change remounts it with new buffers.
  */
-export const PieceInstances = ({ capacity: min = 0, ...props }: PieceInstancesProps) => {
-  const capacity = nextPow2(Math.max(props.boxes.length, min));
-  return <Instances key={capacity} capacity={capacity} {...props} />;
+export const PieceInstances = ({
+  capacity: min = 0,
+  boxes,
+  material,
+  shapeMaterial,
+  ...props
+}: PieceInstancesProps) => {
+  const byShape = useMemo(() => {
+    const groups = new Map<PieceShape, PieceBox[]>([['box', []]]);
+    for (const box of boxes) {
+      const shape = box.shape ?? 'box';
+      let list = groups.get(shape);
+      if (!list) groups.set(shape, (list = []));
+      list.push(box);
+    }
+    return groups;
+  }, [boxes]);
+  return [...byShape].map(([shape, list]) => {
+    const capacity = nextPow2(Math.max(list.length, shape === 'box' ? min : 0));
+    return (
+      <Instances
+        key={`${shape}:${capacity}`}
+        shape={shape}
+        capacity={capacity}
+        boxes={list}
+        material={shape === 'box' ? material : (shapeMaterial ?? material)}
+        {...props}
+      />
+    );
+  });
 };

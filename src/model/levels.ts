@@ -1,7 +1,7 @@
 /**
  * Levels, derived from the plan rather than stored: a level is a distinct elevation of
- * its walls, floors, props and dimensions (`LEVELLED_KINDS`; openings stand on their
- * wall's). Stairs and ladders connect levels rather than make them: each piece of a
+ * its walls, floors, props, dimensions and roofs (`LEVELLED_KINDS`; openings stand on
+ * their wall's). Stairs and ladders connect levels rather than make them: each piece of a
  * flight belongs to the level the flight starts from. Pure.
  *
  * `levelPlan` is the plan as one level sees it. It shares the entity objects, and a
@@ -154,6 +154,7 @@ const filterPlan = (plan: Plan, cacheKey: string, keep: Keep, propsKey = cacheKe
     floors: filterRecord(plan.floors, key('floors'), keep.floors),
     props: filterRecord(plan.props, key('props'), keep.props),
     dimensions: filterRecord(plan.dimensions, key('dimensions'), keep.dimensions),
+    roofs: filterRecord(plan.roofs, key('roofs'), keep.roofs),
     openings:
       walls === plan.walls
         ? plan.openings
@@ -190,6 +191,7 @@ export const levelPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
         walls: on,
         floors: on,
         dimensions: on,
+        roofs: on,
         props: (p) => sameLevel(index.levelOf(p.elevation, isConnector(p, lib)), level),
       },
       propsKey
@@ -200,7 +202,7 @@ export const levelPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
 /**
  * What the level at `elevation` shows faintly from below: everything on the nearest
  * lower level, and anything lower whose top reaches within `GHOST_REACH` of it (a stilt,
- * a tall wall). Dimensions are left out.
+ * a tall wall). Dimensions and roofs are left out.
  */
 export const ghostPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
   const index = levelIndex(plan, lib);
@@ -220,6 +222,7 @@ export const ghostPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
         return ghost(level, p.elevation + span.bottom + span.height);
       },
       dimensions: () => false,
+      roofs: () => false,
     });
   });
 };

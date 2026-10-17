@@ -16,6 +16,7 @@ import { pickBoxes, pointOnRay } from '../model/geometry/ray';
 import { snapToGrid } from '../model/geometry/snap';
 import { hitItem, hitTest, itemsInBox, type Hit, type HitOptions } from '../model/hitTest';
 import { boxFromCorners } from '../model/geometry/box';
+import { boxCorners } from '../model/geometry/orient';
 import { ITEM_KINDS } from '../model/itemKinds';
 import { ghostPlan, levelPlan } from '../model/levels';
 import type { PieceBox } from '../model/pieceBoxes';
@@ -25,7 +26,12 @@ import { wallExtents } from '../model/wallGraph';
 import { getLibrary } from '../store/libraryInstance';
 import { getDerived, getPieceBoxes } from '../store/planHooks';
 import { selectionAtom } from '../store/selection';
-import { effectiveSnapStepAtom, projection3dAtom, workDatumAtom } from '../store/session';
+import {
+  effectiveSnapStepAtom,
+  projection3dAtom,
+  roofsVisibleAtom,
+  workDatumAtom,
+} from '../store/session';
 import { viewModeAtom } from '../store/view3d';
 import { project3d, screenRay, workPlanePoint, type Projection3d } from '../viewport/projection3d';
 import type { ScreenPoint } from '../viewport/viewportMath';
@@ -47,9 +53,24 @@ const projectionOf = (ctx: ToolContext): Projection3d | null =>
 export const dragThresholdPx = (ctx: ToolContext): number =>
   DRAG_THRESHOLD_PX[ctx.get(viewModeAtom)];
 
-/** The committed plan as the current level sees it: what tools pick and edit. */
-export const levelView = (ctx: ToolContext): Plan =>
-  levelPlan(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary());
+const roofless = new WeakMap<Plan, Plan>();
+
+/** The plan without its roofs (kept per plan, so its derived data is too). */
+const withoutRoofs = (plan: Plan): Plan => {
+  if (Object.keys(plan.roofs).length === 0) return plan;
+  let view = roofless.get(plan);
+  if (!view) roofless.set(plan, (view = { ...plan, roofs: {} }));
+  return view;
+};
+
+/**
+ * The committed plan as the current level sees it: what tools pick and edit. Hidden
+ * roofs aren't in it.
+ */
+export const levelView = (ctx: ToolContext): Plan => {
+  const view = levelPlan(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary());
+  return ctx.get(roofsVisibleAtom) ? view : withoutRoofs(view);
+};
 
 const hitOptions = (ctx: ToolContext, plan: Plan, handleTol: number): HitOptions => {
   const selection = ctx.get(selectionAtom);
@@ -201,7 +222,8 @@ export const pickWallPoint = (ctx: ToolContext, e: ToolPointerEvent): Vec2 => {
   return { x: onLine.x + normal.x * middle, z: onLine.z + normal.z * middle };
 };
 
-const boxTop = (box: PieceBox): number => box.center.y + box.size.y / 2;
+/** The height of a box's top (a tilted roof slab's highest corner). */
+const boxTop = (box: PieceBox): number => Math.max(...boxCorners(box).map((c) => c.y));
 
 /** The top of an item: its highest box, or (a dimension) its elevation. */
 const itemTop = (plan: Plan, item: SelectionItem): number | null => {
@@ -223,7 +245,8 @@ export const pickTop = (
 ): number | null => {
   const plan = ctx.plan.getPlan();
   if (projectionOf(ctx)) {
-    const surface = surfaceAt(ctx, screen, getPieceBoxes(plan));
+    const shown = ctx.get(roofsVisibleAtom) ? plan : withoutRoofs(plan);
+    const surface = surfaceAt(ctx, screen, getPieceBoxes(shown));
     return surface && boxTop(surface.box);
   }
   if (!world) return null;

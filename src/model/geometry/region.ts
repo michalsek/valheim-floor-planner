@@ -5,7 +5,7 @@
  */
 import type { Vec2 } from '../types';
 
-import { EPS } from './polyline';
+import { EPS, signedArea } from './polyline';
 import { simplifyRing, type Box, type Ring } from './rings';
 
 /** [x0, x1] with x0 < x1. */
@@ -190,3 +190,26 @@ export const regionRings = (region: Region): Ring[] => {
   });
   return rings;
 };
+
+/**
+ * An orthogonal ring grown by `d` on every side with square corners (its L∞ dilation):
+ * convex corners move out diagonally, re-entrant ones in, and a notch narrower than
+ * `2d` closes up. The outer ring of the result (holes are dropped).
+ */
+export const offsetOrthoRing = (ring: readonly Vec2[], d: number): Ring => {
+  if (d <= 0 || ring.length < 3) return [...ring];
+  const grown = ring.map((a, i): Rect => {
+    const b = ring[(i + 1) % ring.length]!;
+    return {
+      x0: Math.min(a.x, b.x) - d,
+      x1: Math.max(a.x, b.x) + d,
+      z0: Math.min(a.z, b.z) - d,
+      z1: Math.max(a.z, b.z) + d,
+    };
+  });
+  return largestRing(regionRings(union(regionFromRings([ring]), regionFromRects(grown))));
+};
+
+/** The ring of largest (clockwise, positive) area; an empty ring when there is none. */
+export const largestRing = (rings: readonly Ring[]): Ring =>
+  rings.reduce<Ring>((best, r) => (signedArea(r) > signedArea(best) ? r : best), []);

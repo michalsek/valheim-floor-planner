@@ -12,6 +12,7 @@ import { PinnedDimensions } from './overlay/PinnedDimensions';
 import { PropFootprints } from './overlay/PropFootprints';
 import { PropLabels } from './overlay/PropLabels';
 import { RadiusRings } from './overlay/RadiusRings';
+import { RoofLayer } from './overlay/RoofLayer';
 import { RoomLabels } from './overlay/RoomLabels';
 import { RoomOutlines } from './overlay/RoomOutlines';
 import { SelectionHighlight } from './overlay/SelectionHighlight';
@@ -45,6 +46,7 @@ const PlanOverlay = () => (
         <WallLines />
         <PropFootprints />
         <OpeningSymbols />
+        <RoofLayer />
         <SelectionHighlight />
         <ToolWorldPreview />
       </>

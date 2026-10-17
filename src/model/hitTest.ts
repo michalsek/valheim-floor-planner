@@ -1,7 +1,7 @@
 /**
  * What is under a point, and what lies in a box, for selection.
  * `hitTest` tries tiers in order (vertex handle, dimension, opening, small prop, wall,
- * large prop, floor) and the nearest (or smallest) object within the first tier that
+ * roof lines, large prop, floor) and the nearest (or smallest) object within the first tier that
  * has one wins. Large props (ships, kilns) come after walls, so walls inside them stay
  * clickable.
  */
@@ -23,6 +23,7 @@ import { pointInProp } from './geometry/propGeometry';
 import { ITEM_KINDS, type KindLib } from './itemKinds';
 import type { ResolvedOpening } from './openings';
 import { propArea, propsInDrawOrder } from './props';
+import { roofCreaseLines, roofGeometry } from './roofs/roofGeometry';
 import { allItems, isSelected, type Selection, type SelectionItem } from './selection';
 import type {
   Dimension,
@@ -31,6 +32,7 @@ import type {
   OpeningId,
   Plan,
   PropId,
+  RoofId,
   Vec2,
   WallId,
   WallRun,
@@ -43,7 +45,8 @@ export type Hit =
   | { kind: 'opening'; id: OpeningId; distance: number }
   | { kind: 'wall'; id: WallId; segment: number; distance: number }
   | { kind: 'floor'; id: FloorId; area: number }
-  | { kind: 'prop'; id: PropId; area: number };
+  | { kind: 'prop'; id: PropId; area: number }
+  | { kind: 'roof'; id: RoofId; distance: number };
 
 export interface HitOptions {
   families: ReadonlyMap<string, WallFamily>;
@@ -209,6 +212,28 @@ const floorTier: Tier = (plan, p) => {
   return best;
 };
 
+/** A roof's lines: its eave ring and its ridges, hips and valleys (clicks inside reach floors). */
+const roofTier: Tier = (plan, p, tol) => {
+  let best: Hit | null = null;
+  let bestDistance = tol;
+  for (const roof of Object.values(plan.roofs)) {
+    const geometry = roofGeometry(roof);
+    const ring = geometry.frame.ring;
+    const lines = [
+      ...ring.map((a, i) => ({ a, b: ring[(i + 1) % ring.length]! })),
+      ...roofCreaseLines(geometry),
+    ];
+    for (const { a, b } of lines) {
+      const distance = distanceToSegment(p, a, b);
+      if (distance <= bestDistance) {
+        best = { kind: 'roof', id: roof.id, distance };
+        bestDistance = distance;
+      }
+    }
+  }
+  return best;
+};
+
 /** Props of at most this footprint area (m²) are hit before walls; larger ones after. */
 const SMALL_PROP_AREA = 16;
 
@@ -238,6 +263,7 @@ const TIERS: readonly Tier[] = [
   openingTier,
   propTier((area) => area <= SMALL_PROP_AREA),
   wallTier,
+  roofTier,
   propTier((area) => area > SMALL_PROP_AREA),
   floorTier,
 ];

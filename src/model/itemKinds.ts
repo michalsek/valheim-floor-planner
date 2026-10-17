@@ -13,6 +13,7 @@ import { addVec } from './geometry/polyline';
 import { propBoxTest, propCorners } from './geometry/propGeometry';
 import { roundElevation } from './elevation';
 import { besideOpening, openingsOf, slideOpenings } from './openings';
+import { roofGeometry } from './roofs/roofGeometry';
 import { MAX_PROPS } from './props';
 import { isSelected, type Selection, type SelectionKind } from './selection';
 import type { OpeningId, Plan, Vec2, WallId } from './types';
@@ -28,7 +29,7 @@ export interface EditScope {
 }
 
 /** The plan records holding objects that carry their own elevation. */
-export type LevelledRecord = 'walls' | 'floors' | 'props' | 'dimensions';
+export type LevelledRecord = 'walls' | 'floors' | 'props' | 'dimensions' | 'roofs';
 
 export interface ItemKind {
   /** How one item is named in history labels ("Move wall"). */
@@ -68,6 +69,8 @@ export interface ItemKind {
 
 const shift = (points: readonly Vec2[], d: Vec2): Vec2[] => points.map((p) => addVec(p, d));
 
+const wholeMetres = (d: Vec2): Vec2 => ({ x: Math.round(d.x) + 0, z: Math.round(d.z) + 0 });
+
 const raised = (o: { elevation: number } | undefined, dy: number) =>
   o && { elevation: roundElevation(o.elevation + dy) };
 
@@ -103,6 +106,16 @@ const propOutline = (plan: Plan, id: string, lib: KindLib) => {
 const propLines = (plan: Plan, id: string, lib: KindLib): Polyline[] => {
   const corners = propOutline(plan, id, lib);
   return corners ? [{ points: corners, closed: true }] : [];
+};
+
+/** A roof's eave ring (where its pieces end) and its outline (the walls it rests on). */
+const roofLines = (plan: Plan, id: string): Polyline[] => {
+  const roof = plan.roofs[id];
+  if (!roof) return [];
+  return [
+    { points: roofGeometry(roof).frame.ring, closed: true },
+    { points: roof.outline, closed: true },
+  ];
 };
 
 /** Key order is `allItems`' order. */
@@ -270,6 +283,33 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
       return [
         { type: 'prop.insert', prop: { ...prop, id: copy.id, position: addVec(prop.position, d) } },
       ];
+    },
+  },
+  roof: {
+    noun: 'roof',
+    collection: (plan) => plan.roofs,
+    levelled: 'roofs',
+    elevation: (plan, id) => plan.roofs[id]?.elevation ?? null,
+    raise: (plan, id, dy) => {
+      const changes = raised(plan.roofs[id], dy);
+      return changes ? [{ type: 'roof.patch', id, changes }] : [];
+    },
+    // Box selection takes the eave ring alone.
+    lines: (plan, id) => roofLines(plan, id).slice(0, 1),
+    highlight: roofLines,
+    // Roofs stay on the 1 m grid.
+    translate: (plan, id, d) => {
+      const roof = plan.roofs[id];
+      const moved = wholeMetres(d);
+      if (!roof || (moved.x === 0 && moved.z === 0)) return [];
+      return [{ type: 'roof.patch', id, changes: { outline: shift(roof.outline, moved) } }];
+    },
+    remove: (_plan, id) => [{ type: 'roof.remove', id }],
+    duplicate: (plan, id, copy, d) => {
+      const roof = plan.roofs[id];
+      if (!roof) return [];
+      const outline = shift(roof.outline, wholeMetres(d));
+      return [{ type: 'roof.insert', roof: { ...roof, id: copy.id, outline } }];
     },
   },
 };

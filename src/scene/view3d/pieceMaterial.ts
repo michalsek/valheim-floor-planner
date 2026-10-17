@@ -1,5 +1,5 @@
 import { abs, fwidth, max, min, mix, positionGeometry, smoothstep, vec3 } from 'three/tsl';
-import { MeshLambertNodeMaterial } from 'three/webgpu';
+import { DoubleSide, MeshLambertNodeMaterial } from 'three/webgpu';
 
 /** Edge width (device px) and how dark edges get, so neighbouring pieces read apart. */
 const EDGE_PX = 1.25;
@@ -23,14 +23,27 @@ const edgeShade = () => {
   return vec3(mix(EDGE_SHADE, 1, smoothstep(EDGE_PX - 0.5, EDGE_PX + 0.5, edge)));
 };
 
+export interface PieceMaterialOptions {
+  opacity: number;
+  /**
+   * Darkened unit-box edges (default true). Off for the other shapes (roof corners,
+   * gable triangles): the edge shader assumes a box, and they are drawn from both sides.
+   */
+  edges?: boolean;
+}
+
 /**
  * The 3D pieces' material: lit, shadowed, white with darkened edges. three.js
  * multiplies `instanceColor` into the `colorNode`, so each instance brings its colour.
  * Below 1 opacity it is see-through and writes no depth (door and gate panels).
  */
-export const createPieceMaterial = ({ opacity }: { opacity: number }): MeshLambertNodeMaterial => {
+export const createPieceMaterial = ({
+  opacity,
+  edges = true,
+}: PieceMaterialOptions): MeshLambertNodeMaterial => {
   const transparent = opacity < 1;
   const material = new MeshLambertNodeMaterial({ transparent, opacity, depthWrite: !transparent });
-  material.colorNode = edgeShade();
+  if (edges) material.colorNode = edgeShade();
+  else material.side = DoubleSide;
   return material;
 };

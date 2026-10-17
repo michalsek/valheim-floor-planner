@@ -765,3 +765,61 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    for missing folder access.
 9. **Not exercised**: the memory fallback, the pre-reload extraction through a real
    build change (exercised by calling it with another key), Safari and Firefox.
+
+## From M12 implementation
+
+1. **Research §3 is wrong about 6 m and 10 m spans.** The half-run is measured from the
+   eave to the ridge: R = span/2 + eave overhang. Any whole-metre R tiles with whole
+   pieces: an odd R ends in a ridge row (the ridge piece adds 1 m of run each side), an
+   even R meets at a seam with no ridge piece. What has to be whole is the number of
+   2 m pieces across the eaves, so the eave span (span + 2 · eave) must be even. A 6 m
+   room with 1 m eaves is fine (R = 4, a seam); the user's 8 m house with 1 m eaves has
+   R = 5 (two straight rows and the ridge per side). The room badge now uses this rule
+   (`roofSpan(w, d, eave)`, eave 0 for an unroofed room).
+2. **Odd spans: the far wall gets a filler course** (fix round decision). With the ridge
+   on whole pieces, the ridge moves 0.5 m towards the far side and the roof passes k
+   above the far wall (0.5 m at 26°), so that wall is raised to the roof with a derived
+   course: a 0.5 m log beam at 26°, a half wall at 45°, a full wall at 67°, from the far
+   wall's family and falling back to wood, then log. It is in the bill of materials,
+   in support (as boxes, with declared contacts for the eave cells resting on it) and
+   in 3D. The same course raises a shed's high wall and edges off the 2 m grid; gable
+   rectangles fall back to log beams, which closes the 0.5 m strip under the far
+   triangle. A default 7 × 8 thatch house is all held up. Hiding roofs keeps gable
+   walls and filler courses (they are walls). Open question for the user: whether the
+   game builder would rather raise the far wall with real wall pieces (it's what this
+   models) or build an asymmetric ridge.
+3. **"Roof Cross" is decorative**, not a gable fill: its snap points are two boards
+   crossing at (0, k) with ends at (±1, 0) and (±1, 2k). It is placed over the 2 m gable
+   column across the ridge (odd wall half-span), crossing at the apex, with an info note.
+   Ashwood has none, so that column is left open with a warning. Needs an in-game check.
+4. **Grausten has no usable corner pieces.** Its two "corner" pieces are triangles with a
+   2 m high edge at z = −0.5 and one low point at (±1, 1.5): a high edge and a low point,
+   where a hip corner's halves have a high point and a low edge. They are no longer used:
+   grausten hip corners, ridges and valleys stay open with warnings. Whether they make a
+   valley (two mirrored halves) needs an in-game check.
+5. **Roof tool shortcut is T** (F stays the wall tool's strip flip).
+6. **Shed roofs have a low side** (`lowSide`: −x, +x, −z or +z; by default the long
+   side's lower one), and get gable walls on their sides and a filler course on the high
+   wall.
+7. **A notch narrower than two eaves closes up** (the eave ring is the outline's L∞
+   dilation) instead of clamping the eave; it gets an info note.
+8. **Hip apex, ridge elbow and tee cells** have no matching game piece; a ridge piece is
+   used with an info note ("2 hip apex cells…"). The note is info-level but shows in the
+   bill of materials' Warnings list, as other info notes do.
+9. **Support timing (after the fix round).** `roofContacts` is cached per roof (with its
+   level's walls), declares only eave-on-wall (and filler) pairs, which an edge-only
+   overlap can miss at 67°, and only looks at walls under the roof's eave ring; cells
+   resting on each other are found by the overlap test. A 957-box scene with five roofs
+   (Chrome, WebGPU): `computeSupport` 6–11 ms per commit, 8–11 ms after a roof edit;
+   no long task (> 50 ms) while committing with the support view on.
+10. **67° with a 1 m eave reaches the ground on 2 m walls** (the eave is 2 m below the
+    wall top), so those eave pieces count as grounded. It's what the game would do too.
+11. **Boxes mode**: roof corners, ridges and gable triangles are shapes drawn without the
+    edge shader, from both sides; under the instance's non-uniform scale their normals
+    are approximate, so their shading is slightly off. Slabs sit on the roof plane and
+    shapes are lifted to meet their tops; the models use the cell geometry, unaffected.
+12. **Not done (plan §12)**: cross-gables and dormers; optional 1 m log "starter"
+    brackets in the bill of materials; grausten arched variants and inverted gable
+    walls; adding the ridge beam and poles from the suggestion; roof cover % for
+    stations and beds; roofs following wall edits and editing a roof outline by its
+    vertices (Re-fit covers the common case).

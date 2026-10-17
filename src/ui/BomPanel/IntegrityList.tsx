@@ -8,7 +8,7 @@ import { levelOfItem } from '../../model/levels';
 import type { SelectionItem } from '../../model/selection';
 import type { Plan } from '../../model/types';
 import { getLibrary } from '../../store/libraryInstance';
-import { usePlan } from '../../store/planHooks';
+import { getDerived, usePlan } from '../../store/planHooks';
 import { selectionAtom } from '../../store/selection';
 import { integrityShownAtom, useSupport } from '../../store/supportSync';
 import { setWorkElevation } from '../../tools/levelActions';
@@ -40,7 +40,35 @@ const itemName = (plan: Plan, item: SelectionItem, lib: Library): string => {
     }
     case 'dimension':
       return 'Dimension';
+    case 'roof': {
+      const id = plan.roofs[item.id]?.familyId ?? '';
+      return `${lib.roofFamilies.get(id)?.label ?? id} roof`;
+    }
   }
+};
+
+/** What to do about a roof that would collapse, by what is likely wrong with it. */
+const roofAdvice = (
+  plan: Plan,
+  item: SelectionItem,
+  count: number,
+  lib: Library
+): string | null => {
+  const roof = item.kind === 'roof' ? plan.roofs[item.id] : undefined;
+  if (!roof) return null;
+  if (lib.roofFamilies.get(roof.familyId)?.material === 'ashstone') {
+    return 'Grausten needs stone under it: it breaks on wood.';
+  }
+  const { roofPieces, warnings } = getDerived(plan);
+  const loose = warnings.some(
+    (w) => w.source.kind === 'roof' && w.source.id === roof.id && /not resting/.test(w.message)
+  );
+  if (loose) return "Some of its edges don't rest on a wall: put walls under them.";
+  const total = roofPieces.filter((p) => p.sourceId === roof.id).length;
+  if (count >= total) {
+    return 'Nothing holds it up: check its wall top in the Inspector, or Re-fit to room.';
+  }
+  return 'Too far from its walls for wood: add a ridge beam on poles (log beam + log poles) or shorten the span.';
 };
 
 /** Whether `ref`'s element is on screen (inside the scrolled panel too). */
@@ -97,24 +125,28 @@ export const IntegrityList = ({ level }: { level: number | null }) => {
             {total} {total === 1 ? 'piece' : 'pieces'} would collapse
           </li>
         )}
-        {lines.map(({ item, count }) => (
-          <li key={`${item.kind}:${item.id}`}>
-            <button
-              type="button"
-              className={styles.collapse}
-              title="Select it, on its level"
-              onMouseDown={keepFocus}
-              onClick={() => {
-                const elevation = levelOfItem(plan, item, getLibrary());
-                if (elevation !== null) setWorkElevation(ctx, elevation);
-                select([item]);
-              }}
-            >
-              <span>{itemName(plan, item, getLibrary())}</span>
-              <span className={styles.value}>{count}</span>
-            </button>
-          </li>
-        ))}
+        {lines.map(({ item, count }) => {
+          const advice = roofAdvice(plan, item, count, getLibrary());
+          return (
+            <li key={`${item.kind}:${item.id}`}>
+              <button
+                type="button"
+                className={styles.collapse}
+                title="Select it, on its level"
+                onMouseDown={keepFocus}
+                onClick={() => {
+                  const elevation = levelOfItem(plan, item, getLibrary());
+                  if (elevation !== null) setWorkElevation(ctx, elevation);
+                  select([item]);
+                }}
+              >
+                <span>{itemName(plan, item, getLibrary())}</span>
+                <span className={styles.value}>{count}</span>
+              </button>
+              {advice && <p className={styles.advice}>{advice}</p>}
+            </li>
+          );
+        })}
       </ul>
     </details>
   );

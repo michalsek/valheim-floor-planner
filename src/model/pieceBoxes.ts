@@ -21,16 +21,19 @@ import {
 import type { Derived } from './derivePlan';
 import { boxArea } from './geometry/box';
 import type { Bounds3 } from './geometry/bounds3';
+import { boxAxes, boxCorners } from './geometry/orient';
+import type { PieceShape } from './geometry/shapes';
 import { propCentre } from './geometry/propGeometry';
 import type { Hit } from './hitTest';
 import { ITEM_KINDS } from './itemKinds';
 import { pieceAnchor, pivotFrom, propPivotLift } from './piecePivot';
 import { propArea } from './props';
+import type { RoofPiece } from './roofs/roofPiece';
 import type { SelectionItem } from './selection';
 import { isOddTile } from './splitFloor';
 import type { PlacedPiece, Plan, Prop, Vec3 } from './types';
 
-export type PieceBoxKind = 'wall' | 'floor' | 'opening' | 'prop';
+export type PieceBoxKind = 'wall' | 'floor' | 'opening' | 'prop' | 'roof';
 
 export interface PieceBox {
   /** Unique among the boxes of one plan. */
@@ -52,9 +55,18 @@ export interface PieceBox {
   size: Vec3;
   /** Turn about +y (radians, three.js sense: counter-clockwise seen from above). */
   rotationY: number;
+  /** Tilt about the box's own x axis after the turn (a roof slab down its slope). */
+  tiltX?: number;
+  /** What the box holds, when not a solid box (roof corners, gable triangles). */
+  shape?: PieceShape;
+  /** A roof's covering piece (not its gable walls or filler courses): hidden with roofs. */
+  roofCover?: true;
   /** The piece's or prop's prefab (its model); null when unknown. */
   prefab: string | null;
-  /** Where the prefab's pivot goes, for its model (`piecePivot.ts`). */
+  /**
+   * Where the prefab's pivot goes, for its model (`piecePivot.ts`). Models turn by
+   * `rotationY` only: a roof piece's model is already sloped.
+   */
   pivot: Vec3;
 }
 
@@ -170,12 +182,65 @@ const withAnchor = (box: PieceBox, lib: Pick<Library, 'catalog'>): PieceBox => {
   return { ...box, pivot: pivotFrom(box.center, box.rotationY, pieceAnchor(def, box.size)) };
 };
 
+/** A roof slab's thickness (metres): straight roof pieces are drawn as one. */
+export const ROOF_SLAB = 0.12;
+
+/**
+ * A roof piece's box. A straight piece is a slab tilted down its slope with its
+ * underside on the roof plane, so it covers the wall top it rests on; ridges and
+ * corners are their shape in their cell's box, lifted as much, so the tops meet; gable
+ * walls stand as they are. The model's pivot comes from the cell box, which spans the
+ * prefab's snap points.
+ */
+const roofBox = (piece: RoofPiece, elevation: number, lib: Pick<Library, 'catalog'>): PieceBox => {
+  const item = { kind: 'roof', id: piece.sourceId } as const;
+  const anchor = pieceAnchor(lib.catalog.pieces.get(piece.prefab), piece.size);
+  const common = {
+    key: piece.key,
+    item,
+    hit: { ...item, distance: 0 },
+    kind: 'roof' as const,
+    material: piece.material,
+    group: null,
+    odd: false,
+    elevation,
+    rotationY: piece.yaw,
+    prefab: piece.prefab,
+    pivot: pivotFrom(piece.center, piece.yaw, anchor),
+    ...(piece.cell ? { roofCover: true as const } : {}),
+  };
+  if (piece.slope === 0) {
+    return { ...common, center: piece.center, size: piece.size, shape: piece.shape };
+  }
+  if (piece.shape !== 'box') {
+    const lift = ROOF_SLAB / Math.cos(piece.slope);
+    const center = { ...piece.center, y: piece.center.y + lift };
+    return { ...common, center, size: piece.size, shape: piece.shape };
+  }
+  const size = { x: piece.size.x, y: ROOF_SLAB, z: Math.hypot(piece.size.y, piece.size.z) };
+  const [, up] = boxAxes({ center: piece.center, size, rotationY: piece.yaw, tiltX: piece.slope });
+  const half = ROOF_SLAB / 2;
+  const center = {
+    x: piece.center.x + up.x * half,
+    y: piece.center.y + up.y * half,
+    z: piece.center.z + up.z * half,
+  };
+  return { ...common, center, size, tiltX: piece.slope };
+};
+
+/** Roof pieces' boxes, each at its roof's elevation (`elevationOf`). */
+export const roofPieceBoxes = (
+  pieces: readonly RoofPiece[],
+  lib: Pick<Library, 'catalog'>,
+  elevationOf: (roofId: string) => number = () => 0
+): PieceBox[] => pieces.map((piece) => roofBox(piece, elevationOf(piece.sourceId), lib));
+
 const ofKind = (pieces: readonly PlacedPiece[], kind: PlacedPiece['kind']) =>
   pieces.filter((piece) => piece.kind === kind);
 
 /** Every piece (all courses) and prop of the plan, each at its source's elevation. */
 export const pieceBoxes = (
-  derived: Pick<Derived, 'pieces'>,
+  derived: Pick<Derived, 'pieces' | 'roofPieces'>,
   plan: Plan,
   lib: Pick<Library, 'propDefs' | 'catalog'>
 ): PieceBox[] => {
@@ -194,26 +259,22 @@ export const pieceBoxes = (
   ];
   return [
     ...placed.map((box) => withAnchor(box, lib)),
+    ...roofPieceBoxes(derived.roofPieces, lib, (id) => plan.roofs[id]?.elevation ?? 0),
     ...Object.values(plan.props).map((prop) => propBox(prop, lib)),
   ];
 };
 
-/** The axis-aligned box around every box (turns included); null when there are none. */
+/** The axis-aligned box around every box (turns, tilts and shapes included); null when there are none. */
 export const boxesBounds = (boxes: readonly PieceBox[]): Bounds3 | null => {
   if (boxes.length === 0) return null;
   const min = { x: Infinity, y: Infinity, z: Infinity };
   const max = { x: -Infinity, y: -Infinity, z: -Infinity };
-  for (const { center, size, rotationY } of boxes) {
-    const cos = Math.abs(Math.cos(rotationY));
-    const sin = Math.abs(Math.sin(rotationY));
-    const half = {
-      x: (size.x * cos + size.z * sin) / 2,
-      y: size.y / 2,
-      z: (size.x * sin + size.z * cos) / 2,
-    };
-    for (const axis of ['x', 'y', 'z'] as const) {
-      min[axis] = Math.min(min[axis], center[axis] - half[axis]);
-      max[axis] = Math.max(max[axis], center[axis] + half[axis]);
+  for (const box of boxes) {
+    for (const corner of boxCorners(box)) {
+      for (const axis of ['x', 'y', 'z'] as const) {
+        min[axis] = Math.min(min[axis], corner[axis]);
+        max[axis] = Math.max(max[axis], corner[axis]);
+      }
     }
   }
   return { min, max };

@@ -14,10 +14,13 @@ import type {
   Plan,
   Prop,
   PropId,
+  Roof,
+  RoofId,
   Underlay,
   WallId,
   WallRun,
 } from './types';
+import { roofProblem } from './roofs/roofCheck';
 import { underlayProblem } from './underlay';
 
 export type PlanCommand =
@@ -36,6 +39,9 @@ export type PlanCommand =
   | { type: 'prop.insert'; prop: Prop }
   | { type: 'prop.patch'; id: PropId; changes: Partial<Omit<Prop, 'id'>> }
   | { type: 'prop.remove'; id: PropId }
+  | { type: 'roof.insert'; roof: Roof }
+  | { type: 'roof.patch'; id: RoofId; changes: Partial<Omit<Roof, 'id'>> }
+  | { type: 'roof.remove'; id: RoofId }
   | { type: 'underlay.set'; underlay: Underlay | null }
   | { type: 'underlay.patch'; changes: Partial<Underlay> }
   | { type: 'plan.rename'; name: string }
@@ -58,6 +64,9 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'prop.insert': 'Add item',
   'prop.patch': 'Edit item',
   'prop.remove': 'Delete item',
+  'roof.insert': 'Add roof',
+  'roof.patch': 'Edit roof',
+  'roof.remove': 'Delete roof',
   'underlay.set': 'Set underlay',
   'underlay.patch': 'Edit underlay',
   'plan.rename': 'Rename plan',
@@ -91,6 +100,11 @@ const checkProp = (prop: Prop): void => {
   const problem = propProblem(prop);
   if (problem) throw new PlanCommandError(`Invalid item: ${problem}`);
   checkElevation(prop);
+};
+
+const checkRoof = (roof: Roof): void => {
+  const problem = roofProblem(roof);
+  if (problem) throw new PlanCommandError(`Invalid roof: ${problem}`);
 };
 
 const checkDimension = (dim: Dimension): void => {
@@ -209,6 +223,24 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
     case 'prop.remove':
       if (!(cmd.id in draft.props)) throw new PlanCommandError(`Item "${cmd.id}" does not exist`);
       delete draft.props[cmd.id];
+      return undefined;
+    case 'roof.insert':
+      if (cmd.roof.id in draft.roofs) {
+        throw new PlanCommandError(`Roof "${cmd.roof.id}" already exists`);
+      }
+      checkRoof(cmd.roof);
+      draft.roofs[cmd.roof.id] = cmd.roof;
+      return undefined;
+    case 'roof.patch': {
+      const roof = draft.roofs[cmd.id];
+      if (!roof) throw new PlanCommandError(`Roof "${cmd.id}" does not exist`);
+      Object.assign(roof, cmd.changes);
+      checkRoof(roof);
+      return undefined;
+    }
+    case 'roof.remove':
+      if (!(cmd.id in draft.roofs)) throw new PlanCommandError(`Roof "${cmd.id}" does not exist`);
+      delete draft.roofs[cmd.id];
       return undefined;
     case 'underlay.set':
       if (cmd.underlay) checkUnderlay(cmd.underlay);

@@ -1,10 +1,11 @@
 /**
  * The shapes the support check works with. Contacts, support points and the ground
  * test only go through `SupportShape` (its bounds, centre of mass, closest point and
- * overlap test), so M12's roof wedges and tilted pieces can bring their own shape: a
- * wedge touches a wall's top edge, and that edge is its support point. `boxShape` is the
- * one for `PieceBox`es, which only ever turn about y.
+ * overlap test). `boxShape` is the one for `PieceBox`es: most only turn about y; a roof
+ * slab is tilted down its slope too, and roof corners and gable triangles count as the
+ * box around them.
  */
+import { boxAxes, boxCorners, toLocal, type OrientedBox } from '../geometry/orient';
 import type { PieceBox } from '../pieceBoxes';
 import type { Vec3 } from '../types';
 
@@ -103,10 +104,114 @@ const obbAabb = (box: Obb): Aabb => {
   };
 };
 
+/** A box in any orientation: its centre, own axes and half sizes along them. */
+interface Obb3 {
+  center: Vec3;
+  axes: [Vec3, Vec3, Vec3];
+  half: [number, number, number];
+  box: OrientedBox;
+}
+
+const dot3 = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
+const cross3 = (a: Vec3, b: Vec3): Vec3 => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+});
+
+const obb3Of = (box: OrientedBox): Obb3 => ({
+  center: box.center,
+  axes: boxAxes(box),
+  half: [box.size.x / 2, box.size.y / 2, box.size.z / 2],
+  box,
+});
+
+/**
+ * Whether two boxes come within `eps` of each other (each grown by it): no separating
+ * axis among their 15 (each box's three, and their cross products). A tilted roof slab
+ * rests on a wall's top edge along a line, which holds it in the game too, so here any
+ * contact counts, not only one over a face.
+ */
+const obbOverlap3 = (a: Obb3, b: Obb3, eps: number): boolean => {
+  const d = { x: b.center.x - a.center.x, y: b.center.y - a.center.y, z: b.center.z - a.center.z };
+  const radius = (o: Obb3, axis: Vec3) =>
+    o.half.reduce((sum, h, i) => sum + h * Math.abs(dot3(o.axes[i]!, axis)), 0);
+  const separates = (axis: Vec3): boolean => {
+    const length = Math.hypot(axis.x, axis.y, axis.z);
+    if (length < 1e-9) return false;
+    const n = { x: axis.x / length, y: axis.y / length, z: axis.z / length };
+    return Math.abs(dot3(d, n)) > radius(a, n) + radius(b, n) + 2 * eps;
+  };
+  const crosses = a.axes.flatMap((u) => b.axes.map((v) => cross3(u, v)));
+  return ![...a.axes, ...b.axes, ...crosses].some(separates);
+};
+
+const obb3ClosestPoint = ({ box, half }: Obb3, p: Vec3): Vec3 => {
+  const l = toLocal(p, box);
+  const [ax, ay, az] = boxAxes(box);
+  const lx = clamp(l.x, half[0]);
+  const ly = clamp(l.y, half[1]);
+  const lz = clamp(l.z, half[2]);
+  return {
+    x: box.center.x + lx * ax.x + ly * ay.x + lz * az.x,
+    y: box.center.y + lx * ax.y + ly * ay.y + lz * az.y,
+    z: box.center.z + lx * ax.z + ly * ay.z + lz * az.z,
+  };
+};
+
+const cornersAabb = (corners: readonly Vec3[]): Aabb => ({
+  min: {
+    x: Math.min(...corners.map((c) => c.x)),
+    y: Math.min(...corners.map((c) => c.y)),
+    z: Math.min(...corners.map((c) => c.z)),
+  },
+  max: {
+    x: Math.max(...corners.map((c) => c.x)),
+    y: Math.max(...corners.map((c) => c.y)),
+    z: Math.max(...corners.map((c) => c.z)),
+  },
+});
+
+/** Every shape's box, for testing against a tilted one (worked out when first needed). */
+const boxOf = new WeakMap<SupportShape, OrientedBox>();
+const obb3Cache = new WeakMap<SupportShape, Obb3>();
+
+const orientedOf = (shape: SupportShape): Obb3 | undefined => {
+  let obb = obb3Cache.get(shape);
+  const box = obb ? undefined : boxOf.get(shape);
+  if (box) obb3Cache.set(shape, (obb = obb3Of(box)));
+  return obb;
+};
+
+/** A tilted box (a roof slab): it tests every other box by the general separating axes. */
+const tiltedShape = (box: OrientedBox): SupportShape => {
+  const obb = obb3Of({
+    center: box.center,
+    size: box.size,
+    rotationY: box.rotationY,
+    tiltX: box.tiltX,
+  });
+  const shape: SupportShape = {
+    aabb: cornersAabb(boxCorners(obb.box)),
+    com: box.center,
+    closestPoint: (p) => obb3ClosestPoint(obb, p),
+    touches: (other, eps) => {
+      const theirs = orientedOf(other);
+      return theirs ? obbOverlap3(obb, theirs, eps) : false;
+    },
+  };
+  obb3Cache.set(shape, obb);
+  return shape;
+};
+
 const boxes = new WeakMap<SupportShape, Obb>();
 
 /** A piece's or prop's box as a support shape; its centre is its centre of mass. */
-export const boxShape = (box: Pick<PieceBox, 'center' | 'size' | 'rotationY'>): SupportShape => {
+export const boxShape = (
+  box: Pick<PieceBox, 'center' | 'size' | 'rotationY' | 'tiltX'>
+): SupportShape => {
+  if (box.tiltX) return tiltedShape(box);
   const c = Math.cos(box.rotationY);
   const s = Math.sin(box.rotationY);
   const obb: Obb = {
@@ -126,5 +231,6 @@ export const boxShape = (box: Pick<PieceBox, 'center' | 'size' | 'rotationY'>): 
     },
   };
   boxes.set(shape, obb);
+  boxOf.set(shape, { center: box.center, size: box.size, rotationY: box.rotationY });
   return shape;
 };

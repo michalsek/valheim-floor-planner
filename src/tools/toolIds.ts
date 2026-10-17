@@ -6,6 +6,7 @@ export const TOOL_IDS = [
   'select',
   'wall',
   'floor',
+  'roof',
   'opening',
   'prop',
   'dimension',

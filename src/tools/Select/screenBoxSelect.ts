@@ -3,7 +3,7 @@
  * its pieces are drawn, whatever the camera's direction. Pure.
  */
 import type { BoxMode } from '../../model/geometry/box';
-import type { TurnedBox } from '../../model/geometry/ray';
+import { boxCorners } from '../../model/geometry/orient';
 import { ITEM_KINDS, type KindLib } from '../../model/itemKinds';
 import type { PieceBox } from '../../model/pieceBoxes';
 import { allItems, type SelectionItem } from '../../model/selection';
@@ -21,25 +21,6 @@ export const screenRectFrom = (a: ScreenPoint, b: ScreenPoint): ScreenRect => ({
   max: { x: Math.max(a.x, b.x), y: Math.max(a.y, b.y) },
 });
 
-/** A turned box's eight corners. */
-const corners = ({ center, size, rotationY }: TurnedBox): Vec3[] => {
-  const c = Math.cos(rotationY);
-  const s = Math.sin(rotationY);
-  const result: Vec3[] = [];
-  for (const lx of [-size.x / 2, size.x / 2]) {
-    for (const ly of [-size.y / 2, size.y / 2]) {
-      for (const lz of [-size.z / 2, size.z / 2]) {
-        result.push({
-          x: center.x + c * lx + s * lz,
-          y: center.y + ly,
-          z: center.z - s * lx + c * lz,
-        });
-      }
-    }
-  }
-  return result;
-};
-
 const keyOf = (item: SelectionItem): string => `${item.kind}:${item.id}`;
 
 /** Each item's points in 3D: its boxes' corners, or (with no boxes) its drawn lines on its level. */
@@ -52,7 +33,7 @@ const itemPoints = (
   const byKey = new Map<string, Vec3[]>();
   for (const box of boxes) {
     const key = keyOf(box.item);
-    byKey.set(key, [...(byKey.get(key) ?? []), ...corners(box)]);
+    byKey.set(key, [...(byKey.get(key) ?? []), ...boxCorners(box)]);
   }
   return new Map(
     allItems(plan).map((item) => {

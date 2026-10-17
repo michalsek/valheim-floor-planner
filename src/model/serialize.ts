@@ -2,8 +2,9 @@
  * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
  * throws on a bad shape. Collections added by later milestones default to `{}`, a
  * missing underlay to null, and a missing name to "Untitled". Version 1 files (before
- * levels) load with every elevation at 0; plans are always written as version 2, so an
- * older app refuses them instead of flattening them.
+ * levels) load with every elevation at 0, version 2 ones (before roofs) without roofs;
+ * plans are always written as version 3, so an older app refuses them instead of
+ * dropping what it doesn't know.
  */
 import { elevationProblem, MAX_ELEVATION, MIN_ELEVATION } from './elevation';
 import { samePoint } from './geometry/polyline';
@@ -16,11 +17,14 @@ import {
   type Opening,
   type Plan,
   type Prop,
+  type Roof,
+  type RoofKind,
   type Underlay,
   type Vec2,
   type WallRun,
   type WallSide,
 } from './types';
+import { roofProblem } from './roofs/roofCheck';
 import { underlayProblem } from './underlay';
 
 /** The plan as JSON; `extras` adds top-level fields (a file's embedded image). */
@@ -177,6 +181,33 @@ const parseProp =
     return problem ? fail(path, `an item where ${problem}`) : prop;
   };
 
+/** Shapes are checked here, values by `roofProblem`; an unknown family loads (and warns). */
+const parseRoof: Parser<Roof> = (value, key, path) => {
+  const r = asRecord(value, path);
+  const id = asString(r.id, `${path}.id`);
+  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+  if (!Array.isArray(r.outline)) fail(`${path}.outline`, 'an array of points');
+  const overhang = asRecord(r.overhang, `${path}.overhang`);
+  const roof = {
+    id,
+    elevation: readElevation(r.elevation, `${path}.elevation`),
+    base: asFinite(r.base, `${path}.base`),
+    outline: r.outline.map((p: unknown, i) => asPoint(p, `${path}.outline[${i}]`)),
+    familyId: asString(r.familyId, `${path}.familyId`),
+    pitch: asFinite(r.pitch, `${path}.pitch`) as Roof['pitch'],
+    kind: asString(r.kind, `${path}.kind`) as RoofKind,
+    ridgeAxis: asString(r.ridgeAxis, `${path}.ridgeAxis`) as Roof['ridgeAxis'],
+    lowSide: asString(r.lowSide, `${path}.lowSide`) as Roof['lowSide'],
+    overhang: {
+      eave: asFinite(overhang.eave, `${path}.overhang.eave`) as Roof['overhang']['eave'],
+      gable: asFinite(overhang.gable, `${path}.overhang.gable`) as Roof['overhang']['gable'],
+    },
+    gableWalls: asString(r.gableWalls, `${path}.gableWalls`) as Roof['gableWalls'],
+  };
+  const problem = roofProblem(roof);
+  return problem ? fail(path, `a roof where ${problem}`) : roof;
+};
+
 /** Shapes are checked here, ranges by `underlayProblem`. */
 const parseUnderlay = (value: unknown, path: string): Underlay | null => {
   if (value === undefined || value === null) return null;
@@ -224,17 +255,20 @@ const parseName = (value: unknown): string =>
 
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
-  if (root.version !== 1 && root.version !== 2) fail('$.version', '1 or 2');
+  if (root.version !== 1 && root.version !== 2 && root.version !== 3) {
+    fail('$.version', '1, 2 or 3');
+  }
   const elevationOf = root.version === 1 ? groundElevation : readElevation;
   const walls = parseCollection(root.walls, '$.walls', parseWall(elevationOf));
   return {
-    version: 2,
+    version: 3,
     name: parseName(root.name),
     walls,
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension(elevationOf)),
     floors: parseCollection(root.floors, '$.floors', parseFloor(elevationOf)),
     openings: parseCollection(root.openings, '$.openings', parseOpening(walls)),
     props: parseProps(root.props, elevationOf),
+    roofs: root.version === 3 ? parseCollection(root.roofs, '$.roofs', parseRoof) : {},
     underlay: parseUnderlay(root.underlay, '$.underlay'),
   };
 };

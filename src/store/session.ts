@@ -189,6 +189,11 @@ export const cursorStyleAtom = atom<string | null>(null);
 
 /** Show every station's and ward's ring, not just the selected ones (status strip). */
 export const showAllRadiiAtom = atom<boolean>(false);
+/**
+ * Whether roofs are drawn, in both views (session only). Hidden roofs can't be picked,
+ * so 3D clicks reach inside the house; their gable walls and filler courses still show.
+ */
+export const roofsVisibleAtom = atom<boolean>(true);
 /** Whether the underlay image is drawn (session only; the plan keeps it either way). */
 export const underlayVisibleAtom = atom<boolean>(true);
 /** Whether Save puts the underlay image in the file (as a data URL). */

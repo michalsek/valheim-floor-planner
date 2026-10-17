@@ -5,6 +5,7 @@ import { dimensionTool } from './Dimension/dimensionTool';
 import { floorTool } from './Floor/floorTool';
 import { openingTool } from './Opening/openingTool';
 import { propTool } from './Prop/propTool';
+import { roofTool } from './Roof/roofTool';
 import { rulerTool } from './Ruler/rulerTool';
 import { selectTool } from './Select/selectTool';
 import { TOOL_IDS, type ToolId } from './toolIds';
@@ -17,6 +18,7 @@ const TOOLS_BY_ID: Record<ToolId, Tool> = {
   select: selectTool,
   wall: wallTool,
   floor: floorTool,
+  roof: roofTool,
   opening: openingTool,
   prop: propTool,
   ruler: rulerTool,

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { testLibrary } from '../catalog/testLibrary';
 
 import { derivePlan } from './derivePlan';
-import { PANEL_THICKNESS, pieceBoxes } from './pieceBoxes';
+import { boxesBounds, PANEL_THICKNESS, pieceBoxes, type PieceBox } from './pieceBoxes';
 import { emptyPlan, type Plan } from './types';
 
 const boxesOf = (parts: Partial<Plan>) => {
@@ -101,5 +101,23 @@ describe('pieceBoxes', () => {
     expect(panel?.size).toEqual({ x: door?.width, y: door?.height, z: PANEL_THICKNESS });
     expect(panel?.center).toMatchObject({ x: 4, z: 0 });
     expect(panel?.item).toEqual({ kind: 'opening', id: 'd' });
+  });
+});
+
+describe('boxesBounds', () => {
+  it('bounds a tilted slab by its corners', () => {
+    const slab = {
+      center: { x: 0, y: 1, z: 0 },
+      size: { x: 2, y: 0, z: 2 * Math.SQRT2 },
+      rotationY: Math.PI / 2,
+      tiltX: Math.PI / 4,
+    } as PieceBox;
+    const bounds = boxesBounds([slab])!;
+    // Turned a quarter, the slab runs along x and drops 2 m over its 2 m run.
+    expect(bounds.min.x).toBeCloseTo(-1);
+    expect(bounds.max.x).toBeCloseTo(1);
+    expect(bounds.min.y).toBeCloseTo(0);
+    expect(bounds.max.y).toBeCloseTo(2);
+    expect(bounds.max.z - bounds.min.z).toBeCloseTo(2);
   });
 });

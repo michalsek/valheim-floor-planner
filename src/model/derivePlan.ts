@@ -8,6 +8,8 @@ import { deriveWalls } from './deriveWalls';
 import type { ResolvedOpening } from './openings';
 import { findRooms, type Building, type PlanSummary, type Room, type RoomsResult } from './rooms';
 import { levelPlan } from './levels';
+import { deriveRoofs } from './roofs/deriveRoofs';
+import type { RoofPiece } from './roofs/roofPiece';
 import type { PlacedPiece, Plan, PlanWarning } from './types';
 import { buildWallGraph, overlapWarnings } from './wallGraph';
 
@@ -15,6 +17,8 @@ import { buildWallGraph, overlapWarnings } from './wallGraph';
 export interface Derived {
   /** Wall, opening and floor pieces. */
   pieces: PlacedPiece[];
+  /** Roof pieces (and gable walls), in 3D. */
+  roofPieces: RoofPiece[];
   bom: Bom;
   warnings: PlanWarning[];
   rooms: Room[];
@@ -98,14 +102,17 @@ export const derivePlan = (plan: Plan, lib: Library): Derived => {
   const walls = deriveWalls(plan, lib);
   const floors = deriveFloors(plan, lib);
   const rooms = deriveRooms(plan, lib);
+  const roofs = deriveRoofs(plan, lib);
   const pieces = [...floors.pieces, ...walls.pieces];
   return {
     pieces,
-    bom: computeBom([...pieces, ...Object.values(plan.props)], lib.catalog),
+    roofPieces: roofs.pieces,
+    bom: computeBom([...pieces, ...roofs.pieces, ...Object.values(plan.props)], lib.catalog),
     warnings: [
       ...walls.warnings,
       ...rooms.warnings,
       ...floors.warnings,
+      ...roofs.warnings,
       ...propWarnings(plan, lib),
     ],
     rooms: rooms.rooms,

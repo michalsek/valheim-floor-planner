@@ -19,6 +19,7 @@ pnpm test:install   # parses the local Steam install and compares it with resear
 | V   | Select: click, Shift+click, box select, move, corner drag, arrow keys to nudge, Delete, Mod+D, Mod+A, R to rotate items                               |
 | W   | Wall: click to add corners, Enter or double-click to finish, click the start point to close the loop, F to flip which side a stone wall's strip is on |
 | B   | Floor: drag a rectangle                                                                                                                               |
+| T   | Roof: click a room, Shift+click for its whole building, or drag a rectangle; family, pitch, kind, ridge, overhangs and gable walls in the bar         |
 | O   | Door or gate, placed on a wall                                                                                                                        |
 | P   | Item: furniture, stations, stairs, poles and beams from the catalogue, with EN/PL search; R / Shift+R rotate; stairs place a whole flight up a rise   |
 | D   | Dimension (Enter in the ruler pins the measurement)                                                                                                   |
@@ -43,6 +44,10 @@ Every wall, floor, item and dimension stands at its own elevation, and the level
 - Mod+PageUp / PageDown move the selection a step, and the level follows (Mod+Shift: everything from this level up). The Inspector has an Elevation field too.
 - Tops goes up to the highest wall top on this level (where the next floor goes); Pick, then a click on a piece, goes to its top.
 - Support colours every piece by the game's structural support: blue on the ground, green to red as it weakens, magenta where it would collapse. The bill of materials lists what would collapse.
+
+## Roofs
+
+The roof tool covers a room, a building or a dragged rectangle with the game's roof pieces: thatch or darkwood shingle at 26°, 45° or 67°, and grausten at 45°. Gable and shed roofs need a rectangle (a shed slopes down to the side you pick); any other shape gets a hip roof, with hip corners at its outer corners and valley pieces where it turns. The roof plane passes through the wall tops, so with the default 1 m eave the roof reaches 1 m past the walls and k m below their top (0.5 m at 26°, 1 m at 45°), and a 1 m gable overhang carries it past the ends; the walls hold it at their top edge. Gable ends (and a shed's sides) can be filled with triangle walls. Where the roof passes above a wall it should rest on (the far wall of an odd span, whose eave grew 1 m to keep whole pieces, or a shed's high wall), the wall is raised to it with a filler course (log beams, half or full walls), counted like the rest. Grausten has no ridge, hip corner or valley pieces, so those cells stay open with a warning. Every piece counts in the bill of materials and in support, and a span too wide for wood shows where it would break (a ridge beam on log poles holds it). 2D draws each roof's eave line, ridges, hips, valleys and an arrow down each slope; the Roofs toggle in the status strip hides them in both views, to see and pick inside. Roofs don't follow wall edits: the Inspector's Re-fit reads the room again.
 
 ## 3D view
 

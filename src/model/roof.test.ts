@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { roofSpan } from './roof';
 
 describe('roofSpan', () => {
-  it('accepts an 8 m span and flags a 6 m one', () => {
-    expect(roofSpan(8, 12)).toEqual({
-      span: 8,
+  it('takes a 6 m span with whole pieces and flags a 7 m one', () => {
+    expect(roofSpan(6, 10)).toEqual({
+      span: 6,
       wholePiece: true,
-      rise: { p26: 2, p45: 4, p67: 8 },
+      rise: { p26: 1.5, p45: 3, p67: 6 },
     });
-    expect(roofSpan(6, 10).wholePiece).toBe(false);
+    expect(roofSpan(7, 10).wholePiece).toBe(false);
   });
 });

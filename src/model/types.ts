@@ -1,3 +1,5 @@
+import type { GableWallsId, RoofPitch } from '../catalog/roofFamilies';
+
 import type { SelectionItem } from './selection';
 
 /** A point or vector on the world plane, in metres. Screen right is +x, screen down is +z. */
@@ -87,6 +89,43 @@ export interface Prop {
   elevation: number;
 }
 
+export type RoofId = string;
+
+/** Gable and shed roofs need a rectangle; a hip roof takes any orthogonal ring. */
+export type RoofKind = 'gable' | 'hip' | 'shed';
+
+/** A side of a rectangle: its low or high x or z edge. */
+export type RoofSide = '-x' | '+x' | '-z' | '+z';
+
+/** How far the roof reaches past the walls (metres): 1 m is how the user builds. */
+export type RoofOverhang = 0 | 1 | 2;
+
+/**
+ * A roof, stored as parameters; its pieces are derived (`roofs/`), like a wall's. The
+ * roof plane passes through the top edge of the walls at the outline, so the eave sits
+ * `k · eave` below the wall top.
+ */
+export interface Roof {
+  id: RoofId;
+  /** The level it belongs to (its walls' elevation). */
+  elevation: number;
+  /** The wall tops' height above `elevation`: the roof rests on them. */
+  base: number;
+  /** Clockwise orthogonal ring on the 1 m grid: the wall lines it covers. */
+  outline: Vec2[];
+  familyId: string;
+  pitch: RoofPitch;
+  kind: RoofKind;
+  /** Gable: the axis the ridge runs along. Hip and shed roofs ignore it. */
+  ridgeAxis: 'x' | 'z';
+  /** A shed roof's low eave; the other kinds ignore it. */
+  lowSide: RoofSide;
+  /** `eave` past the eave walls (every wall of a hip roof), `gable` past the gable ends. */
+  overhang: { eave: RoofOverhang; gable: RoofOverhang };
+  /** Triangle walls filling each gable (gable roofs only). */
+  gableWalls: 'none' | GableWallsId;
+}
+
 /**
  * A reference image under the plan. The image itself lives in IndexedDB under
  * `imageId` (and optionally in saved files); the plan holds where it goes.
@@ -108,7 +147,7 @@ export interface Underlay {
  * Levels aren't stored: they are the distinct elevations of its objects (`levels.ts`).
  */
 export interface Plan {
-  version: 2;
+  version: 3;
   /** Shown in the plan header and used for the file name. */
   name: string;
   walls: Record<WallId, WallRun>;
@@ -116,19 +155,21 @@ export interface Plan {
   floors: Record<FloorId, Floor>;
   openings: Record<OpeningId, Opening>;
   props: Record<PropId, Prop>;
+  roofs: Record<RoofId, Roof>;
   underlay: Underlay | null;
 }
 
 export const DEFAULT_PLAN_NAME = 'Untitled';
 
 export const emptyPlan = (): Plan => ({
-  version: 2,
+  version: 3,
   name: DEFAULT_PLAN_NAME,
   walls: {},
   dimensions: {},
   floors: {},
   openings: {},
   props: {},
+  roofs: {},
   underlay: null,
 });
 
@@ -169,6 +210,8 @@ export interface PlanWarning {
   /** The wall segment, for wall warnings. */
   segment: number | null;
   message: string;
+  /** A few words for tight spots (a room's badge); the message is shown elsewhere. */
+  short?: string;
   /** 'info' notes something worth knowing that isn't wrong (a gate taller than its wall). */
   level: 'warning' | 'info';
 }

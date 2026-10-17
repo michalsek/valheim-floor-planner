@@ -1,8 +1,10 @@
 import { formatArea, formatCompact, formatSize } from '../format';
-import type { Box } from '../model/geometry/rings';
+import { pointInRing, type Box } from '../model/geometry/rings';
 import type { Room } from '../model/rooms';
+import type { Plan, PlanWarning } from '../model/types';
+import { getLibrary } from '../store/libraryInstance';
 import { useViewport } from '../store/hooks';
-import { useLevelDerived } from '../store/planHooks';
+import { useLevelDerived, useLevelPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { roomLabelLevel } from './roomLabelLevel';
@@ -38,12 +40,23 @@ const detailLine = (room: Room): string => {
   return room.clearBox ? `grid ${sizeOf(room.gridBox, room.gridIsRect)} · ${outer}` : outer;
 };
 
-const roofLine = (room: Room): Line | null => {
+/** The roof over a room, as its badge tells it: what it is, and whether it has problems. */
+interface RoofOver {
+  label: string;
+  warning: string | null;
+}
+
+const roofLine = (room: Room, over: RoofOver | null): Line | null => {
+  if (over) {
+    return over.warning
+      ? { text: `${over.label} ⚠ ${over.warning}`, className: styles.roofWarn, font: ROOF }
+      : { text: `${over.label} ✓`, className: styles.roofOk, font: ROOF };
+  }
   const { roof } = room;
   if (!roof) return null;
   if (!roof.wholePiece) {
     return {
-      text: `roof ${formatCompact(roof.span)} m ⚠ off-grid ridge`,
+      text: `roof ${formatCompact(roof.span)} m ⚠ odd span: far eave +1 m`,
       className: styles.roofWarn,
       font: ROOF,
     };
@@ -60,9 +73,9 @@ const roofLine = (room: Room): Line | null => {
 const widest = (lines: readonly Line[]): number =>
   Math.max(0, ...lines.map((line) => textWidth(line.text, line.font)));
 
-const linesFor = (room: Room, wPx: number, dPx: number): Line[] => {
+const linesFor = (room: Room, over: RoofOver | null, wPx: number, dPx: number): Line[] => {
   const main = { text: mainLine(room), className: styles.roomLabel, font: MAIN };
-  const roof = roofLine(room);
+  const roof = roofLine(room, over);
   const levels = {
     full: [
       main,
@@ -86,9 +99,26 @@ const linesFor = (room: Room, wPx: number, dPx: number): Line[] => {
   return level === 'none' ? [] : levels[level];
 };
 
-/** Each room's sizes, area and roof fit, centred in its largest free rectangle. */
+/** The roof on the level over a room's label spot, if any. */
+const roofOver = (room: Room, plan: Plan, warnings: readonly PlanWarning[]): RoofOver | null => {
+  const roof = Object.values(plan.roofs).find((r) => pointInRing(room.labelSpot.center, r.outline));
+  if (!roof) return null;
+  const family = getLibrary().roofFamilies.get(roof.familyId)?.label ?? roof.familyId;
+  const warning = warnings.find(
+    (w) => w.level === 'warning' && w.source.kind === 'roof' && w.source.id === roof.id
+  );
+  // The badge says it in a few words; the Inspector has the whole message.
+  const short = warning ? (warning.short ?? 'see Inspector') : null;
+  return { label: `${family} ${roof.pitch}° ${roof.kind}`, warning: short };
+};
+
+/**
+ * Each room's sizes, area and roof fit (or the roof over it), centred in its largest
+ * free rectangle.
+ */
 export const RoomLabels = () => {
-  const { rooms } = useLevelDerived();
+  const plan = useLevelPlan();
+  const { rooms, warnings } = useLevelDerived();
   const { zoom } = useViewport();
   const toScreen = useWorldToScreen();
 
@@ -96,7 +126,7 @@ export const RoomLabels = () => {
     <g>
       {rooms.map((room) => {
         const { center, w, d } = room.labelSpot;
-        const lines = linesFor(room, w * zoom, d * zoom);
+        const lines = linesFor(room, roofOver(room, plan, warnings), w * zoom, d * zoom);
         if (lines.length === 0) return null;
         const at = toScreen(center);
         const top = at.y - ((lines.length - 1) * LINE_HEIGHT) / 2;

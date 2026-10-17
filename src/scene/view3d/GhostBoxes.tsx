@@ -28,14 +28,24 @@ export const GhostBoxes = ({
   const tokens = useThemeTokens();
   const themed = useMemo(() => materialColorer(tokens), [tokens]);
   const [material] = useState(() => createPieceMaterial({ opacity: GHOST_OPACITY }));
+  const [shapeMaterial] = useState(() =>
+    createPieceMaterial({ opacity: GHOST_OPACITY, edges: false })
+  );
   const [capacity, setCapacity] = useState(MIN_CAPACITY);
   if (boxes.length > capacity) setCapacity(boxes.length * GROWTH);
-  useEffect(() => () => material.dispose(), [material]);
+  useEffect(
+    () => () => {
+      material.dispose();
+      shapeMaterial.dispose();
+    },
+    [material, shapeMaterial]
+  );
   return (
     <PieceInstances
       boxes={boxes}
       colorOf={colorOf ?? themed}
       material={material}
+      shapeMaterial={shapeMaterial}
       castShadow={false}
       capacity={capacity}
     />

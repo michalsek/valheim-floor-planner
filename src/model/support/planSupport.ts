@@ -37,10 +37,11 @@ export interface PlanSupport {
   collapsing: CollapseLine[];
 }
 
-/** Walls, floors, stairs and poles carry weight; doors, furniture and stations don't. */
+/** Walls, floors, roofs, stairs and poles carry weight; doors, furniture and stations don't. */
 const gives = (box: PieceBox): boolean =>
   box.kind === 'wall' ||
   box.kind === 'floor' ||
+  box.kind === 'roof' ||
   (box.kind === 'prop' && box.group !== null && LOAD_BEARING_GROUPS.has(box.group));
 
 const bodyOf = (
@@ -56,7 +57,7 @@ const bodyOf = (
 
 /**
  * Support of every box. `extra` pairs boxes (by `PieceBox.key`) that rest on each other
- * whatever their shapes say (M12: a roof piece on a wall's top edge).
+ * whatever their shapes say (`roofContacts`: a roof piece on a wall's top edge).
  */
 export const planSupport = (
   boxes: readonly PieceBox[],

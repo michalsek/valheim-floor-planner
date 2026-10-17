@@ -18,6 +18,7 @@ const SHOW_MODEL_BOXES =
 
 const createMaterials = () => ({
   solid: createPieceMaterial({ opacity: 1 }),
+  shaped: createPieceMaterial({ opacity: 1, edges: false }),
   panel: createPieceMaterial({ opacity: PANEL_OPACITY }),
 });
 
@@ -26,12 +27,16 @@ interface BoxPiecesProps {
   colorOf: PieceColorer;
 }
 
-/** Boxes in plan colours: one instanced draw for walls, floors and props, one for panels. */
+/**
+ * Boxes in plan colours: one instanced draw for walls, floors, props and roof slabs, one
+ * per roof shape, one for panels.
+ */
 export const BoxPieces = ({ boxes, colorOf }: BoxPiecesProps) => {
   const [materials] = useState(createMaterials);
   useEffect(
     () => () => {
       materials.solid.dispose();
+      materials.shaped.dispose();
       materials.panel.dispose();
     },
     [materials]
@@ -40,7 +45,13 @@ export const BoxPieces = ({ boxes, colorOf }: BoxPiecesProps) => {
   const panels = useMemo(() => boxes.filter((b) => b.kind === 'opening'), [boxes]);
   return (
     <>
-      <PieceInstances boxes={solid} colorOf={colorOf} material={materials.solid} castShadow />
+      <PieceInstances
+        boxes={solid}
+        colorOf={colorOf}
+        material={materials.solid}
+        shapeMaterial={materials.shaped}
+        castShadow
+      />
       <PieceInstances
         boxes={panels}
         colorOf={colorOf}

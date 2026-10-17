@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeVec3, pickBoxes, rayBox, type Ray3 } from './ray';
+import { normalizeVec3, pickBoxes, rayBox, rayPiece, type Ray3 } from './ray';
 
 const down = (x: number, z: number): Ray3 => ({
   origin: { x, y: 10, z },
@@ -35,6 +35,36 @@ describe('rayBox', () => {
   it('ignores a box the ray starts inside', () => {
     const ray = { origin: { x: 0, y: 0.5, z: 0 }, dir: normalizeVec3({ x: 1, y: 0, z: 1 }) };
     expect(rayBox(ray, unit)).toBeNull();
+  });
+});
+
+describe('tilted boxes and shapes', () => {
+  // A 2 × 0.1 × 2 slab tilted 45° down towards +z: its top runs from y 1 (z −1) to −1 (z 1).
+  const slab = {
+    center: { x: 0, y: 0, z: 0 },
+    size: { x: 2, y: 0.1, z: 2 * Math.SQRT2 },
+    rotationY: 0,
+    tiltX: Math.PI / 4,
+  };
+
+  it('hits a tilted slab where its surface is, and misses past its end on the plan', () => {
+    expect(rayBox(down(0, 0.5), slab)).toBeCloseTo(10.5 - 0.05 * Math.SQRT2, 3);
+    expect(rayBox(down(0, 1.2), slab)).toBeNull();
+  });
+
+  it('hits a hip corner on its sloped top, and misses the empty part of its box', () => {
+    // High at local (−x, −z): 2 m cell, 1 m rise, centred at y 0.5.
+    const corner = {
+      center: { x: 0, y: 0.5, z: 0 },
+      size: { x: 2, y: 1, z: 2 },
+      rotationY: 0,
+      shape: 'hipCorner' as const,
+    };
+    // Over the middle of the cell the top is halfway up (y 0.5).
+    expect(rayPiece(down(0, 0), corner)).toBeCloseTo(9.5);
+    // Beside the low corner the top is near the bottom; the box would have been hit at its top.
+    expect(rayPiece(down(0.9, 0.9), corner)).toBeCloseTo(10 - 0.05, 1);
+    expect(rayPiece(down(3, 0), corner)).toBeNull();
   });
 });
 

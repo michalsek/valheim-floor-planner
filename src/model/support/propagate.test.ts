@@ -4,6 +4,7 @@ import type { MaterialSupport } from '../../catalog/pieceDefs';
 import { testLibrary } from '../../catalog/testLibrary';
 import { derivePlan } from '../derivePlan';
 import { pieceBoxes } from '../pieceBoxes';
+import { roofContacts } from '../roofs/roofContacts';
 import { emptyPlan, type Plan } from '../types';
 
 import { findContacts } from './contacts';
@@ -211,5 +212,68 @@ describe('planSupport', () => {
     const tile = boxes.find((b) => b.kind === 'floor')!;
     expect(byKey.get(tile.key)).toMatchObject({ state: 'collapsing', value: 0 });
     expect(collapsing).toEqual([{ item: { kind: 'floor', id: 'f' }, count: 1 }]);
+  });
+
+  /** A wood house `w` × `d` on 2 m walls with a thatch 26° gable, 1 m eaves and gables. */
+  const roofedHouse = (w: number, d: number, roof: Partial<Plan['roofs'][string]> = {}) => {
+    const outline = [
+      { x: 0, z: 0 },
+      { x: w, z: 0 },
+      { x: w, z: d },
+      { x: 0, z: d },
+    ];
+    const plan: Plan = {
+      ...emptyPlan(),
+      walls: {
+        w: {
+          id: 'w',
+          familyId: 'wood',
+          points: outline,
+          closed: true,
+          side: 'right',
+          height: 2,
+          elevation: 0,
+        },
+      },
+      roofs: {
+        r: {
+          id: 'r',
+          elevation: 0,
+          base: 2,
+          outline,
+          familyId: 'thatch',
+          pitch: 26,
+          kind: 'gable',
+          ridgeAxis: 'x',
+          lowSide: '-z',
+          overhang: { eave: 1, gable: 1 },
+          gableWalls: 'none',
+          ...roof,
+        },
+      },
+    };
+    const derived = derivePlan(plan, testLibrary);
+    return planSupport(
+      pieceBoxes(derived, plan, testLibrary),
+      testLibrary.catalog.materialSupport,
+      roofContacts(plan, derived, testLibrary)
+    );
+  };
+
+  it('fades a wood 26° roof row by row off its walls and breaks it about 10 m in', () => {
+    const { byKey } = roofedHouse(8, 26);
+    // Rows across the 26 m span (28 m of eave ring, 14 rows) in the middle column.
+    const row = (j: number) => byKey.get(`r:2:${j}`)!;
+    [81, 52, 33, 21, 14].forEach((value, j) => {
+      expect(row(j).value).toBeCloseTo(value, -0.5);
+      expect(row(j).state).toBe('supported');
+    });
+    // Row 5's middle is 11 m from the eave, 10 m in from the wall.
+    expect(row(5).state).toBe('collapsing');
+  });
+
+  it('holds a 7 × 8 house up: the filler course carries the far eave', () => {
+    const { collapsing } = roofedHouse(7, 8, { ridgeAxis: 'z', gableWalls: 'wood' });
+    expect(collapsing).toEqual([]);
   });
 });

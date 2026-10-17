@@ -9,10 +9,17 @@ import type { Library } from './library';
 import { deriveOpeningDefs } from './openingDefs';
 import { parseCatalog } from './pieceDefs';
 import { buildPropDefs } from './propDefs';
+import {
+  deriveGableWallSets,
+  deriveRoofFamilies,
+  GABLE_WALL_SPECS,
+  ROOF_FAMILY_SPECS,
+} from './roofFamilies';
 import { deriveWallFamilies, WALL_FAMILY_SPECS } from './wallFamilies';
 
 export const DEFAULT_WALL_FAMILY_ID = 'wood';
 export const DEFAULT_FLOOR_FAMILY_ID = 'wood';
+export const DEFAULT_ROOF_FAMILY_ID = 'thatch';
 
 const byKey = <T>(items: readonly T[], key: (item: T) => string): ReadonlyMap<string, T> =>
   new Map(items.map((item) => [key(item), item]));
@@ -28,6 +35,8 @@ export const buildLibrary = (rawPieces: unknown, rawItems: unknown): Library => 
     openingDefs: deriveOpeningDefs(catalog, wallFamilies),
     // Props in catalogue order (the browser sorts its results).
     propDefs: byKey(buildPropDefs(catalog), (d) => d.prefab),
+    roofFamilies: byKey(deriveRoofFamilies(catalog, ROOF_FAMILY_SPECS), (f) => f.id),
+    gableWallSets: byKey(deriveGableWallSets(catalog, GABLE_WALL_SPECS), (s) => s.id),
     items: parseItems(rawItems),
   };
 };

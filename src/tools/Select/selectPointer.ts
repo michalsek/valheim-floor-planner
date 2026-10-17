@@ -12,6 +12,7 @@ import { clampVertexTarget } from '../../model/vertexDrag';
 import { getLibrary } from '../../store/libraryInstance';
 import { editPreviewAtom, hoverAtom, selectionAtom } from '../../store/selection';
 import { cursorStyleAtom, snapStepAtom, workDatumAtom } from '../../store/session';
+import { viewModeAtom } from '../../store/view3d';
 import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { ToolContext, ToolPointerEvent } from '../types';
@@ -83,6 +84,12 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
       ctx.set(cursorStyleAtom, 'grabbing');
       return { phase: 'vertex', run, index: hit.index, target: corner };
     }
+  }
+  // In 3D roofs cover the house: a roof moves only once it is selected, so a drag that
+  // starts on one by accident doesn't carry it away.
+  if (hit?.kind === 'roof' && press.addedOnDown && ctx.get(viewModeAtom) === '3d') {
+    ctx.set(cursorStyleAtom, null);
+    return SELECT_IDLE;
   }
   if (hit) {
     ctx.set(cursorStyleAtom, 'move');

@@ -36,7 +36,9 @@ export const commitCommands = (
  * same for the cursor of a tool that draws on that grid.)
  */
 export const moveStep = (items: Selection, step: number): number =>
-  items.some((item) => item.kind === 'floor' || item.kind === 'opening') ? Math.max(step, 1) : step;
+  items.some((item) => item.kind === 'floor' || item.kind === 'opening' || item.kind === 'roof')
+    ? Math.max(step, 1)
+    : step;
 
 export const clearSelection = (ctx: ToolContext): boolean => {
   if (ctx.get(selectionAtom).length === 0) return false;

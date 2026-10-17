@@ -12,7 +12,7 @@ import { getPieceBoxes, useDisplayPlan } from '../../store/planHooks';
 import { useSupport } from '../../store/supportSync';
 import { hoverAtom, selectionAtom } from '../../store/selection';
 import { realLookAtom } from '../../store/modelView';
-import { supportViewAtom, workDatumAtom } from '../../store/session';
+import { roofsVisibleAtom, supportViewAtom, workDatumAtom } from '../../store/session';
 import { ToolPreview3d } from '../../tools/ToolPreview';
 
 import { Dimensions3d } from './Dimensions3d';
@@ -58,7 +58,12 @@ export const View3d = () => {
     if (!realLook) releaseModels(gl);
   }, [realLook, gl]);
 
-  const boxes = getPieceBoxes(plan);
+  const roofsVisible = useAtomValue(roofsVisibleAtom);
+  const allBoxes = getPieceBoxes(plan);
+  const boxes = useMemo(
+    () => (roofsVisible ? allBoxes : allBoxes.filter((b) => !b.roofCover)),
+    [allBoxes, roofsVisible]
+  );
   const bounds = useMemo(() => boxesBounds(boxes), [boxes]);
   const onLevel = useMemo(() => {
     const { levelOf } = levelIndex(plan, getLibrary());

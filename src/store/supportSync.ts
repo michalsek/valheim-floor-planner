@@ -6,11 +6,12 @@
  */
 import { atom, useAtomValue } from 'jotai';
 
+import { roofContacts } from '../model/roofs/roofContacts';
 import { planSupport, type PlanSupport } from '../model/support/planSupport';
 import type { Plan } from '../model/types';
 
 import { getLibrary } from './libraryInstance';
-import { getPieceBoxes, usePlan } from './planHooks';
+import { getDerived, getPieceBoxes, usePlan } from './planHooks';
 import type { PlanStore } from './planStore';
 import { supportViewAtom, type SessionStore } from './session';
 
@@ -35,7 +36,11 @@ const whenIdle = (run: () => void): (() => void) => {
 };
 
 export const computeSupport = (plan: Plan): PlanSupport =>
-  planSupport(getPieceBoxes(plan), getLibrary().catalog.materialSupport);
+  planSupport(
+    getPieceBoxes(plan),
+    getLibrary().catalog.materialSupport,
+    roofContacts(plan, getDerived(plan), getLibrary())
+  );
 
 /** Keeps `supportAtom` following the committed plan while support is wanted. */
 export const startSupportSync = (plans: PlanStore, session: SessionStore): (() => void) => {
