@@ -263,7 +263,263 @@ The open questions are really about proportions:
 
 That's exactly what the planner should answer quickly.
 
-## 7. Implications for the planner's data model
+## 7. Valheim 1.0 world save format (chunked)
+
+Source: IL of the installed `assembly_valheim.dll` and `assembly_utils.dll` (1.0.20, Oct 15),
+disassembled with `dnfile` + `dncil` for interoperability notes (M13 a0). Only the layout
+is recorded here; no game code was copied. **Confidence:** **IL** = read directly in the
+save/load IL; **inf** = inferred from IL around it, not exercised against a real save.
+**No real chunked world has been parsed yet** (see open questions).
+
+### Summary
+- **Not encrypted, and the ZDO files are not compressed.** `.chunk` and `.chunks` are
+  raw .NET `BinaryWriter` output (`FileWriter` → `BufferedStream` → `BinaryWriter`).
+  There's no hash, no trailer and no magic. **IL**
+- **Little-endian** everywhere. Strings are .NET `BinaryWriter` strings: a 7-bit varint
+  byte length, then UTF-8. **IL**
+- **Version gate:** world version **42** (`Version.c_WorldVersion`). The game accepts
+  9–42 (`IsWorldVersionCompatible`). Named versions:
+  - 31 `NewSaveFormat`: the current ZDO encoding starts here;
+  - 33 `NumItems`: varint item counts;
+  - 38/39 `DeepNorthNoChunk*`;
+  - **40 `ChunkedSave`**;
+  - 41 `DeepNorth`;
+  - 42 `CheatCleanSlate`.
+  **IL**
+- **Compression in a world:**
+  - **gzip** (`Utils.Compress`): the `ZoneSystem` blob in `.db2`, and `TerrainComp` byte
+    arrays inside terrain ZDOs.
+  - **Brotli** (`BrotliCompressor`, .NET `BrotliStream`): only the `PersistentEventSystem`
+    blob in `.db2`.
+  - **The piece reader needs neither.** **IL**
+
+### World folder
+Path: `<save root>/worlds_local/<WorldName>/`. On macOS the save root is
+`~/Library/Application Support/IronGate/Valheim/`. Cloud-source worlds use `worlds/`
+instead of `worlds_local/`. **IL** (strings), except the macOS root, which is known from M13 §1.
+
+| File | Written by | Content |
+|---|---|---|
+| `_main.N.fwl2` | `World.SaveWorldFWLData` | World metadata (below). |
+| `_main.N.db2` | `ZNet.SaveWorldThread` | Net time, zones, events. **No ZDOs.** |
+| `_main.N.chunks` | `ChunkSaveMapping.Save` | The chunk manifest. |
+| `YY_XX__S_V.chunk` | `ZDOMan.SaveChunk` | The ZDOs of one chunk. |
+| `_main.N.ok` | `ZNet.SaveWorldThread` | Commit marker: `int32 42`. |
+
+**Save order and `.ok` semantics:**
+- During a save, `N` = the previous number + 1.
+- The game writes, in order: the changed `.chunk` files and the `.chunks` manifest, then
+  `.db2`, then `.fwl2`.
+- Only if the chunks, `.db2` and `.fwl2` all succeed does it write `_main.N.ok`. It then
+  deletes the four `_main.(N-1).*` files and, for every chunk it rewrote, the superseded
+  file with the older `chunkVersion`.
+- On failure, it deletes generation `N` and reverts the chunk versions.
+
+**IL**
+
+**Choosing the generation to read:**
+- Take the **highest `N` for which all four `_main.N.{fwl2,db2,chunks,ok}` exist.** **inf**
+  `SaveCollection.KeepOnlyNewest` keeps the newest group of 4, or a lone `_main.0.fwl2`
+  for a fresh world, and treats the rest as orphans.
+- Chunk files are **not** tied to `N`. Unchanged chunks keep their old files, so the
+  manifest is the only index.
+- On load, the game deletes `*.chunk` files that aren't in the manifest ("orphan CHUNK").
+
+### `.fwl2` (world metadata)
+`int32 len`, then a `len`-byte ZPackage containing:
+
+| Field | Type | Conf. |
+|---|---|---|
+| version | int32 (42) | IL |
+| name | string | IL |
+| seedName | string | IL |
+| seed | int32 | IL |
+| uid | int64 | IL |
+| worldGenVersion | int32 | IL |
+| needsDB | bool | IL |
+| startingGlobalKeys | int32 n + n strings | IL |
+| playerHistory | int32 n + n × `CrossNetworkUserInfo` | IL (entry layout not read) |
+
+**Privacy:** `playerHistory` holds platform user IDs and display names. The reader stops
+after `worldGenVersion` and never parses it.
+
+### `.db2`
+| Field | Type | Conf. |
+|---|---|---|
+| version | int32 (42) | IL |
+| netTime | double | IL |
+| ZoneSystem | int32 len + **gzip** ZPackage: `int32 n` + n × Vector2s generated zones, `int32 locationVersion`, `int32 n` + n global-key strings, `bool locationsGenerated`, `int32 n` + n × (`int32 locationHash`, `float x,y,z`, `bool placed`) | IL |
+| RandEventSystem | float timer, string event, float time, float x,y,z | IL |
+| PersistentEventSystem | int32 len + **Brotli** bytes (content not decoded) | IL |
+
+The planner can skip `.db2`. The legacy `.db` had the same tail, after the ZDOs.
+
+### `.chunks` (manifest)
+| Field | Type | Conf. |
+|---|---|---|
+| version | uint16 (42) | IL |
+| totalZDOs | int32 (sum over all chunks) | IL |
+| count | int32 | IL |
+| entries ×count | `uint16 chunk`, `uint8 size`, `uint32 chunkVersion`, `int32 numZDOs` | IL |
+
+**Chunk index:**
+- `chunk = cx | cy << 8`, where `cx = (zoneX + 256) / 8` and `cy = (zoneZ + 256) / 8`.
+- `zone = floor((pos + 32) / 64)`, so a base chunk (`size` 0) is 8 × 8 zones = 512 m square,
+  and the grid is 64 × 64 chunks.
+- `c_ZonesPerChunk = 8`. **IL**
+
+**Bigger chunks:**
+- Sparse areas are merged into chunks of `size` 1/2/3: 2×2, 4×4 or 8×8 base chunks.
+- The merge applies while the combined count is below `c_MaxNumberOfZDOsPerBiggerChunks`
+  = 100 000.
+- `cx` and `cy` are aligned with masks `0xFEFE`/`0xFCFC`/`0xF8F8`.
+- **IL** (`DecideChunkSize`, `s_sizeFilters`); the merge policy itself is **inf**.
+
+**Special chunks:**
+- **Portals** (`Game.PortalPrefabHash`) are saved in the special chunk
+  `ChunkPortal = (chunk 1, size 0)`, i.e. file `00_01__0_V.chunk`.
+- That index would be a real chunk at x ≈ −15.9 km, outside the world. **IL**
+
+**Contents:** only **persistent** ZDOs are saved. **IL**
+
+**A reader can ignore all the geometry.** It walks the manifest, opens each file and reads
+its ZDOs. Positions are absolute world coordinates.
+
+### `.chunk` file
+- **Name:** `sprintf("%02x_%02x__%d_%d.chunk", chunk >> 8, chunk & 0xFF, size, chunkVersion)`.
+  The hex is lower-case, and **the high byte (z/cy) comes first**.
+- `chunkVersion` is per chunk and goes up each time that chunk is rewritten. It is not
+  the world version. **IL**
+
+| Field | Type | Conf. |
+|---|---|---|
+| version | **int16** (world version the chunk was written with) | IL |
+| count | int32 (= manifest `numZDOs`) | IL |
+| ZDOs ×count | see below, decoded with **this chunk's** version | IL |
+
+### Per-ZDO encoding (`ZDO.Save` / `ZDO.Load`)
+There's still **no per-ZDO length** and **no ZDOID**: IDs are reassigned sequentially on
+load. So every ZDO must be walked.
+
+| # | Field | v31–39 (`.db`) | **v40+ (`.chunk`)** | Conf. |
+|---|---|---|---|---|
+| 1 | flags | uint16 | uint16 | IL |
+| 2 | sector | int16 × 2 (discarded) | **removed** | IL |
+| 3 | position | float32 × 3 (or int16 × 2 if bit 13) | float32 × 3, **or int16 x, int16 z with y = 0 if bit 13** | IL |
+| 4 | prefab | int32 stable hash | int32 stable hash | IL |
+| 5 | rotation (bit 12) | float32 × 3 Euler degrees | **`SmallRotation`**: 2 or 4 bytes (below) | IL |
+| 6 | (if `flags & 0xFF` = 0, the ZDO ends here) | | | IL |
+| 7 | connection (bit 0) | uint8 type, int32 hash | same | IL |
+| 8 | data sections, in bit order 1–7 | count + (int32 key, value) pairs | same | IL |
+
+**Flag bits** (`ZDO.ExtraDataFlags`):
+
+| Bit | Mask | Meaning |
+|---|---|---|
+| 0 | 1 | Connection |
+| 1 | 2 | Floats (f32) |
+| 2 | 4 | Vec3 (3 × f32) |
+| 3 | 8 | Quaternions (4 × f32) |
+| 4 | 16 | Ints (i32) |
+| 5 | 32 | Longs (i64) |
+| 6 | 64 | Strings |
+| 7 | 128 | Byte arrays (int32 len + bytes) |
+| 8 | 256 | Persistent |
+| 9 | 512 | Distant |
+| 10–11 | 3072 | Type: 0 Default, 1 Prioritized, 2 Solid, 3 Terrain |
+| 12 | 4096 | Has rotation |
+| 13 | 8192 | **SmallPosition (new)** |
+
+All **IL**.
+
+**Section count:**
+- From v33: one byte `c`; if `c & 0x80`, the count is `((c & 0x7F) << 8) | nextByte`.
+  The count is big-endian in the 2-byte form.
+- Before v33: a single byte.
+- **IL**
+
+**Connection:** the type is 1 Portal, 2 SyncTransform, 3 Spawned or 16 Target. The hash is
+a *connection hash*, not a ZDOID. **IL**
+
+**SmallPosition:**
+- The writer uses it only when `y == 0` and x and z are exact integers (clamped to ±20000).
+- So build pieces will almost always use the full `vec3`.
+- **IL** (`Utils.SmallPosition`). Any use in v31–39 files is **inf** (unlikely).
+
+**Rotation:**
+- Stored as Unity **Euler angles in degrees, [0, 360)** (`ZDO.SetRotation` keeps
+  `quaternion.eulerAngles`). It is omitted when every component is below 0.5°.
+- `SmallRotation` (v40+): read `uint16 a`.
+  - If `a & 0x8000`, it is **yaw only**: `y = (a & 0x7FFF) × 0.5`, x = z = 0.
+  - Otherwise `p = a << 16 | nextUint16`, and `x = (p & 1023) × 0.5`,
+    `y = (p >> 10 & 1023) × 0.5`, `z = (p >> 20 & 1023) × 0.5`.
+- The writer **truncates** to 0.5° steps (`(uint)(deg × 2)`), and drops x/z within 0.5° of 0/360.
+- So 22.5° and 45° are exact, while for example 359.9° becomes 359.5°.
+- **IL**
+
+**Changes from the pre-1.0 notes in M13 §1:**
+- the sector is removed;
+- rotation is packed into 0.5° steps (2 bytes for yaw-only pieces);
+- flag bit 13 (small position) is new;
+- the chunk header carries the version;
+- everything else, including the data sections and varint counts, is unchanged.
+
+Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` branch.
+- **Header:** `int32 version`, `double netTime`, `int64 myId`, `uint32 nextUid`,
+  `int32 count`, then ZDOs back to back. **IL** (`ZNet.LoadOldWorld`, `ZDOMan.Load`)
+- v < 31 uses an older length-prefixed format (`LoadOldFormat`). Don't support it.
+
+### Piece identification
+- **Prefab hash:** `GetStableHashCode` from `assembly_utils`.
+  - Two accumulators start at 5381.
+  - Over alternating characters: `h = (h << 5) + h ^ c`. It stops at `'\0'`.
+  - The result is `h1 + h2 × 1566083941`, in int32 arithmetic.
+  - The algorithm is **IL**. The DLL has no literal hash constants to cross-check against,
+    so the values are verified only by the fixture.
+  - Examples (computed): `woodwall` −523056075, `wood_floor` −1045925142,
+    `piece_chest_wood` 328745978, `portal_wood` −661882940.
+- **Data keys** are the stable hashes of the `ZDOVars` names. **IL**
+
+  | Key | Section | Notes |
+  |---|---|---|
+  | `creator` (881008290) | long | The player ID, from `Piece.SetCreator`. 0 or absent means world-generated. |
+  | `creatorIndex` | int | **New:** an index into `.fwl2` `playerHistory`. Personal data, so ignore it. |
+  | `health` (−883022132) | float | Probably present only once damaged or set (**inf**). |
+  | `support` (642166391) | float | |
+
+- The "Has no creator" string mentioned in M13 §1 belongs to `Bed.Interact`, not to pieces.
+
+### Browser notes
+- **No decompression is needed for pieces.**
+- If `.db2` is ever read:
+  - The gzip blob can use `DecompressionStream('gzip')`, which every current browser
+    supports.
+  - For the Brotli blob: MDN now lists `'brotli'` as a `DecompressionStream` format, but
+    per-browser support wasn't verified in this spike. Feature-detect it (the constructor
+    throws `TypeError`).
+  - The pure-JS fallbacks are Google's `brotli/js/decode.js` and the `brotli` npm package
+    (`brotli/decompress`), both without a WASM build step.
+
+### Self-consistency check (scratchpad only)
+- A Python writer and reader produced and parsed a synthetic world:
+  - a 4×6 hut, a 45° shed in another chunk, a 22.5° piece, and a pitched beam;
+  - a ruin piece with no creator, a non-piece object, and a SmallPosition rock;
+  - a 130-item int section, and a portal in the portal chunk;
+  - a stale, incomplete `_main.6`.
+- It also parsed the same scene as a v34 `.db`.
+- Both gave identical piece counts and rotations. **This proves the tables are
+  self-consistent, not that they match the game.**
+
+### Open questions (validate on a real save)
+1. Real filenames and sizes: does a small world really end up in one merged `size` 3 chunk?
+2. Do all four `_main.N.*` files survive between sessions on macOS? Is the `.ok` always present?
+3. The prefab hashes and `creator` values on real pieces.
+4. Whether `health` is stored for undamaged pieces.
+5. Whether 1.0 still leaves converted `.db`/`.fwl` files next to the new folder after conversion.
+6. Cloud-save (`worlds/`) layout, and the server `-savedir` layout. Both are expected to be
+   identical, but are untested.
+
+## 8. Implications for the planner's data model
 
 - Work in **metres**, with a **0.5 m base grid** and 1 m / 2 m snap levels.
 - Each piece type carries:
@@ -285,7 +541,7 @@ That's exactly what the planner should answer quickly.
   - a check that roof spans are whole-piece friendly.
 - Overlays: furniture/station footprints, workbench/ward radii, stair run per storey.
 
-## 8. Web research (wiki, patch notes, mods)
+## 9. Web research (wiki, patch notes, mods)
 
 These points come from the Fandom wiki API, the Jotunn docs, Iron Gate's Steam news
 and Thunderstore. They're cross-checked against the game data where possible.
@@ -339,7 +595,7 @@ Sources: valheim.fandom.com (Building, Building stability, Cover, Smoke, Hearth,
 Workbench, Portal, Player base), valheim-modding.github.io/Jotunn piece list, Steam
 news for app 892970, Thunderstore pages for the mods above.
 
-## 9. Tech stack options (superseded: see docs/Roadmap.md)
+## 10. Tech stack options (superseded: see docs/Roadmap.md)
 
 | Option | Pros | Cons |
 |---|---|---|
