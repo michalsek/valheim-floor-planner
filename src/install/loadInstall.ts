@@ -8,6 +8,10 @@
  * the folder skips the parse; one can also be used without folder access at all.
  * Once the editor runs, a re-scan or a new folder writes the cache and reloads the
  * page, so the library never changes under a running editor.
+ *
+ * The located files are kept for model extraction (`assetClient.ts`). Files read
+ * through the upload dialog or an entry-only drop don't survive a reload, so after
+ * such a scan every model is extracted into the cache in the background.
  */
 import { buildLibrary } from '../catalog/buildLibrary';
 import type { Library } from '../catalog/library';
@@ -16,6 +20,7 @@ import type { ExtractPhase } from '../gameData/valheim/extractCatalogue';
 import { getLocalStorage } from '../store/browserStorage';
 import { hasLibrary, setLibrary } from '../store/libraryInstance';
 
+import { extractAll } from './assetClient';
 import { fileListDir, handleDir, pickDirectory, readPermission, type DirLike } from './directory';
 import { resolveDrop, type DroppedItem } from './dropFolder';
 import { asGameDataError } from './fileErrors';
@@ -28,7 +33,7 @@ import {
   type CachedCatalogue,
   type InstallInfo,
 } from './installStore';
-import { locateDataDir } from './locateInstall';
+import { locateDataDir, type InstallFiles } from './locateInstall';
 import { cancelParse, parseInstall } from './parserClient';
 
 export type InstallStatus =
@@ -62,6 +67,9 @@ let state: InstallState = {
 const listeners = new Set<() => void>();
 let cache: CachedCatalogue | null = null;
 let handle: FileSystemDirectoryHandle | null = null;
+/** The key of the catalogue in use, and its install's files when they are at hand. */
+let loadedKey: string | null = null;
+let installFiles: InstallFiles | null = null;
 
 const update = (changes: Partial<InstallState>) => {
   state = { ...state, ...changes };
@@ -97,8 +105,11 @@ const sessionStore = (): Storage | null => {
   }
 };
 
-/** Puts `catalogue` in use: in the gate directly, in a running editor via a reload. */
-const install = (catalogue: CachedCatalogue, library: Library) => {
+/**
+ * Puts `catalogue` in use: in the gate directly, in a running editor via a reload.
+ * `files` are its install's files (null when opened from the cache alone).
+ */
+const install = (catalogue: CachedCatalogue, library: Library, files: InstallFiles | null) => {
   if (hasLibrary()) {
     try {
       sessionStore()?.setItem(OPEN_ON_RELOAD_KEY, catalogue.key);
@@ -109,6 +120,8 @@ const install = (catalogue: CachedCatalogue, library: Library) => {
     return;
   }
   setLibrary(library);
+  loadedKey = catalogue.key;
+  installFiles = files;
   update({ status: { kind: 'ready' }, loaded: catalogue.info });
 };
 
@@ -184,7 +197,9 @@ const scan = async (
       await putHandle(remember);
       update({ hasHandle: remember !== null });
     }
-    install(catalogue, library);
+    const transient = remember === null && !hasLibrary();
+    install(catalogue, library, files);
+    if (transient) extractAll().catch(() => {});
   } catch (error) {
     if (current()) fail(error);
   }
@@ -277,7 +292,7 @@ export const chooseDrop = async (drop: DroppedItem): Promise<void> => {
 export const openCachedCatalogue = (): void => {
   if (!cache) return;
   try {
-    install(cache, libraryFrom(cache));
+    install(cache, libraryFrom(cache), null);
   } catch (error) {
     fail(error);
   }
@@ -290,3 +305,24 @@ export const cancelScan = (): void => cancelParse();
 
 /** Back to the folder choice, or to the editor, after an error. */
 export const dismissError = (): void => settle();
+
+/** The key of the catalogue in use (it names the model cache), or null before one. */
+export const getCatalogueKey = (): string | null => loadedKey;
+
+/** The files of the install in use, or null when it was opened from the cache alone. */
+export const getInstallFiles = (): InstallFiles | null => installFiles;
+
+/**
+ * Gets the files of the install in use back from the stored folder, without
+ * reloading, so missing models can be extracted (needs a user gesture to ask for
+ * access). False when there is no folder or it now holds another game build.
+ */
+export const connectAssetFiles = async (): Promise<boolean> => {
+  if (installFiles) return true;
+  if (!handle || !loadedKey) return false;
+  if ((await readPermission(handle, true)) !== 'granted') return false;
+  const files = await locateDataDir(handleDir(handle));
+  if ((await fingerprint(files)) !== loadedKey) return false;
+  installFiles = files;
+  return true;
+};

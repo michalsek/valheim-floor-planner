@@ -549,3 +549,63 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     toggle wasn't built.
 15. Checked in headless Chrome 155 on WebGPU and `?webgl` (dark and light themes) with real
     mouse input; not on Safari or a trackpad.
+
+## From M14 Phase A
+
+1. **`wood_roof` draws 3 groups, not 2**: its `_Combined Mesh [high]` has 3 submeshes
+   (660/6/72 indices) and its renderer 3 materials (`woodwall`, `straw_roof`,
+   `straw_roof_alpha`, the last a cutout at 0.69). The plan's "2 materials" didn't hold on
+   this install (Unity 6000.0.75f1), so the golden test asserts 3.
+2. **LOD rule extended**: five pieces (blast furnace, artisan table, spinning wheel, eitr
+   refinery, lava lantern) put a SkinnedMeshRenderer in LOD0 and a static `low`
+   MeshRenderer in LOD1 only, so "drop what isn't in LOD0" drew nothing. Each LODGroup
+   now shows its **first level with a drawable renderer**; renderers only in other levels
+   are dropped. Stations that list a renderer in LOD0 and LOD1 (the forge, the iron fire
+   pit) are unchanged. Only `piece_repair` and `artisan_ext1` draw nothing (stored as a `none`
+   record, so they aren't extracted again). VikingShip has 18 parts.
+3. **Golden data** (`research/valheim-models.json`, 211 KB, counts only): 398 prefabs, 406
+   meshes (vertex/index counts, `.resS` or inline, normal format, sums of decoded
+   positions, normals and UVs), per-material vertex/index contributions and baked bounds,
+   and the 409 textures the materials use (97 BC1, 209 BC3, 103 BC7; the RGB24 noise
+   texture isn't read, since `_NoiseTex` is ignored). `pnpm test:assets` matches it
+   for every mesh, prefab and texture, independently of UnityPy's code. Bounds are
+   compared only for the 385 prefabs without built-in primitives.
+4. **Models sit inside their colliders**: 82 of 85 wall and floor pieces are within
+   ± 0.3 m. The three outside are `wood_wall_log_4x0.5` (0.33 m), the dvergr stake wall
+   (0.58 m) and the blackwood stake wall (0.39 m), whose logs and stakes reach past the
+   collider. So the root-transform rule and the raw Unity axes line the models up with the
+   catalogue's boxes.
+5. **Timings**: in Node, opening the bundle plus the first model takes 0.23 s, a warm
+   prefab 8 ms, and all 398 models 2.5 s plus 0.1–0.16 s for all textures. In headless
+   Chrome 155 (dev server):
+   - the cold first model, including the worker start and bundle open, takes 0.31 s;
+   - a warm prefab takes 30 ms;
+   - "Extract all", writing to OPFS, takes 7.4–8.1 s;
+   - a cache hit (model and texture) takes 2 ms, and 1.9 ms after a reload from the cached
+     catalogue without folder access.
+6. **Cache size for all pieces: 41.2 MB** (398 models, 409 textures), above the plan's
+   ~35 MB. Normals and tangents are stored as float32; quantizing them is the obvious cut
+   if size matters.
+7. **Where things landed**:
+   - The piece-table helpers moved from `extractCatalogue.ts` to `pieceBundle.ts`, which
+     keeps the bundle so `.resS` can be read.
+   - Bake and merge are pure, in `bakeModel.ts`. `extractModels.ts` keeps the I/O.
+   - `ModelSource` also has `models(names)` and `textures(ids)` for batching. The worker
+     runs "Extract all" in batches of 20 prefabs, one bundle sweep per hierarchy level.
+   - Group materials carry texture IDs as decimal strings (JSON-safe).
+   - `MeshData` records `streamed` and `normalFormat`, for the golden test.
+8. **Worker protocol additions**:
+   - `{textures, ids}`: refetches a texture that is missing from OPFS.
+   - `{storage, persistent: false, reason}`: switches the page to the memory fallback.
+   - The worker posts texture buffers only in memory mode or when asked. With OPFS, the
+     page reads them with `getFile()`.
+   - Requests made in the same tick go to the worker as one batch.
+   - Clearing the cache terminates the worker first, because it may hold sync handles.
+9. **Files kept for extraction**: `loadInstall` keeps the located `InstallFiles` and the
+   catalogue key (`getInstallFiles()`, `getCatalogueKey()`). A scan through the upload
+   dialog or an entry-only drop starts "Extract all" in the background (checked: it
+   finished, and models loaded from the cache after a reload). `connectAssetFiles()`
+   re-grants the stored folder from a click and checks that its fingerprint still matches.
+   The menu's "Extract all models" calls it first.
+10. **Not exercised**: the memory fallback (Safari private mode, quota, two tabs), Firefox,
+    and the "Reconnect" path with a stored handle (headless Chrome can't grant it).

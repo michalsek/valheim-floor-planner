@@ -7,12 +7,7 @@
  */
 import type { ByteSource } from '../bytes/ByteSource';
 import { GameDataError } from '../GameDataError';
-import { openBundle } from '../unity/bundle';
-import {
-  CLASS_MONO_BEHAVIOUR,
-  openSerializedFile,
-  type SerializedFile,
-} from '../unity/serializedFile';
+import { openSerializedFile, type SerializedFile } from '../unity/serializedFile';
 import { findTextAsset } from '../unity/textAsset';
 import {
   fields,
@@ -27,14 +22,14 @@ import {
 
 import {
   CATEGORY_NAMES,
-  HAMMER_TABLE_PATH,
   LOCALIZATION_ASSET,
   MATERIAL_NAMES,
   MATERIAL_SUPPORT,
   WARD_PREFAB,
 } from './constants';
-import { aabb, componentsOf, walkPrefabs, type PrefabShape } from './hierarchy';
+import { aabb, walkPrefabs, type PrefabShape } from './hierarchy';
 import { parseLocalization, type Localization } from './localization';
+import { behaviourWith, openPieceBundle, pieceTable } from './pieceBundle';
 
 export interface CatalogueSources {
   /** The bundle holding the piece table (named in `manifest_extended`). */
@@ -84,11 +79,7 @@ export interface ExtractResult {
   unityVersion: string;
 }
 
-const CLASS_ASSET_BUNDLE = 142;
-const SERIALIZED_NODE = 0x4;
-
 /** MonoBehaviours are told apart by their fields (their scripts live in other files). */
-const FIELD_PIECE_TABLE = 'm_pieces';
 const FIELD_PIECE = 'm_category';
 const FIELD_WEAR_N_TEAR = 'm_materialType';
 const FIELD_CRAFTING_STATION = 'm_rangeBuild';
@@ -112,50 +103,6 @@ interface Owned {
 
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 const round3v = (v: V3): V3 => [round3(v[0]), round3(v[1]), round3(v[2])];
-
-/** The first MonoBehaviour of `go` whose type has a field called `field`. */
-const behaviourWith = (file: SerializedFile, go: Fields, field: string): bigint | null =>
-  componentsOf(go).find(
-    (id) =>
-      file.classId(id) === CLASS_MONO_BEHAVIOUR &&
-      (file.typeOf(id).node?.children.some((c) => c.name === field) ?? false)
-  ) ?? null;
-
-const openPieceFile = (bundleSource: ByteSource): SerializedFile => {
-  const bundle = openBundle(bundleSource);
-  const node =
-    bundle.nodes.find((n) => n.flags & SERIALIZED_NODE) ??
-    bundle.nodes.find((n) => !/\.(resS|resource)$/.test(n.name));
-  if (!node) throw new GameDataError('corrupt', 'bundle has no serialized file');
-  return openSerializedFile(bundle.node(node.name));
-};
-
-/** The asset at `path` in the bundle's container (paths compare case-insensitively). */
-const containerAsset = (file: SerializedFile, path: string): bigint | null => {
-  const wanted = path.toLowerCase();
-  for (const id of file.idsOfClass(CLASS_ASSET_BUNDLE)) {
-    const bundle = fields(file.read(id), 'AssetBundle');
-    for (const entry of list(bundle.m_Container, 'm_Container')) {
-      const [key, info] = list(entry, 'm_Container entry');
-      if (str(key, 'container path').toLowerCase() === wanted) {
-        return localRef(fields(info, 'AssetInfo').asset, 'asset');
-      }
-    }
-  }
-  return null;
-};
-
-/** The prefab IDs on the Hammer's piece table, in table order. */
-const pieceTable = (file: SerializedFile): bigint[] => {
-  const tableId = containerAsset(file, HAMMER_TABLE_PATH);
-  if (tableId === null) throw new GameDataError('missingPieces', 'no Hammer piece table');
-  const table = behaviourWith(file, fields(file.read(tableId), 'piece table'), FIELD_PIECE_TABLE);
-  if (table === null) throw new GameDataError('missingPieces', 'empty piece table');
-  return list(fields(file.read(table), 'PieceTable').m_pieces, 'm_pieces').flatMap((ptr) => {
-    const id = localRef(ptr, 'm_pieces');
-    return id === null ? [] : [id];
-  });
-};
 
 /** Reads the prefabs, then their relevant MonoBehaviours in one batch. */
 const readPrefabs = (file: SerializedFile, ids: readonly bigint[]): Prefab[] => {
@@ -324,7 +271,7 @@ export const extractCatalogue = (
   onProgress: (progress: ExtractProgress) => void = () => {}
 ): ExtractResult => {
   onProgress({ phase: 'bundle', objects: 0 });
-  const file = openPieceFile(sources.bundle);
+  const { file } = openPieceBundle(sources.bundle);
   const report = (phase: ExtractPhase) => onProgress({ phase, objects: file.objectsRead });
 
   report('pieces');

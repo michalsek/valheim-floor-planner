@@ -8,6 +8,12 @@
 /** Bump when the parser's output changes, so cached catalogues are rebuilt. */
 export const PARSER_VERSION = 1;
 
+/**
+ * Bump when extracted models or textures change shape (`modelFormat.ts`), so cached
+ * assets are extracted again.
+ */
+export const ASSET_VERSION = 1;
+
 /** Where the Hammer's piece table sits in the bundles (and in `manifest_extended`). */
 export const HAMMER_TABLE_PATH = 'Assets/GameElements/Pieces/_HammerPieceTable.prefab';
 

@@ -1,7 +1,8 @@
 /**
- * Unity serialized files (format 22, Unity 2022–6): the type table, the object table
- * and reading objects through their type trees (external references aren't followed). Only the metadata is read up front;
- * objects are read on demand, in file order when asked for in batches.
+ * Unity serialized files (format 22, Unity 2022–6): the type table, the object table,
+ * the externals table and reading objects through their type trees (external references
+ * aren't followed, only named). Only the metadata is read up front; objects are read on
+ * demand, in file order when asked for in batches.
  */
 import { ByteReader } from '../bytes/ByteReader';
 import type { ByteSource } from '../bytes/ByteSource';
@@ -18,6 +19,11 @@ export interface SerializedType {
 export interface SerializedFile {
   little: boolean;
   unityVersion: string;
+  /**
+   * Paths of the files other objects point into: a PPtr's `m_FileID` n > 0 names
+   * `externals[n - 1]` (e.g. `Library/unity default resources`).
+   */
+  externals: readonly string[];
   /** Objects read so far (for progress). */
   readonly objectsRead: number;
   classId(id: bigint): number;
@@ -55,6 +61,22 @@ interface ObjectTable {
   sizes: Uint32Array;
   typeIndex: Uint32Array;
 }
+
+/** Script types (skipped), then the externals table: each external's path. */
+const readExternals = (r: ByteReader): string[] => {
+  const scripts = r.count(12);
+  for (let i = 0; i < scripts; i++) {
+    r.i32(); // local serialized file index
+    r.align(4);
+    r.i64(); // local identifier in file
+  }
+  return Array.from({ length: r.count(22) }, () => {
+    r.cstr(); // temp empty
+    r.bytesView(16); // GUID
+    r.i32(); // type
+    return r.cstr();
+  });
+};
 
 const readObjectTable = (r: ByteReader, dataOffset: number, typeCount: number): ObjectTable => {
   const count = r.count(24);
@@ -114,7 +136,8 @@ export const openSerializedFile = (src: ByteSource): SerializedFile => {
   const withTree = r.bool();
   const types = Array.from({ length: r.count(23) }, () => readType(r, withTree));
   const table = readObjectTable(r, dataOffset, types.length);
-  // Scripts, externals and ref types follow; nothing here needs them.
+  const externals = readExternals(r);
+  // Ref types and user information follow; nothing here needs them.
 
   const indexOf = (id: bigint): number => {
     let lo = 0;
@@ -153,6 +176,7 @@ export const openSerializedFile = (src: ByteSource): SerializedFile => {
   return {
     little,
     unityVersion,
+    externals,
     get objectsRead() {
       return objectsRead;
     },

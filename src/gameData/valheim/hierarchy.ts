@@ -6,6 +6,8 @@
  * - colliders count only on active GameObjects, and not when they are triggers or
  *   disabled; mesh colliders whose mesh is in another bundle are skipped;
  * - children of inactive GameObjects are still walked.
+ * `walkTransforms` (the hierarchy and each GameObject's matrix) is shared with
+ * `renderParts.ts`, which skips inactive subtrees instead.
  */
 import { check } from '../GameDataError';
 import type { SerializedFile } from '../unity/serializedFile';
@@ -36,7 +38,7 @@ export interface PrefabShape {
 }
 
 /** Row-major 4×4 matrix. */
-type Mat4 = readonly number[];
+export type Mat4 = readonly number[];
 
 const IDENTITY: Mat4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -109,35 +111,38 @@ const transformOf = (file: SerializedFile, go: Fields): bigint => {
 };
 
 interface Visit {
-  shape: PrefabShape;
+  root: bigint;
   transform: bigint;
-  /** The parent's matrix in prefab space; null for a prefab root. */
-  parent: Mat4 | null;
+  /** The parent node's index; -1 for a prefab root. */
+  parent: number;
 }
 
 /** A GameObject of a prefab, with its matrix in prefab space. */
-interface Node {
-  shape: PrefabShape;
+export interface TransformNode {
+  /** The prefab root's GameObject. */
+  root: bigint;
   go: bigint;
   matrix: Mat4;
+  /** The parent's index in the walk's result (parents come first); -1 for a root. */
+  parent: number;
 }
 
 /**
  * Transforms only, level by level: the hierarchy and every GameObject's matrix. A
  * transform seen twice (a cycle in corrupt `m_Children`) is an error, not a hang.
  */
-const walkTransforms = (
+export const walkTransforms = (
   file: SerializedFile,
-  roots: ReadonlyMap<bigint, PrefabShape>,
-  onLevel: () => void
-): Node[] => {
-  const rootObjects = readFields(file, roots.keys());
-  let frontier: Visit[] = [...roots].map(([id, shape]) => ({
-    shape,
-    transform: transformOf(file, rootObjects.get(id)!),
-    parent: null,
+  roots: readonly bigint[],
+  onLevel: () => void = () => {}
+): TransformNode[] => {
+  const rootObjects = readFields(file, roots);
+  let frontier: Visit[] = roots.map((root) => ({
+    root,
+    transform: transformOf(file, rootObjects.get(root)!),
+    parent: -1,
   }));
-  const nodes: Node[] = [];
+  const nodes: TransformNode[] = [];
   const seen = new Set<bigint>();
   while (frontier.length > 0) {
     for (const { transform } of frontier) {
@@ -149,20 +154,21 @@ const walkTransforms = (
       frontier.map((v) => v.transform)
     );
     const next: Visit[] = [];
-    for (const { shape, transform, parent } of frontier) {
+    for (const { root, transform, parent } of frontier) {
       const tr = transforms.get(transform)!;
       const local = trs(
         vec3(tr.m_LocalPosition, 'm_LocalPosition'),
         quat(tr.m_LocalRotation, 'm_LocalRotation'),
         vec3(tr.m_LocalScale, 'm_LocalScale')
       );
-      const matrix = parent ? multiply(parent, local) : IDENTITY;
+      // The root's own transform is ignored: pieces are in their local space.
+      const matrix = parent < 0 ? IDENTITY : multiply(nodes[parent]!.matrix, local);
       const go = localRef(tr.m_GameObject, 'm_GameObject');
       check(go !== null, () => `transform ${transform} has no GameObject`);
-      nodes.push({ shape, go, matrix });
+      const index = nodes.push({ root, go, matrix, parent }) - 1;
       for (const child of list(tr.m_Children, 'm_Children')) {
         const id = localRef(child, 'm_Children');
-        if (id !== null) next.push({ shape, transform: id, parent: matrix });
+        if (id !== null) next.push({ root, transform: id, parent: index });
       }
     }
     frontier = next;
@@ -205,17 +211,17 @@ export const walkPrefabs = (
   onStep: () => void = () => {}
 ): Map<bigint, PrefabShape> => {
   const shapes = new Map<bigint, PrefabShape>(roots.map((id) => [id, { snaps: [], corners: [] }]));
-  const nodes = walkTransforms(file, shapes, onStep);
+  const nodes = walkTransforms(file, roots, onStep);
 
   const gameObjects = readFields(
     file,
     nodes.map((n) => n.go)
   );
-  const colliderOwners: { node: Node; id: bigint }[] = [];
+  const colliderOwners: { node: TransformNode; id: bigint }[] = [];
   for (const node of nodes) {
     const go = gameObjects.get(node.go)!;
     if (num(go.m_Tag, 'm_Tag') === SNAP_TAG) {
-      node.shape.snaps.push([node.matrix[3]!, node.matrix[7]!, node.matrix[11]!]);
+      shapes.get(node.root)!.snaps.push([node.matrix[3]!, node.matrix[7]!, node.matrix[11]!]);
     }
     if (!flag(go.m_IsActive, 'm_IsActive')) continue;
     for (const id of componentsOf(go)) {
@@ -241,7 +247,7 @@ export const walkPrefabs = (
   const meshes = readFields(file, meshIds);
   for (const { node, id } of colliderOwners) {
     const box = colliderBox(file, id, colliders.get(id)!, meshes);
-    if (box) node.shape.corners.push(...boxCorners(node.matrix, ...box));
+    if (box) shapes.get(node.root)!.corners.push(...boxCorners(node.matrix, ...box));
   }
   onStep();
   return shapes;

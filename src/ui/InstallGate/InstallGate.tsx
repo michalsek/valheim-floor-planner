@@ -20,6 +20,10 @@ import { DropZone } from './DropZone';
 import styles from './InstallGate.module.css';
 import { InstallPaths } from './InstallPaths';
 
+/** Where the 3D view's models come from (shown here and in the install menu). */
+export const ASSET_NOTE =
+  'Models and textures are read from your install and kept only in this browser (OPFS); nothing is uploaded.';
+
 /** Where Chrome's picker can't open Steam's default folder, and what to do instead. */
 const PICKER_LIMITS: Partial<Record<ReturnType<typeof userPlatform>, string>> = {
   mac: 'The folder dialog works only for Steam libraries outside ~/Library (e.g. on an external drive); Chrome refuses ~/Library as a system folder.',
@@ -162,6 +166,7 @@ export const InstallGate = () => {
           The planner reads every building piece, with its size, snap points and cost, straight from
           your copy of Valheim. The files are read here in your browser; nothing is uploaded.
         </p>
+        <p className={styles.note}>{ASSET_NOTE}</p>
         <StatusPanel status={status} />
         {!busy && (
           <>

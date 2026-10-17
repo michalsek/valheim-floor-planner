@@ -46,16 +46,36 @@ export const quat = (value: unknown, what: string): [number, number, number, num
   return [num(q.x, what), num(q.y, what), num(q.z, what), num(q.w, what)];
 };
 
+/** A `PPtr`: `fileId` 0 is this file, n > 0 is `SerializedFile.externals[n - 1]`. */
+export interface PPtr {
+  fileId: number;
+  pathId: bigint;
+}
+
+export const pptr = (value: unknown, what: string): PPtr => {
+  const ptr = fields(value, what);
+  const pathId = ptr.m_PathID;
+  check(typeof pathId === 'bigint', () => `${what}: not a PPtr`);
+  return { fileId: num(ptr.m_FileID, what), pathId };
+};
+
 /**
  * The path ID a `PPtr` points at in the same file, or null when it is empty or points
  * into another file (`m_FileID` ≠ 0).
  */
 export const localRef = (value: unknown, what: string): bigint | null => {
-  const ptr = fields(value, what);
-  const pathId = ptr.m_PathID;
-  check(typeof pathId === 'bigint', () => `${what}: not a PPtr`);
-  return num(ptr.m_FileID, what) === 0 && pathId !== 0n ? pathId : null;
+  const { fileId, pathId } = pptr(value, what);
+  return fileId === 0 && pathId !== 0n ? pathId : null;
 };
+
+/** A `[name, value]` list (a material's `m_Floats`, `m_TexEnvs`) as a map. */
+export const namedPairs = (value: unknown, what: string): Map<string, unknown> =>
+  new Map(
+    list(value, what).map((entry) => {
+      const [key, item] = list(entry, what);
+      return [str(key, what), item];
+    })
+  );
 
 /** Reads several objects (in file order) as field records. */
 export const readFields = (file: SerializedFile, ids: Iterable<bigint>): Map<bigint, Fields> =>

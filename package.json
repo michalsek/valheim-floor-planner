@@ -14,6 +14,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:install": "VALHEIM_INSTALL_TEST=1 vitest run src/gameData/valheim/extractCatalogue.test.ts",
+    "test:assets": "VALHEIM_INSTALL_TEST=1 vitest run src/gameData/valheim/extractModels.test.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "dependencies": {
