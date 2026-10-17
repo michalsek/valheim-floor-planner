@@ -9,6 +9,8 @@ import {
   CompressedTexture,
   DataTexture,
   InstancedBufferAttribute,
+  InstancedInterleavedBuffer,
+  InterleavedBufferAttribute,
   LinearFilter,
   LinearMipmapLinearFilter,
   LinearMipmapNearestFilter,
@@ -33,7 +35,7 @@ import {
 import type { TextureData } from '../../../gameData/unity/texture2d';
 import type { Geometry } from '../../../gameData/valheim/bakeModel';
 
-import { TINT_ATTRIBUTE } from './realMaterial';
+import { MATRIX_ATTRIBUTES, TINT_ATTRIBUTE } from './realMaterial';
 
 const BLOCK_FORMATS: Record<'bc1' | 'bc3' | 'bc7', CompressedPixelFormat> = {
   bc1: RGB_S3TC_DXT1_Format,
@@ -91,7 +93,8 @@ export const createTexture = (data: TextureData): Texture => {
 
 /**
  * A draw's own geometry over a model group's arrays (no copies), with room for
- * `capacity` per-instance tints. Disposing it frees its GPU buffers.
+ * `capacity` instances: their matrices (`MATRIX_ATTRIBUTES`, one interleaved buffer,
+ * see `instanceMatrices`) and tints. Disposing it frees its GPU buffers.
  */
 export const createInstancedGeometry = (geometry: Geometry, capacity: number): BufferGeometry => {
   const result = new BufferGeometry();
@@ -100,9 +103,18 @@ export const createInstancedGeometry = (geometry: Geometry, capacity: number): B
   if (geometry.normals) result.setAttribute('normal', new BufferAttribute(geometry.normals, 3));
   if (geometry.tangents) result.setAttribute('tangent', new BufferAttribute(geometry.tangents, 4));
   if (geometry.uv0) result.setAttribute('uv', new BufferAttribute(geometry.uv0, 2));
+  const matrices = new InstancedInterleavedBuffer(new Float32Array(capacity * 16), 16, 1);
+  MATRIX_ATTRIBUTES.forEach((name, column) =>
+    result.setAttribute(name, new InterleavedBufferAttribute(matrices, 4, column * 4))
+  );
   const tints = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
   result.setAttribute(TINT_ATTRIBUTE, tints);
   if (!geometry.normals) result.computeVertexNormals();
   result.computeBoundingSphere();
   return result;
 };
+
+/** The interleaved buffer holding a geometry's instance matrices (column-major, 16 floats each). */
+export const instanceMatrices = (geometry: BufferGeometry): InstancedInterleavedBuffer =>
+  (geometry.getAttribute(MATRIX_ATTRIBUTES[0]) as InterleavedBufferAttribute)
+    .data as InstancedInterleavedBuffer;

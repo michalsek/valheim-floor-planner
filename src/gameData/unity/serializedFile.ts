@@ -36,6 +36,13 @@ export interface SerializedFile {
   read(id: bigint): unknown;
   /** Reads several objects in file order (one pass over the bundle blocks). */
   readMany(ids: Iterable<bigint>): Map<bigint, unknown>;
+  /**
+   * Keeps the raw bytes of every object of these classes, read in one pass, so later
+   * reads of them touch no bundle blocks. For reading many scattered objects in many
+   * passes (every piece's hierarchy, one pass per level), which would otherwise
+   * decompress the same blocks again and again.
+   */
+  preload(classIds: readonly number[]): void;
 }
 
 const SUPPORTED_FORMAT = 22;
@@ -158,12 +165,20 @@ export const openSerializedFile = (src: ByteSource): SerializedFile => {
   };
   const typeAt = (i: number): SerializedType => types[table.typeIndex[i]!]!;
 
+  /** Preloaded bytes: object i is at `preloaded.at[i]` (−1: not preloaded). */
+  let preloaded: { bytes: Uint8Array; at: Float64Array } | null = null;
+  const bytesAt = (i: number): Uint8Array => {
+    const at = preloaded?.at[i] ?? -1;
+    if (at < 0) return src.read(table.offsets[i]!, table.sizes[i]!);
+    return preloaded!.bytes.subarray(at, at + table.sizes[i]!);
+  };
+
   let objectsRead = 0;
   const readAt = (i: number): unknown => {
     const { node } = typeAt(i);
     if (!node) throw new GameDataError('unsupported', 'object has no type tree');
     const size = table.sizes[i]!;
-    const reader = new ByteReader(src.read(table.offsets[i]!, size), little);
+    const reader = new ByteReader(bytesAt(i), little);
     const value = readValue(node, reader);
     check(
       reader.pos === size,
@@ -192,6 +207,23 @@ export const openSerializedFile = (src: ByteSource): SerializedFile => {
       const order = [...new Set(ids)].map(mustIndex);
       order.sort((a, b) => table.offsets[a]! - table.offsets[b]!);
       return new Map(order.map((i) => [table.ids[i]!, readAt(i)]));
+    },
+    preload: (classIds) => {
+      const classes = new Set(classIds);
+      const order: number[] = [];
+      for (let i = 0; i < table.ids.length; i++) {
+        if (classes.has(typeAt(i).classId)) order.push(i);
+      }
+      order.sort((a, b) => table.offsets[a]! - table.offsets[b]!);
+      const at = new Float64Array(table.ids.length).fill(-1);
+      const bytes = new Uint8Array(order.reduce((sum, i) => sum + table.sizes[i]!, 0));
+      let end = 0;
+      for (const i of order) {
+        bytes.set(src.read(table.offsets[i]!, table.sizes[i]!), end);
+        at[i] = end;
+        end += table.sizes[i]!;
+      }
+      preloaded = { bytes, at };
     },
   };
 };

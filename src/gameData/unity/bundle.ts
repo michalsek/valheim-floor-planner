@@ -1,8 +1,11 @@
 /**
  * UnityFS asset bundles (header versions 6–8): the block and directory table, and
  * random access to each node's bytes. Blocks are decompressed on demand (LZ4/LZ4HC or
- * stored) and kept in a small LRU, so reading a few scattered objects from a 745 MB
- * bundle touches only their blocks.
+ * stored) and kept in an LRU, so reading a few scattered objects from a 745 MB bundle
+ * touches only their blocks. Streamed data (`.resS`/`.resource` nodes: mesh and
+ * texture bytes, each read once) goes through a small LRU of its own, so it doesn't
+ * push out the object blocks that are read again and again (one sweep per hierarchy
+ * level while models are extracted).
  */
 import { ByteReader } from '../bytes/ByteReader';
 import { checkRange, type ByteSource } from '../bytes/ByteSource';
@@ -27,8 +30,12 @@ const COMPRESSION_MASK = 0x3f;
 const INFO_AT_END = 0x80;
 const PADDING_AT_START = 0x200;
 const ENCRYPTED = 0x1400;
-/** Decompressed blocks kept (up to 128 KB each, so about 64 MB). */
+/** Decompressed object blocks kept (up to 128 KB each, so about 64 MB). */
 const CACHE_BLOCKS = 512;
+/** Decompressed streamed-data blocks kept (about 1 MB). */
+const STREAM_BLOCKS = 8;
+
+const isStreamed = (name: string) => /\.res(S|ource)$/.test(name);
 
 const decompress = (bytes: Uint8Array, size: number, flags: number): Uint8Array => {
   const kind = flags & COMPRESSION_MASK;
@@ -101,18 +108,22 @@ export const openBundle = (src: ByteSource): Bundle => {
     nodes.push({ name, offset, size, flags: nodeFlags });
   }
 
-  const cache = new Map<number, Uint8Array>();
-  const block = (i: number): Uint8Array => {
-    const hit = cache.get(i);
+  interface Lru {
+    blocks: Map<number, Uint8Array>;
+    limit: number;
+  }
+  const objects: Lru = { blocks: new Map(), limit: CACHE_BLOCKS };
+  const streamed: Lru = { blocks: new Map(), limit: STREAM_BLOCKS };
+  const block = (i: number, { blocks, limit }: Lru): Uint8Array => {
+    const hit = objects.blocks.get(i) ?? streamed.blocks.get(i);
     if (hit) {
-      cache.delete(i);
-      cache.set(i, hit);
+      if (blocks.delete(i)) blocks.set(i, hit);
       return hit;
     }
     const packed = src.read(packedStart[i]!, packedStart[i + 1]! - packedStart[i]!);
     const bytes = decompress(packed, plainStart[i + 1]! - plainStart[i]!, blockFlags[i]!);
-    cache.set(i, bytes);
-    if (cache.size > CACHE_BLOCKS) cache.delete(cache.keys().next().value!);
+    blocks.set(i, bytes);
+    if (blocks.size > limit) blocks.delete(blocks.keys().next().value!);
     return bytes;
   };
 
@@ -128,14 +139,14 @@ export const openBundle = (src: ByteSource): Bundle => {
     return lo;
   };
 
-  const readData = (pos: number, len: number): Uint8Array => {
+  const readData = (pos: number, len: number, lru: Lru): Uint8Array => {
     let i = blockAt(pos);
-    const first = block(i);
+    const first = block(i, lru);
     const start = pos - plainStart[i]!;
     if (start + len <= first.length) return first.subarray(start, start + len);
     const out = new Uint8Array(len);
     for (let done = 0; done < len; i++) {
-      const bytes = block(i);
+      const bytes = block(i, lru);
       const from = pos + done - plainStart[i]!;
       const n = Math.min(len - done, bytes.length - from);
       out.set(bytes.subarray(from, from + n), done);
@@ -149,11 +160,12 @@ export const openBundle = (src: ByteSource): Bundle => {
     node: (name) => {
       const node = nodes.find((n) => n.name === name);
       if (!node) throw new GameDataError('corrupt', `bundle has no node ${name}`);
+      const lru = isStreamed(name) ? streamed : objects;
       return {
         size: node.size,
         read: (off, len) => {
           checkRange(node, off, len);
-          return len === 0 ? new Uint8Array(0) : readData(node.offset + off, len);
+          return len === 0 ? new Uint8Array(0) : readData(node.offset + off, len, lru);
         },
       };
     },

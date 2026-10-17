@@ -1,26 +1,9 @@
-/**
- * The parser's worker: reads the posted `File`s synchronously with `FileReaderSync`
- * (worker-only), so the parser stays plain synchronous code.
- */
-import { checkRange, type ByteSource } from '../gameData/bytes/ByteSource';
+/** The parser's worker: reads the posted `File`s synchronously (`fileSource.ts`). */
 import { extractCatalogue } from '../gameData/valheim/extractCatalogue';
 
 import { asGameDataError } from './fileErrors';
+import { fileSource } from './fileSource';
 import type { ParseMessage, ParseRequest } from './parserClient';
-
-// Not in TypeScript's DOM lib (it is worker-only).
-declare const FileReaderSync: new () => { readAsArrayBuffer(blob: Blob): ArrayBuffer };
-
-const fileSource = (file: File): ByteSource => {
-  const reader = new FileReaderSync();
-  return {
-    size: file.size,
-    read: (off, len) => {
-      checkRange(file, off, len);
-      return new Uint8Array(reader.readAsArrayBuffer(file.slice(off, off + len)));
-    },
-  };
-};
 
 const post = (message: ParseMessage) => self.postMessage(message);
 

@@ -17,7 +17,8 @@ export type AssetRequest =
   | { type: 'open'; bundle: File; key: string }
   | { type: 'models'; names: string[] }
   | { type: 'textures'; ids: string[] }
-  | { type: 'all' };
+  /** Stores these pieces (every piece without `names`), reporting progress. */
+  | { type: 'all'; names?: string[] };
 
 export type AssetMessage =
   | { type: 'model'; name: string; buf: ArrayBuffer }
@@ -37,6 +38,8 @@ export interface AssetState {
   memoryOnly: boolean;
   /** The last extraction error, for the menu. */
   error: GameDataError | null;
+  /** Bumped once the cache was cleared: models that failed meanwhile may load now. */
+  generation: number;
 }
 
 const IDLE_MS = 60_000;
@@ -47,6 +50,7 @@ let state: AssetState = {
   complete: false,
   memoryOnly: false,
   error: null,
+  generation: 0,
 };
 const listeners = new Set<() => void>();
 const update = (changes: Partial<AssetState>) => {
@@ -76,11 +80,20 @@ const memory = {
   textures: new Map<string, TextureData>(),
 };
 
+/** Asks once for storage that the browser won't evict under pressure. */
+let persistAsked = false;
+const askPersistence = () => {
+  if (persistAsked) return;
+  persistAsked = true;
+  navigator.storage?.persist?.().catch(() => false);
+};
+
 let cache: { key: string; promise: Promise<AssetCache | null> } | null = null;
 const currentCache = (): Promise<AssetCache | null> => {
   const key = getCatalogueKey();
   if (!key) return Promise.resolve(null);
   if (cache?.key !== key) {
+    askPersistence();
     const promise = openAssetCache(key).then((opened) => {
       if (!opened) update({ memoryOnly: true });
       return opened;
@@ -90,9 +103,17 @@ const currentCache = (): Promise<AssetCache | null> => {
   return cache.promise;
 };
 
-const settle = <T>(waiters: Map<string, Waiter<T>[]>, id: string, value: T) => {
-  waiters.get(id)?.forEach((w) => w.resolve(value));
+/** Resolves the waiters of `id` with `read()`, or rejects them when it throws. */
+const settle = <T>(waiters: Map<string, Waiter<T>[]>, id: string, read: () => T) => {
+  const list = waiters.get(id) ?? [];
   waiters.delete(id);
+  try {
+    const value = read();
+    list.forEach((w) => w.resolve(value));
+  } catch (error) {
+    const failure = error instanceof Error ? error : new Error(String(error));
+    list.forEach((w) => w.reject(failure));
+  }
   scheduleIdle();
 };
 
@@ -114,16 +135,18 @@ const failAll = (error: GameDataError, request: AssetRequest['type']) => {
 
 const onMessage = ({ data }: MessageEvent<AssetMessage>) => {
   switch (data.type) {
-    case 'model': {
-      const model = decodeModel(data.buf);
-      if (state.memoryOnly) memory.models.set(data.name, model);
-      return settle(modelWaiters, data.name, model);
-    }
-    case 'texture': {
-      const texture = data.buf ? decodeTexture(data.buf) : null;
-      if (texture && state.memoryOnly) memory.textures.set(data.id, texture);
-      return settle(textureWaiters, data.id, texture);
-    }
+    case 'model':
+      return settle(modelWaiters, data.name, () => {
+        const model = decodeModel(data.buf);
+        if (state.memoryOnly) memory.models.set(data.name, model);
+        return model;
+      });
+    case 'texture':
+      return settle(textureWaiters, data.id, () => {
+        const texture = data.buf ? decodeTexture(data.buf) : null;
+        if (texture && state.memoryOnly) memory.textures.set(data.id, texture);
+        return texture;
+      });
     case 'progress':
       update({ progress: data });
       if (data.done === data.total) {
@@ -239,14 +262,60 @@ export const refreshAssetUsage = async (): Promise<void> => {
   update({ usage, complete: index?.complete ?? false });
 };
 
-/** Deletes this install's cached models (the worker is stopped first: it may hold files). */
+/**
+ * Deletes this install's cached models (the worker is stopped first: it may hold
+ * files). Models and textures being read are asked for again once it is empty; a
+ * running "Extract all" stops.
+ */
 export const clearAssetCache = async (): Promise<void> => {
   worker?.terminate();
   worker = null;
-  failAll(new GameDataError('busy', 'The model cache was cleared.'), 'open');
+  allWaiter?.reject(new GameDataError('busy', 'The model cache was cleared.'));
+  allWaiter = null;
+  update({ progress: null });
   memory.models.clear();
   memory.textures.clear();
   await (await currentCache())?.clear();
-  update({ complete: false, error: null });
+  update({ complete: false, error: null, generation: state.generation + 1 });
+  // Still waited for: extracted again into the empty cache.
+  modelWaiters.forEach((_, name) => queued.models.add(name));
+  textureWaiters.forEach((_, id) => queued.textures.add(id));
+  if (queued.models.size + queued.textures.size > 0) flush();
   await refreshAssetUsage();
 };
+
+/** The prefabs the 3D view last showed (extracted before a reload to another build). */
+let wantedModels: readonly string[] = [];
+export const noteWantedModels = (names: readonly string[]): void => {
+  wantedModels = names;
+};
+export const getWantedModels = (): readonly string[] => wantedModels;
+
+/**
+ * Stores `names` into the cache of another install or game build (`key`), from its
+ * bundle, with its own worker: used before a reload to it when its files won't survive
+ * the reload (a dropped folder). Resolves once they are stored; never rejects.
+ */
+export const extractInto = (
+  bundle: File,
+  key: string,
+  names: readonly string[],
+  onProgress: (done: number, total: number) => void
+): Promise<void> =>
+  new Promise((resolve) => {
+    if (names.length === 0) return resolve();
+    const temp = new Worker(new URL('./assets.worker.ts', import.meta.url), { type: 'module' });
+    const finish = () => {
+      temp.terminate();
+      resolve();
+    };
+    temp.onerror = finish;
+    temp.onmessage = ({ data }: MessageEvent<AssetMessage>) => {
+      if (data.type === 'error' || data.type === 'storage') return finish();
+      if (data.type !== 'progress') return;
+      onProgress(data.done, data.total);
+      if (data.done === data.total) finish();
+    };
+    temp.postMessage({ type: 'open', bundle, key } satisfies AssetRequest);
+    temp.postMessage({ type: 'all', names: [...names] } satisfies AssetRequest);
+  });

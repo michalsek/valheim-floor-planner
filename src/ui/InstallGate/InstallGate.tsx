@@ -99,6 +99,7 @@ const StatusPanel = ({ status }: { status: InstallStatus }) => {
   switch (status.kind) {
     case 'starting':
     case 'ready':
+    case 'extracting': // Only in the editor.
       return <p className={styles.status}>Checking for a saved install…</p>;
     case 'locating':
       return <p className={styles.status}>Looking for the game data…</p>;

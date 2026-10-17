@@ -33,6 +33,8 @@ const BLOCK_FORMATS: Readonly<Record<number, [TextureFormat, number]>> = {
   12: ['bc3', 16], // DXT5
   25: ['bc7', 16], // BC7
 };
+/** Unity's largest texture side. */
+const MAX_SIZE = 16384;
 const RGB24 = 3;
 const RGBA32 = 4;
 const ARGB32 = 5;
@@ -79,7 +81,15 @@ export const readTexture = (texture: Fields, res: ResourceReader): TextureData |
   const name = str(texture.m_Name, 'm_Name');
   const width = num(texture.m_Width, 'm_Width');
   const height = num(texture.m_Height, 'm_Height');
-  const sizes = mipSizes(format, width, height, Math.max(1, num(texture.m_MipCount, 'm_MipCount')));
+  check(
+    Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0,
+    () => `texture ${name}: ${width}×${height}`
+  );
+  check(width <= MAX_SIZE && height <= MAX_SIZE, () => `texture ${name}: ${width}×${height}`);
+  // A full chain has 1 + log2(longest side) levels; a bigger count is corrupt data.
+  const fullChain = 1 + Math.floor(Math.log2(Math.max(width, height)));
+  const mipCount = Math.min(Math.max(1, num(texture.m_MipCount, 'm_MipCount')), fullChain);
+  const sizes = mipSizes(format, width, height, mipCount);
   const stream = streamingInfo(texture.m_StreamData, 'm_StreamData');
   const data = stream ? res(stream) : texture['image data'];
   check(data instanceof Uint8Array, () => `texture ${name}: no image data`);

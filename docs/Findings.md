@@ -707,3 +707,61 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     In the dark theme, faded models get quite dark but stay readable.
 15. Checked in headless Chrome 155 on WebGPU and `?webgl`, in the light and dark themes,
     with real mouse picking and hover. Not checked in Safari, Firefox or a headed window.
+
+## From the M14 fix round
+
+1. **WebGL2 no longer freezes on entering 3D.** Model meshes are plain `Mesh`es drawn
+   `count` times, with the instance matrices as four interleaved instanced attributes
+   (`instanceColumn0..3`) that the material reads (`positionNode`, which the shadow pass
+   copies; normals and tangents turned in `setupPosition`). r186's `InstancedMesh` puts
+   its matrices in a uniform buffer named per mesh, so each mesh had its own vertex
+   program. Now meshes of one material shape share one: 7 vertex programs in all for
+   the 58-prefab scene (was 118). The model resources (meshes, materials, textures)
+   live per renderer across 2D/3D switches (`useModels.ts`), so their pipelines stay
+   linked; the plan dropping a prefab disposes its resources, and Boxes frees them all.
+   `compileAsync` warm-up wasn't needed.
+2. **Timings, 58-prefab scene, warm model cache, headless Chrome 155 (M4 Pro):**
+   - `?webgl`, before: 2D→3D took 9–19 s until every model showed, with single long
+     tasks of 4.9–8.9 s, on every switch.
+   - `?webgl`, after: the first entry after a page load takes 0.7 s (longest task
+     274 ms); with the GPU shader disk cache disabled and a fresh browser, 1.5 s
+     (longest task 823 ms). Later entries take 145–340 ms (longest task 128–320 ms).
+   - WebGPU, before 300–560 ms (longest task 150–250 ms); after 220–330 ms (longest
+     task 200–230 ms).
+   - Toggling Boxes / Models five times: Boxes mode is back at 5 textures and
+     5 geometries each time.
+3. **Tints mix in sRGB**, as the boxes' colours do: in linear, the canvas colour at 40%
+   (pieces off the level) washed dark textures out to near white. The support tint went
+   from 0.8 to 0.7, so the texture still shows under the band colour.
+4. **Door and gate models are drawn solid.** Their boxes keep the 0.35 panel opacity.
+5. **Getting the game files back without a reload**: opening (dropping, picking or
+   uploading) the install already in use from the editor only keeps its files and
+   retries the models; it no longer re-parses and reloads. While models wait for the
+   files and there is no stored folder, the strip says "Drop your Valheim folder here
+   to load models" and the canvas takes the drop (checked: 58 blocked models loaded,
+   no reload). With a stored folder, "Reconnect folder" stays. When a dropped folder is
+   another build, the models the 3D view last showed are stored into the new build's
+   cache before the reload ("Storing the plan's models…"; 58 models and 32 textures in
+   1.4 s); without a 3D visit there is nothing to store, and the drop hint covers it.
+6. **"Extract all" takes 3.5 s (was 9.5–10.4 s here, 12–45 s in QA).** The worker
+   profile showed 80% in re-reading and re-decompressing bundle blocks: the hierarchy
+   objects of all 398 pieces are spread over 2,669 blocks (~340 MB unpacked), and the
+   64 MB block LRU was swept once per batch and hierarchy level (19k block reads, 1.2 GB).
+   Before extracting everything, the worker now reads every GameObject, Transform,
+   renderer, filter, LODGroup and Material once and keeps their bytes (25 MB,
+   `SerializedFile.preload`): 4.5k block reads. Streamed `.resS` data also has its own
+   small LRU now, so it doesn't push object blocks out.
+7. **Asset worker and client fixes**: "Extract all" marks itself in `onmessage`, so
+   model requests sent while it waits behind `open` go first (the 58 models of a plan
+   showed after 1.75 s while "all" ran 4.5 s); `index.json` is written before the last
+   progress message, so "all pieces" shows straight away; clearing the cache re-asks
+   for the models and textures still waited for (they used to stay boxes); only a full
+   quota switches the worker to memory, a deleted folder is created again, and other
+   write failures skip the file; `navigator.storage.persist()` is asked for once; a
+   decode error rejects that request's waiters. One prefab, mesh, material or texture
+   that fails to read no longer fails its batch (it comes out as null, a box).
+8. **Strip**: failed models show "N models couldn't be read" (the reason in its
+   tooltip); the memory-only notice shows once per visit; the menu shows one message
+   for missing folder access.
+9. **Not exercised**: the memory fallback, the pre-reload extraction through a real
+   build change (exercised by calling it with another key), Safari and Firefox.

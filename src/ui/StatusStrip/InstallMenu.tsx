@@ -30,6 +30,12 @@ const ScanStatus = ({ status }: { status: InstallStatus }) => {
   switch (status.kind) {
     case 'locating':
       return <p className={styles.menuNote}>Looking for the game data…</p>;
+    case 'extracting':
+      return (
+        <p className={styles.menuNote} role="status">
+          Storing the plan's models… {status.done}/{status.total || '…'}
+        </p>
+      );
     case 'parsing':
       return (
         <p className={styles.menuNote} role="status">
@@ -89,12 +95,15 @@ const ModelCache = ({ busy }: { busy: boolean }) => {
       )}
       {error && !progress && (
         <div className={styles.menuError} role="alert">
-          <p>
-            {error.code === 'permission'
-              ? 'Models are read from the game files: allow access to the Valheim folder again.'
-              : ERROR_MESSAGES[error.code]}
-          </p>
-          {error.detail && <p className={styles.menuDetail}>{error.detail}</p>}
+          {error.code === 'permission' ? (
+            // One message: the detail says the same.
+            <p>Models are read from the game files: drop your Valheim folder on this menu.</p>
+          ) : (
+            <>
+              <p>{ERROR_MESSAGES[error.code]}</p>
+              {error.detail && <p className={styles.menuDetail}>{error.detail}</p>}
+            </>
+          )}
         </div>
       )}
       <div className={styles.menuActions}>
@@ -135,7 +144,8 @@ export const InstallMenu = () => {
   const ref = useRef<HTMLDivElement>(null);
   const folderInput = useFolderInput((files) => void chooseFiles(files));
   const { dragging, dropProps } = useFolderDrop();
-  const busy = status.kind === 'locating' || status.kind === 'parsing';
+  const busy =
+    status.kind === 'locating' || status.kind === 'parsing' || status.kind === 'extracting';
 
   useEffect(() => {
     if (!open) return;

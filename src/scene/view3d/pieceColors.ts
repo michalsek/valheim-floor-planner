@@ -89,7 +89,7 @@ export const withHighlight: (
 
 /**
  * How a textured model is shaded: its own colours mixed towards `color` by `amount`
- * (0 leaves the texture as it is).
+ * (0 leaves the texture as it is), in sRGB, as `mixHex` mixes the boxes' colours.
  */
 export interface Tint {
   color: string;
@@ -100,8 +100,11 @@ export type PieceTinter = (box: PieceBox) => Tint;
 
 export const NO_TINT: Tint = { color: '#ffffff', amount: 0 };
 
-/** How much of a support band's colour goes over the texture. */
-const SUPPORT_TINT = 0.8;
+/**
+ * How much of a support band's colour goes over the texture (mixed in sRGB, like the
+ * other tints): enough to read the band, with the texture still showing.
+ */
+const SUPPORT_TINT = 0.7;
 
 /**
  * A tint mixed once more: mixing the texture by `amount` towards `color`, then by

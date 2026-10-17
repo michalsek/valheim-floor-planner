@@ -140,3 +140,11 @@
   opacity: 0.5;
   cursor: default;
 }
+
+.modelNote {
+  color: var(--info);
+}
+
+.modelError {
+  color: var(--danger);
+}

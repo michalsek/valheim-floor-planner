@@ -36,15 +36,19 @@ export const realLookAtom = atom(
 );
 
 export interface ModelLoad {
-  /** Prefabs whose models are settled (drawn, drawing nothing, or failed). */
+  /** Prefabs whose models are settled (drawn, or drawing nothing). */
   done: number;
   total: number;
-  /** Prefabs waiting for the game folder to be reconnected. */
+  /** Prefabs waiting for the game folder. */
   blocked: number;
+  /** Prefabs whose models couldn't be read (drawn as boxes). */
+  failed: number;
+  /** Why the last of them failed. */
+  failure: string | null;
 }
 
 /** Model loading in the 3D view; null while boxes are drawn. */
 export const modelLoadAtom = atom<ModelLoad | null>(null);
 
-/** Bumped after the folder is reconnected, so blocked models are asked for again. */
-export const modelRetryAtom = atom<number>(0);
+/** The "models last for this visit only" notice was dismissed (once per visit). */
+export const memoryNoticeDismissedAtom = atom<boolean>(false);

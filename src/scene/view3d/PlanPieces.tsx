@@ -9,7 +9,7 @@ import type { PieceColorer, PieceTinter } from './pieceColors';
 import { PieceInstances } from './PieceInstances';
 import { createPieceMaterial } from './pieceMaterial';
 
-/** Door and gate panels are see-through, so the gap they stand in still reads. */
+/** Door and gate boxes are see-through, so the gap they stand in still reads. */
 const PANEL_OPACITY = 0.35;
 
 /** Dev only: `?modelBoxes` draws every box's wireframe over the models. */
@@ -60,7 +60,8 @@ const BoxWireframes = ({ boxes, colorOf }: BoxPiecesProps) => {
 
 /**
  * The real game models, tinted like the boxes are coloured; pieces whose model isn't
- * loaded (or that draw nothing) stay boxes.
+ * loaded (or that draw nothing) stay boxes. Door and gate models are drawn solid: at
+ * the boxes' panel opacity they looked like ghosts.
  */
 export const ModelPieces = ({
   boxes,
@@ -71,14 +72,14 @@ export const ModelPieces = ({
     () => [...new Set(boxes.flatMap((b) => (b.prefab === null ? [] : [b.prefab])))].sort(),
     [boxes]
   );
-  const models = useModels(prefabs, PANEL_OPACITY);
+  const { resources, ready } = useModels(prefabs);
   const [modelled, rest] = useMemo(() => {
-    const has = (b: PieceBox) => b.prefab !== null && models.has(b.prefab);
+    const has = (b: PieceBox) => b.prefab !== null && ready.has(b.prefab);
     return [boxes.filter(has), boxes.filter((b) => !has(b))];
-  }, [boxes, models]);
+  }, [boxes, ready]);
   return (
     <>
-      <ModelInstances boxes={modelled} models={models} tintOf={tintOf} />
+      <ModelInstances boxes={modelled} models={ready} resources={resources} tintOf={tintOf} />
       <BoxPieces boxes={rest} colorOf={colorOf} />
       {SHOW_MODEL_BOXES && <BoxWireframes boxes={boxes} colorOf={colorOf} />}
     </>

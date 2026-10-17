@@ -1,11 +1,10 @@
 /**
  * The model extractor's worker: opens the piece bundle once (`openModelSource`), then
  * extracts models and textures on request, writes them to OPFS with sync access
- * handles and posts what the page asked for. Without OPFS, or once a write fails
- * (quota, another tab holding the file), it posts everything instead and the page keeps
- * it in memory for the session.
+ * handles and posts what the page asked for. Without OPFS, or once the quota is full,
+ * it posts everything instead and the page keeps it in memory for the session. A file
+ * that can't be written otherwise (another tab holding it) is just posted.
  */
-import { checkRange, type ByteSource } from '../gameData/bytes/ByteSource';
 import { ASSET_VERSION } from '../gameData/valheim/constants';
 import { openModelSource, textureIdsOf, type ModelSource } from '../gameData/valheim/extractModels';
 import { encodeModel, encodeTexture } from '../gameData/valheim/modelFormat';
@@ -20,9 +19,9 @@ import {
 } from './assetCache';
 import type { AssetMessage, AssetRequest } from './assetClient';
 import { asGameDataError } from './fileErrors';
+import { fileSource } from './fileSource';
 
 // Worker-only APIs missing from TypeScript's DOM lib.
-declare const FileReaderSync: new () => { readAsArrayBuffer(blob: Blob): ArrayBuffer };
 interface SyncAccessHandle {
   truncate(size: number): void;
   write(buffer: ArrayBufferView, options: { at: number }): number;
@@ -35,17 +34,6 @@ interface SyncFileHandle {
 
 /** Prefabs per batch of "Extract all" (one sweep of the bundle each). */
 const BATCH = 20;
-
-const fileSource = (file: File): ByteSource => {
-  const reader = new FileReaderSync();
-  return {
-    size: file.size,
-    read: (off, len) => {
-      checkRange(file, off, len);
-      return new Uint8Array(reader.readAsArrayBuffer(file.slice(off, off + len)));
-    },
-  };
-};
 
 let bundle: File | null = null;
 let key = '';
@@ -73,13 +61,12 @@ const exists = async (dir: FileSystemDirectoryHandle, name: string): Promise<boo
   }
 };
 
-/** Writes a file; a failure switches to memory mode. False when nothing was written. */
-const write = async (
-  dir: FileSystemDirectoryHandle | undefined,
-  name: string,
-  buffer: ArrayBuffer
-): Promise<boolean> => {
-  if (!dir) return false;
+const errorName = (error: unknown) => (error instanceof Error ? error.name : '');
+const describe = (error: unknown) =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+/** Writes one file with a sync access handle. */
+const writeFile = async (dir: FileSystemDirectoryHandle, name: string, buffer: ArrayBuffer) => {
   let handle: SyncAccessHandle | null = null;
   try {
     const file = await dir.getFileHandle(name, { create: true });
@@ -87,18 +74,45 @@ const write = async (
     handle.truncate(0);
     handle.write(new Uint8Array(buffer), { at: 0 });
     handle.flush();
-    return true;
-  } catch (error) {
-    toMemory(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
-    return false;
   } finally {
     handle?.close();
   }
 };
 
+type DirName = keyof AssetDirs;
+
+/** The folders again, after they were deleted (from another tab); memory mode without. */
+const reopen = async (reason: string) => {
+  const reopened = await openAssetDirs(key);
+  if (!reopened) return toMemory(reason);
+  dirs = reopened;
+  known.clear();
+};
+
+/**
+ * Writes a file into one of the install's folders. A full quota switches to memory
+ * mode; a folder deleted meanwhile (the cache cleared from another tab) is created
+ * again; other failures (another tab holding the file) skip this file. False when
+ * nothing was written.
+ */
+const write = async (dirName: DirName, name: string, buffer: ArrayBuffer): Promise<boolean> => {
+  for (let attempt = 0; dirs && attempt < 2; attempt++) {
+    try {
+      await writeFile(dirs[dirName], name, buffer);
+      return true;
+    } catch (error) {
+      const kind = errorName(error);
+      if (kind === 'QuotaExceededError') toMemory(describe(error));
+      else if (kind === 'NotFoundError' && attempt === 0) await reopen(describe(error));
+      else return false;
+    }
+  }
+  return false;
+};
+
 const writeIndex = (complete: boolean) => {
   const index: AssetIndex = { key, assetVersion: ASSET_VERSION, space: 'unity', complete };
-  return write(dirs?.folder, INDEX_FILE, new TextEncoder().encode(JSON.stringify(index)).buffer);
+  return write('folder', INDEX_FILE, new TextEncoder().encode(JSON.stringify(index)).buffer);
 };
 
 const open = async (file: File, newKey: string) => {
@@ -128,7 +142,7 @@ const storeTextures = async (ids: readonly string[], postAll: boolean) => {
   }
   for (const [id, texture] of modelSource().textures(wanted)) {
     const buf = texture ? encodeTexture(texture) : null;
-    const stored = buf !== null && (await write(dirs?.textures, textureFile(id), buf));
+    const stored = buf !== null && (await write('textures', textureFile(id), buf));
     known.add(id);
     if (postAll || !stored) post({ type: 'texture', id, buf }, buf ? [buf] : []);
   }
@@ -139,7 +153,7 @@ const storeModels = async (names: readonly string[], postModels: boolean) => {
   const models = modelSource().models(names);
   for (const [name, model] of models) {
     const buf = encodeModel(model);
-    const stored = await write(dirs?.models, modelFile(name), buf);
+    const stored = await write('models', modelFile(name), buf);
     if (postModels || !stored) post({ type: 'model', name, buf }, [buf]);
   }
   const textureIds = [...models.values()].flatMap((m) => (m ? textureIdsOf(m) : []));
@@ -157,22 +171,30 @@ const serveUrgent = async () => {
   while (urgent.length > 0) await urgent.shift()!();
 };
 
-const extractAll = async () => {
-  const names = modelSource().prefabs();
+/**
+ * Stores `only` (every piece without it), in batches, reporting progress. The index is
+ * written before the last progress message, so the page reads "complete" right.
+ */
+const extractAll = async (only?: readonly string[]) => {
+  await serveUrgent();
+  const names = only ?? modelSource().prefabs();
   const missing: string[] = [];
   for (const name of names) {
     if (!dirs || !(await exists(dirs.models, modelFile(name)))) missing.push(name);
   }
+  // Every piece: read the hierarchies in one pass rather than one per batch and level.
+  if (!only && missing.length > BATCH) modelSource().preloadAll();
   let done = names.length - missing.length;
-  post({ type: 'progress', done, total: names.length });
+  if (done < names.length) post({ type: 'progress', done, total: names.length });
   for (let i = 0; i < missing.length; i += BATCH) {
     await serveUrgent();
     const batch = missing.slice(i, i + BATCH);
     await storeModels(batch, false);
     done += batch.length;
-    post({ type: 'progress', done, total: names.length });
+    if (done < names.length) post({ type: 'progress', done, total: names.length });
   }
-  await writeIndex(dirs !== null);
+  if (!only) await writeIndex(dirs !== null);
+  post({ type: 'progress', done, total: names.length });
 };
 
 const handle = async (data: AssetRequest) => {
@@ -185,9 +207,8 @@ const handle = async (data: AssetRequest) => {
       case 'textures':
         return await storeTextures(data.ids, true);
       case 'all':
-        extracting = true;
         try {
-          return await extractAll();
+          return await extractAll(data.names);
         } finally {
           extracting = false;
           await serveUrgent();
@@ -199,10 +220,14 @@ const handle = async (data: AssetRequest) => {
   }
 };
 
-/** Requests run one at a time, in order; during "Extract all", models and textures first. */
+/**
+ * Requests run one at a time, in order; once "Extract all" is asked for (even while it
+ * waits for the bundle to open), models and textures go first, between its batches.
+ */
 let queue = Promise.resolve();
 
 self.onmessage = ({ data }: MessageEvent<AssetRequest>) => {
+  if (data.type === 'all') extracting = true;
   if (extracting && (data.type === 'models' || data.type === 'textures')) {
     urgent.push(() => handle(data));
   } else {

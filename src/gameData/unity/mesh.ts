@@ -60,6 +60,8 @@ const WANTED: ReadonlyMap<number, number> = new Map([
 ]);
 
 /** Bytes per component of each `VertexFormat` (float, half, unorm8, snorm8, …). */
+/** More than any piece needs (the largest has ~25k); a bigger count is corrupt data. */
+const MAX_VERTICES = 1 << 22;
 const COMPONENT_SIZE = [4, 2, 1, 1, 2, 2, 1, 1, 2, 2, 4, 4];
 
 interface Channel {
@@ -152,14 +154,15 @@ const decodeChannel = (
   vertexCount: number,
   want: number
 ): Float32Array => {
-  const out = new Float32Array(vertexCount * want);
   const size = componentSize(channel.format);
   const n = Math.min(channel.dimension, want);
+  // Before allocating: a corrupt count must not ask for gigabytes.
   check(
     vertexCount === 0 ||
       start + (vertexCount - 1) * stride + channel.offset + n * size <= view.byteLength,
     'vertex data too short'
   );
+  const out = new Float32Array(vertexCount * want);
   for (let v = 0; v < vertexCount; v++) {
     const at = start + v * stride + channel.offset;
     for (let c = 0; c < n; c++)
@@ -207,6 +210,10 @@ export const readMesh = (mesh: Fields, res: ResourceReader): MeshData => {
   }
   const vertexData = fields(mesh.m_VertexData, 'm_VertexData');
   const vertexCount = num(vertexData.m_VertexCount, 'm_VertexCount');
+  check(
+    Number.isInteger(vertexCount) && vertexCount >= 0 && vertexCount <= MAX_VERTICES,
+    () => `mesh ${name}: ${vertexCount} vertices`
+  );
   const stream = streamingInfo(mesh.m_StreamData, 'm_StreamData');
   const bytes = stream ? res(stream) : vertexData.m_DataSize;
   check(bytes instanceof Uint8Array, 'm_DataSize: not bytes');

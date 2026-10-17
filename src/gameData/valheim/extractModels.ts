@@ -4,10 +4,10 @@
  * textures they use. Coordinates stay raw Unity ones (`space: 'unity'`), like the
  * catalogue's, so models line up with the planner's boxes. Reads are batched: one
  * sweep of the bundle per hierarchy level, then one each for the components, meshes
- * and materials of every prefab asked for.
+ * and materials of every prefab asked for. A prefab that fails to read or bake comes
+ * out as null, without failing the others.
  */
 import type { ByteSource } from '../bytes/ByteSource';
-import { GameDataError } from '../GameDataError';
 import type { Bounds, MeshData } from '../unity/mesh';
 import { readMesh } from '../unity/mesh';
 import { bundleResources } from '../unity/streamingInfo';
@@ -21,6 +21,11 @@ import { openPieceBundle, pieceTable } from './pieceBundle';
 import { renderParts, type MeshRef } from './renderParts';
 
 const CLASS_TEXTURE_2D = 28;
+/**
+ * What render parts are read from: GameObjects, (Rect)Transforms, MeshRenderers,
+ * MeshFilters, LODGroups and Materials (about 25 MB for every one in the bundle).
+ */
+const HIERARCHY_CLASSES = [1, 4, 224, 23, 33, 205, 21];
 
 export interface ModelGroup {
   /** The material's path ID (decimal). */
@@ -49,6 +54,11 @@ export interface ModelSource {
   /** A texture by path ID; null when there is none or its format isn't read. */
   texture(id: string): TextureData | null;
   textures(ids: readonly string[]): Map<string, TextureData | null>;
+  /**
+   * Reads every hierarchy object up front (one pass, ~25 MB kept), before extracting
+   * every piece: batches then touch only mesh and texture data.
+   */
+  preloadAll(): void;
 }
 
 /** The texture IDs a model's materials use (albedo, normal, emission). */
@@ -68,6 +78,15 @@ const parseId = (id: string): bigint | null => {
   }
 };
 
+/** `read()`, or null when it throws (one bad object doesn't fail a batch). */
+const attempt = <T>(read: () => T): T | null => {
+  try {
+    return read();
+  } catch {
+    return null;
+  }
+};
+
 const builtins = new Map<number, MeshData | null>();
 const builtin = (pathId: number): MeshData | null => {
   if (!builtins.has(pathId)) builtins.set(pathId, builtinMesh(pathId));
@@ -82,19 +101,26 @@ export const openModelSource = (bundleSource: ByteSource): ModelSource => {
   const byName = new Map(roots.map((id) => [str(rootObjects.get(id)!.m_Name, 'm_Name'), id]));
   let textureIds: Set<bigint> | null = null;
 
-  /** Reads every mesh once; an unsupported one (compressed) is left out. */
+  /** Reads every mesh once; one that can't be read (compressed, corrupt) is left out. */
   const readMeshes = (refs: Iterable<MeshRef>): Map<MeshRef, MeshData | null> => {
     const local = [...new Set([...refs].filter((r) => typeof r === 'bigint'))];
     const meshes = new Map<MeshRef, MeshData | null>();
-    for (const [id, f] of readFields(file, local)) {
-      try {
-        meshes.set(id, readMesh(f, res));
-      } catch (error) {
-        if (!(error instanceof GameDataError && error.code === 'unsupported')) throw error;
-        meshes.set(id, null);
-      }
-    }
+    for (const [id, f] of readFields(file, local))
+      meshes.set(
+        id,
+        attempt(() => readMesh(f, res))
+      );
     return meshes;
+  };
+
+  /** Render parts by prefab; when the batch fails, prefab by prefab (failures left out). */
+  const partsOf = (ids: readonly bigint[]) => {
+    try {
+      return renderParts(file, ids);
+    } catch {
+      if (ids.length === 1) return new Map<bigint, never>();
+      return new Map(ids.flatMap((id) => [...(attempt(() => renderParts(file, [id])) ?? [])]));
+    }
   };
 
   const models = (names: readonly string[]): Map<string, PrefabModel | null> => {
@@ -102,29 +128,31 @@ export const openModelSource = (bundleSource: ByteSource): ModelSource => {
       const id = byName.get(name);
       return id === undefined ? [] : [{ name, id }];
     });
-    const parts = renderParts(
-      file,
-      wanted.map((w) => w.id)
-    );
+    const parts = partsOf(wanted.map((w) => w.id));
     const all = [...parts.values()].flat();
     const meshes = readMeshes(all.map((p) => p.mesh));
     const materialIds = new Set(all.flatMap((p) => p.materials).filter((id) => id !== null));
-    const materials = new Map(
-      [...readFields(file, materialIds)].map(([id, f]) => [String(id), materialDesc(f)])
-    );
+    const materials = new Map<string, MaterialDesc>();
+    for (const [id, f] of readFields(file, materialIds)) {
+      const desc = attempt(() => materialDesc(f));
+      if (desc) materials.set(String(id), desc);
+    }
 
     const result = new Map<string, PrefabModel | null>(names.map((name) => [name, null]));
-    for (const { name, id } of wanted) {
-      const bakeParts = parts.get(id)!.flatMap((part): BakePart[] => {
+    const modelOf = (name: string, id: bigint): PrefabModel | null => {
+      const bakeParts = (parts.get(id) ?? []).flatMap((part): BakePart[] => {
         const mesh =
           typeof part.mesh === 'bigint' ? meshes.get(part.mesh) : builtin(part.mesh.builtin);
         if (!mesh) return [];
-        const ids = part.materials.map((m) => (m === null ? null : String(m)));
+        // A material that couldn't be read draws nothing.
+        const ids = part.materials.map((m) =>
+          m === null || !materials.has(String(m)) ? null : String(m)
+        );
         return [{ mesh, matrix: part.matrix, materials: ids }];
       });
       const baked = bakeModel(bakeParts);
-      if (!baked) continue;
-      result.set(name, {
+      if (!baked) return null;
+      return {
         name,
         space: 'unity',
         parts: bakeParts.length,
@@ -134,8 +162,13 @@ export const openModelSource = (bundleSource: ByteSource): ModelSource => {
           material: materials.get(material)!,
           geometry,
         })),
-      });
-    }
+      };
+    };
+    for (const { name, id } of wanted)
+      result.set(
+        name,
+        attempt(() => modelOf(name, id))
+      );
     return result;
   };
 
@@ -150,7 +183,11 @@ export const openModelSource = (bundleSource: ByteSource): ModelSource => {
     );
     const read = readFields(file, found.keys());
     const result = new Map<string, TextureData | null>(ids.map((id) => [id, null]));
-    for (const [pathId, f] of read) result.set(found.get(pathId)!, readTexture(f, res));
+    for (const [pathId, f] of read)
+      result.set(
+        found.get(pathId)!,
+        attempt(() => readTexture(f, res))
+      );
     return result;
   };
 
@@ -160,5 +197,6 @@ export const openModelSource = (bundleSource: ByteSource): ModelSource => {
     models,
     texture: (id) => textures([id]).get(id) ?? null,
     textures,
+    preloadAll: () => file.preload(HIERARCHY_CLASSES),
   };
 };

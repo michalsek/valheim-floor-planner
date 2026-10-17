@@ -1,4 +1,5 @@
 import { Provider } from 'jotai';
+import type { ReactNode } from 'react';
 
 import styles from './App.module.css';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
@@ -30,6 +31,7 @@ import { PlanHeader } from './ui/PlanHeader/PlanHeader';
 import { StatusStrip } from './ui/StatusStrip/StatusStrip';
 import { ToolOptionsBar } from './ui/ToolOptions/ToolOptionsBar';
 import { ToolRail } from './ui/ToolRail/ToolRail';
+import { useModelDrop } from './ui/shared/useModelDrop';
 import { ViewBar } from './ui/ViewBar/ViewBar';
 
 /** The 2D overlay: outlines, labels, rings, dimensions and tool previews. */
@@ -91,18 +93,29 @@ const CanvasChrome = () => (
   </>
 );
 
+/** The canvas area; it takes the game folder when models wait for it. */
+const CanvasArea = ({ children }: { children: ReactNode }) => {
+  const { dragging, dropProps } = useModelDrop();
+  return (
+    <div className={styles.canvas} {...dropProps}>
+      {children}
+      {dragging && <div className={styles.dropHint}>Drop to load the models</div>}
+    </div>
+  );
+};
+
 export const App = () => (
   <Provider store={sessionStore}>
     <div className={styles.app}>
       <div className={styles.rail}>
         <ToolRail />
       </div>
-      <div className={styles.canvas}>
+      <CanvasArea>
         <ToolHost>
           <CanvasLayers />
         </ToolHost>
         <CanvasChrome />
-      </div>
+      </CanvasArea>
       <div className={styles.side}>
         <PlanHeader />
         <Inspector />

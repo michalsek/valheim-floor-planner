@@ -20,6 +20,20 @@
   min-height: 0;
 }
 
+.dropHint {
+  position: absolute;
+  inset: 8px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 15px;
+  pointer-events: none;
+}
+
 .side {
   grid-area: side;
   display: flex;

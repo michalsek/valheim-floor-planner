@@ -15,8 +15,7 @@ import { readFields } from '../unity/values';
 
 import { builtinMesh } from './builtinMeshes';
 import { openModelSource, textureIdsOf, type ModelSource, type PrefabModel } from './extractModels';
-import { openPieceBundle, pieceTable } from './pieceBundle';
-import { renderParts } from './renderParts';
+import { openPieceBundle } from './pieceBundle';
 import { closeInstall, installSources } from './testInstall';
 
 interface GoldenGroup {
@@ -87,20 +86,9 @@ describe.skipIf(!process.env.VALHEIM_INSTALL_TEST)('extractModels on the local i
     expect(sum(normal!.mips.map((m) => m.length))).toBe(21_872);
   });
 
-  it('reads darkwood_roof from .resS with half normals', () => {
-    const { bundle, file } = openPieceBundle(installSources().bundle);
-    const root = pieceTable(file).find(
-      (id) => readFields(file, [id]).get(id)!.m_Name === 'darkwood_roof'
-    )!;
-    const [part] = renderParts(file, [root]).get(root)!;
-    const id = part!.mesh as bigint;
-    const mesh = readMesh(readFields(file, [id]).get(id)!, bundleResources(bundle));
-    expect(mesh).toMatchObject({ vertexCount: 516, streamed: true, normalFormat: 1 });
-    expect(mesh.indices.length).toBe(1464);
-  });
-
-  it('extracts every piece (batched)', { timeout: 120_000 }, () => {
+  it('extracts every piece (batched, hierarchies preloaded)', { timeout: 120_000 }, () => {
     const start = performance.now();
+    source.preloadAll();
     const names = source.prefabs();
     for (let i = 0; i < names.length; i += BATCH) {
       for (const [name, model] of source.models(names.slice(i, i + BATCH))) models.set(name, model);

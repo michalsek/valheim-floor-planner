@@ -1,5 +1,6 @@
+import { useThree } from '@react-three/fiber';
 import { useAtomValue } from 'jotai';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { boxesBounds, type PieceBox } from '../../model/pieceBoxes';
 import { useThemeTokens } from '../../store/hooks';
@@ -16,6 +17,7 @@ import { ToolPreview3d } from '../../tools/ToolPreview';
 
 import { Dimensions3d } from './Dimensions3d';
 import { Ground } from './Ground';
+import { releaseModels } from './assets/useModels';
 import { Lights } from './Lights';
 import { OrbitRig } from './OrbitRig';
 import {
@@ -50,6 +52,11 @@ export const View3d = () => {
   const supportView = useAtomValue(supportViewAtom);
   const { support } = useSupport();
   const realLook = useAtomValue(realLookAtom);
+  const gl = useThree((s) => s.gl);
+  // Models outlive the view (leaving 3D keeps them); back to boxes frees them.
+  useEffect(() => {
+    if (!realLook) releaseModels(gl);
+  }, [realLook, gl]);
 
   const boxes = getPieceBoxes(plan);
   const bounds = useMemo(() => boxesBounds(boxes), [boxes]);

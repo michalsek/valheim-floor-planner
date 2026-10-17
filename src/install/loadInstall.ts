@@ -1,7 +1,7 @@
 /**
  * The install gate's state machine, one per page (StrictMode-safe):
  *
- *   starting → idle | needsPermission → locating → parsing → ready | error
+ *   starting → idle | needsPermission → locating → parsing → (extracting) → ready | error
  *
  * A fresh catalogue is parsed in a worker, validated by building the library, cached,
  * then installed with `setLibrary`. A cached catalogue whose fingerprint still matches
@@ -11,7 +11,10 @@
  *
  * The located files are kept for model extraction (`assetClient.ts`). Files read
  * through the upload dialog or an entry-only drop don't survive a reload, so after
- * such a scan every model is extracted into the cache in the background.
+ * such a scan every model is extracted into the cache in the background; when such a
+ * scan brings another build into a running editor, the models the 3D view showed are
+ * extracted before the reload. Opening the install already in use from the editor
+ * keeps its files without reloading, so missing models can load.
  */
 import { buildLibrary } from '../catalog/buildLibrary';
 import type { Library } from '../catalog/library';
@@ -20,7 +23,7 @@ import type { ExtractPhase } from '../gameData/valheim/extractCatalogue';
 import { getLocalStorage } from '../store/browserStorage';
 import { hasLibrary, setLibrary } from '../store/libraryInstance';
 
-import { extractAll } from './assetClient';
+import { extractAll, extractInto, getWantedModels } from './assetClient';
 import { fileListDir, handleDir, pickDirectory, readPermission, type DirLike } from './directory';
 import { resolveDrop, type DroppedItem } from './dropFolder';
 import { asGameDataError } from './fileErrors';
@@ -42,6 +45,8 @@ export type InstallStatus =
   | { kind: 'needsPermission'; folderName: string }
   | { kind: 'locating' }
   | { kind: 'parsing'; phase: ExtractPhase; objects: number }
+  /** Storing the plan's models of a newly scanned build before reloading to it. */
+  | { kind: 'extracting'; done: number; total: number }
   | { kind: 'ready' }
   | { kind: 'error'; code: GameDataErrorCode; detail: string };
 
@@ -55,6 +60,8 @@ export interface InstallState {
   hasHandle: boolean;
   /** The folder picker closed without a folder: maybe Chrome's "system files" refusal. */
   pickerHint: boolean;
+  /** Bumped whenever the files of the install in use come back (models can load). */
+  assetFiles: number;
 }
 
 let state: InstallState = {
@@ -63,6 +70,7 @@ let state: InstallState = {
   loaded: null,
   hasHandle: false,
   pickerHint: false,
+  assetFiles: 0,
 };
 const listeners = new Set<() => void>();
 let cache: CachedCatalogue | null = null;
@@ -149,15 +157,28 @@ const fail = (error: unknown) => {
 /** Counts scans, so a superseded one (cancelled by a newer pick) stays quiet. */
 let scans = 0;
 
+/** Keeps the files of the install in use (from the editor), so missing models can load. */
+const attachFiles = async (files: InstallFiles, remember?: FileSystemDirectoryHandle | null) => {
+  installFiles = files;
+  if (remember) {
+    handle = remember;
+    await putHandle(remember);
+  }
+  update({ hasHandle: handle !== null, assetFiles: state.assetFiles + 1 });
+  settle();
+};
+
 /**
  * Locates the data folder, then uses the cache if it still matches, else parses.
- * `remember` is what to store as the folder once the scan succeeds: the picked
- * handle, null to forget the stored one (files from the upload dialog), or undefined
- * to keep it. A failed scan leaves the stored folder alone.
+ * `force` parses even when the cache matches; in the editor, `open` attaches a folder
+ * holding the install in use instead of reloading. `remember` is what to store as the
+ * folder once the scan succeeds: the picked handle, null to forget the stored one
+ * (files from the upload dialog or an entry-only drop), or undefined to keep it. A
+ * failed scan leaves the stored folder alone.
  */
 const scan = async (
   dir: DirLike,
-  force: boolean,
+  { force = false, open = false }: { force?: boolean; open?: boolean },
   remember?: FileSystemDirectoryHandle | null
 ): Promise<void> => {
   const id = ++scans;
@@ -166,6 +187,10 @@ const scan = async (
   try {
     const files = await locateDataDir(dir);
     const key = await fingerprint(files);
+    if (open && hasLibrary() && key === loadedKey) {
+      if (current()) await attachFiles(files, remember);
+      return;
+    }
     let catalogue = !force && cache?.key === key ? cache : null;
     if (!catalogue) {
       setStatus({ kind: 'parsing', phase: 'bundle', objects: 0 });
@@ -197,9 +222,17 @@ const scan = async (
       await putHandle(remember);
       update({ hasHandle: remember !== null });
     }
-    const transient = remember === null && !hasLibrary();
+    const transient = remember === null;
+    if (transient && hasLibrary() && key !== loadedKey) {
+      // The files are gone after the reload: store the models the plan shows first.
+      await extractInto(files.bundle, key, getWantedModels(), (done, total) => {
+        if (current()) setStatus({ kind: 'extracting', done, total });
+      });
+      if (!current()) return;
+    }
+    const background = transient && !hasLibrary();
     install(catalogue, library, files);
-    if (transient) extractAll().catch(() => {});
+    if (background) extractAll().catch(() => {});
   } catch (error) {
     if (current()) fail(error);
   }
@@ -217,7 +250,7 @@ export const startInstall = async (): Promise<void> => {
   if (!handle) return setStatus({ kind: 'idle' });
   try {
     const permission = await readPermission(handle, false);
-    if (permission === 'granted') return scan(handleDir(handle), false);
+    if (permission === 'granted') return scan(handleDir(handle), {});
     setStatus(
       permission === 'prompt'
         ? { kind: 'needsPermission', folderName: handle.name }
@@ -235,7 +268,7 @@ export const reconnect = async (force = false): Promise<void> => {
     if ((await readPermission(handle, true)) !== 'granted') {
       throw new GameDataError('permission', 'Access to the folder was not granted.');
     }
-    await scan(handleDir(handle), force);
+    await scan(handleDir(handle), { force });
   } catch (error) {
     fail(error);
   }
@@ -251,7 +284,7 @@ const PICKER_HINT_DISMISSED_KEY = 'valheimInstall.pickerHintDismissed';
 export const chooseFolder = async (): Promise<void> => {
   try {
     const picked = await pickDirectory();
-    if (picked) await scan(handleDir(picked), hasLibrary(), picked);
+    if (picked) await scan(handleDir(picked), { force: hasLibrary(), open: true }, picked);
     else if ((getLocalStorage()?.getItem(PICKER_HINT_DISMISSED_KEY) ?? null) === null) {
       update({ pickerHint: true });
     }
@@ -270,19 +303,23 @@ export const dismissPickerHint = (): void => {
   update({ pickerHint: false });
 };
 
-/** Scans the files of a folder input (every browser); on success forgets any stored handle. */
+/**
+ * Scans the files of a folder input (every browser); on success forgets any stored
+ * handle, unless they are the install in use (then they are only kept for models).
+ */
 export const chooseFiles = (files: readonly File[]): Promise<void> =>
-  scan(fileListDir(files), hasLibrary(), null);
+  scan(fileListDir(files), { force: hasLibrary(), open: true }, null);
 
 /**
  * Scans a dropped folder. A readable handle is remembered like a picked folder; an
- * entry-only drop (other browsers, or a folder Chromium refuses) forgets the stored one.
+ * entry-only drop (other browsers, or a folder Chromium refuses) forgets the stored
+ * one. Dropping the install in use on the editor only lends its files to the models.
  */
 export const chooseDrop = async (drop: DroppedItem): Promise<void> => {
   setStatus({ kind: 'locating' });
   try {
     const { dir, handle: dropped } = await resolveDrop(drop);
-    await scan(dir, hasLibrary(), dropped);
+    await scan(dir, { force: hasLibrary(), open: true }, dropped);
   } catch (error) {
     fail(error);
   }
@@ -324,5 +361,6 @@ export const connectAssetFiles = async (): Promise<boolean> => {
   const files = await locateDataDir(handleDir(handle));
   if ((await fingerprint(files)) !== loadedKey) return false;
   installFiles = files;
+  update({ assetFiles: state.assetFiles + 1 });
   return true;
 };
