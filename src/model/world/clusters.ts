@@ -1,19 +1,27 @@
 /**
- * Builds in a world: pieces within `link` metres of each other (on the plane) belong to
+ * Sites in a world: pieces within `link` metres of each other (on the plane) belong to
  * one cluster, by union-find over a spatial hash. Pure.
  */
 import type { Vec2 } from '../types';
 
 import { cloudPiece, cloudSize, dominantYaw, type PieceCloud } from './pieceCloud';
 
-/** Pieces this close (metres, on the plane) are one build. */
-export const CLUSTER_LINK = 4;
+/**
+ * Pieces this close (metres, on the plane) are one site: a ward's radius, so a shed or
+ * storage beside the main build imports with it.
+ */
+export const CLUSTER_LINK = 32;
 /** Clusters smaller than this are hidden by default (a lone workbench, a campfire). */
 export const DEFAULT_MIN_CLUSTER = 5;
 
 const DEG = Math.PI / 180;
 
-/** Every group of linked pieces, largest first: indices into the cloud. */
+/**
+ * Every group of linked pieces, largest first: indices into the cloud. The cells are
+ * `link / √2` wide, so a cell's pieces are all linked; neighbouring cells are joined by
+ * their first close pair, and cells already in one group aren't compared at all. A dense
+ * base costs about one pass, not a pass per pair (a 32 m link over a 50 k-piece base).
+ */
 export const groupPieces = (cloud: PieceCloud, link = CLUSTER_LINK): number[][] => {
   const n = cloudSize(cloud);
   const parent = Int32Array.from({ length: n }, (_, i) => i);
@@ -26,27 +34,43 @@ export const groupPieces = (cloud: PieceCloud, link = CLUSTER_LINK): number[][] 
   };
   const x = (i: number) => cloud.position[i * 3]!;
   const z = (i: number) => cloud.position[i * 3 + 2]!;
+  const size = link / Math.SQRT2;
   const cells = new Map<string, number[]>();
   const cellOf = (cx: number, cz: number) => `${cx},${cz}`;
   for (let i = 0; i < n; i++) {
-    const key = cellOf(Math.floor(x(i) / link), Math.floor(z(i) / link));
+    const key = cellOf(Math.floor(x(i) / size), Math.floor(z(i) / size));
     const cell = cells.get(key);
-    if (cell) cell.push(i);
-    else cells.set(key, [i]);
+    if (cell) {
+      cell.push(i);
+      parent[i] = cell[0]!;
+    } else cells.set(key, [i]);
   }
   const reach = link * link;
-  for (const [key, ids] of cells) {
+  const linked = (a: readonly number[], b: readonly number[]): boolean =>
+    a.some((i) => b.some((j) => (x(i) - x(j)) ** 2 + (z(i) - z(j)) ** 2 <= reach));
+  // Each pair of cells is visited once: the touching ones first, as they join a dense
+  // base on their own, then those two cells out, which can still be in reach.
+  const gap = (d: number) => Math.max(0, Math.abs(d) - 1) * size;
+  const offsets: [number, number][] = [];
+  for (let dx = 0; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      if ((dx === 0 && dz <= 0) || gap(dx) ** 2 + gap(dz) ** 2 > reach) continue;
+      offsets.push([dx, dz]);
+    }
+  }
+  const touching = (o: [number, number]) => Math.max(Math.abs(o[0]), Math.abs(o[1])) === 1;
+  const grid = [...cells].map(([key, ids]) => {
     const [cx, cz] = key.split(',').map(Number) as [number, number];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
+    return { cx, cz, ids };
+  });
+  for (const pass of [offsets.filter(touching), offsets.filter((o) => !touching(o))]) {
+    for (const { cx, cz, ids } of grid) {
+      for (const [dx, dz] of pass) {
         const others = cells.get(cellOf(cx + dx, cz + dz));
         if (!others) continue;
-        for (const i of ids) {
-          for (const j of others) {
-            if (j <= i) continue;
-            if ((x(i) - x(j)) ** 2 + (z(i) - z(j)) ** 2 <= reach) parent[find(i)] = find(j);
-          }
-        }
+        const a = find(ids[0]!);
+        const b = find(others[0]!);
+        if (a !== b && linked(ids, others)) parent[a] = b;
       }
     }
   }

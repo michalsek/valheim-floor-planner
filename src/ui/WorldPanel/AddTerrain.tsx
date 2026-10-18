@@ -8,6 +8,7 @@ import { usePlan } from '../../store/planHooks';
 import { addTerrain } from '../../store/worldImport';
 import { useToolContext } from '../../tools/toolContext';
 
+import { RevealToggle } from './RevealToggle';
 import { phaseText, type TerrainTask } from './useTerrainTask';
 import styles from './WorldPanel.module.css';
 
@@ -75,10 +76,13 @@ export const AddTerrainHint = () => {
   const frame = usePlan().importFrame;
   if (!frame) return null;
   return frame.terrain ? (
-    <p className={styles.note}>
-      The current plan’s ground came from <strong>{frame.worldName}</strong>: open that world to
-      extend it from the handles at the site’s edges.
-    </p>
+    <>
+      <p className={styles.note}>
+        The current plan’s ground came from <strong>{frame.worldName}</strong>: open that world to
+        extend it from the handles at the site’s edges.
+      </p>
+      <RevealToggle />
+    </>
   ) : (
     <p className={styles.note}>
       The current plan was imported from <strong>{frame.worldName}</strong> without its ground: open

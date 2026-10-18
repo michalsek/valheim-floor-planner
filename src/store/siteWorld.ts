@@ -9,6 +9,33 @@ import { getWorldState } from '../install/loadWorld';
 import { worldMatchesFrame, type TerrainSource } from '../install/siteGeneration';
 import { listCachedWorlds, loadCachedWorld } from '../install/worldCache';
 import type { ImportFrame } from '../model/types';
+import type { PieceCloud } from '../model/world/pieceCloud';
+import { worldSites, type WorldSites } from '../model/world/revealSites';
+
+import { persistedAtom } from './browserStorage';
+
+/**
+ * Whether extending the terrain also brings in the sites it reveals (the World panel's
+ * "Load revealed sites"), remembered per browser. On by default.
+ */
+export const revealSitesAtom = persistedAtom<boolean>(
+  'valheimFloorPlanner.revealSites.v1',
+  true,
+  (stored) => (stored === 'true' ? true : stored === 'false' ? false : null),
+  String
+);
+
+const sitesByCloud = new WeakMap<PieceCloud, WorldSites>();
+
+/** A read world's sites (`worldSites`), worked out once per world. */
+export const sitesOf = (world: Pick<TerrainSource, 'pieces'>): WorldSites => {
+  let sites = sitesByCloud.get(world.pieces);
+  if (!sites) {
+    sites = worldSites(world.pieces);
+    sitesByCloud.set(world.pieces, sites);
+  }
+  return sites;
+};
 
 /** Which import a found world is for: its world's name and origin. */
 export const siteWorldKey = (frame: ImportFrame): string =>

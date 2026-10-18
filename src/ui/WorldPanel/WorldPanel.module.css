@@ -313,14 +313,16 @@
 
 .importActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
 }
 
 .terrainOption {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -343,4 +345,9 @@
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent-soft);
+}
+
+.revealOption {
+  margin-top: 8px;
+  white-space: normal;
 }

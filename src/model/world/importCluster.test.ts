@@ -45,14 +45,18 @@ describe('world builds', () => {
     expect([22, 22.5, 269.5, 359.5, 10, 0].map(snapAngle)).toEqual([22.5, 22.5, 270, 0, 10, 0]);
   });
 
-  it('groups pieces within 4 m and finds each group grid', () => {
+  it('groups pieces within 32 m into sites and finds each grid', () => {
     const cloud = cloudOf([
       ...shed(45, 100, 100),
+      ['piece_workbench', 120, 31, 110, 0], // beside the shed: one site
       ...shed(0, 300, 100),
-      ['wood_beam', 400, 0, 0, 0],
+      ['wood_beam', 500, 0, 0, 0],
+      ['wood_beam', 532, 0, 0, 0], // just in reach
+      ['wood_beam', 600, 0, 0, 0],
+      ['wood_beam', 632.5, 0, 0, 0], // just out of it
     ]);
     const groups = groupPieces(cloud);
-    expect(groups.map((g) => g.length)).toEqual([5, 5, 1]);
+    expect(groups.map((g) => g.length)).toEqual([6, 5, 2, 1, 1]);
     const first = describeCluster(cloud, groups[0]!, () => 'wood');
     expect(first).toMatchObject({ yaw: 45, aligned: 5, material: 'wood' });
   });
@@ -80,7 +84,7 @@ describe('world builds', () => {
     const [wx, wz] = back(pieces[2]!.position.x, pieces[2]!.position.z);
     expect(wx).toBeCloseTo(cloud.position[6]!);
     expect(wz).toBeCloseTo(cloud.position[8]!);
-    // Heights from the lowest bottom (31.25, the floors' top); the upper wall has no
+    // Heights from the structure's lowest bottom (31.25, the floors' top); the upper wall has no
     // floor under it, so it stays on level 0, 1 m up.
     expect(pieces.map((p) => p.elevation)).toEqual([0, 0, 0, 0, 0]);
   });
@@ -121,6 +125,15 @@ describe('world builds', () => {
     const floors = Object.values(plan.rawPieces).filter((p) => p.prefab === 'wood_floor');
     expect(level).toBeGreaterThan(0);
     expect(level).toBe(Math.min(...floors.map((p) => p.elevation)));
+  });
+
+  it('takes height 0 from the structure, not from a station on lower ground', () => {
+    const bare = imported(decks).plan;
+    const { plan } = imported([...decks, ['piece_workbench', 12, 29.3, 1, 0]]);
+    expect(plan.importFrame!.origin.y).toBe(bare.importFrame!.origin.y);
+    const pieces = Object.values(plan.rawPieces);
+    expect(new Set(pieces.map((p) => p.elevation))).toEqual(new Set([0, 4, 8]));
+    expect(pieces.at(-1)!.position.y).toBeLessThan(0);
   });
 
   it('puts each roof course on the storey under its lowest edge, as walls', () => {

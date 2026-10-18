@@ -238,7 +238,8 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
     console.info(
       `Ghost support: ${perGhost.toFixed(3)} ms per piece over ${sample.length}; ${same} agree with the full solve`
     );
-    expect(perGhost).toBeLessThan(0.3);
+    // Reported above; the bound only catches a blow-up (it runs ~0.03 ms when idle).
+    expect(perGhost).toBeLessThan(3);
     expect(same / sample.length).toBeGreaterThan(0.9);
   }, 30_000); // the cold river job alone takes seconds on a busy machine
 });

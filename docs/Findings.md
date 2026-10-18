@@ -1910,6 +1910,57 @@ heights in the localStorage autosave. Measured on the pokemanz site in headless 
    - The localStorage fallback's save packs a new site first (~170 ms at the cap).
    - On the first entry into 3D the far tiles of a large site appear over ~0.6 s.
 
+## World import fixes (new save, 32 m sites, structural datum)
+
+1. **Reading only 41 pieces was the save, not the reader.** Today's Steam Cloud copy of the
+   test world (generation 97, 9 chunks, 109 097 objects) holds 41 player pieces. The TS
+   reader and the Python reference both read every chunk to its last byte and agree.
+   The new 9th chunk is the portal chunk (`00_01__0_2`: 2 portals), and it reads like
+   any other. The format hasn't changed. The world's own auto-backups show the history:
+   the build had 1 684 pieces at generation 80, and in the next session the chunk
+   holding it shrank by about 1 650 objects, so the pieces are gone from the save
+   itself. Which world the user sees the build in is a question for the user.
+   - **Never dropped unseen:** `WorldScan.skipped` counts the objects a player placed
+     that the scan doesn't keep: ships, carts, crops, Hoe edits, and pieces from mods or
+     a newer game. The World panel shows "· N other placed objects left out" (with a
+     tooltip) when there are any. It is 0 for both copies. The kept-world file stores it
+     (`WORLD_FORMAT` 3, so kept worlds are read again once). The Python reference prints
+     the same count and no longer prints the header, which held the seed.
+   - **Lesson:** check a drop in pieces against the save's own object counts and its
+     auto-backups before suspecting the decoder (research §7, "Second real save").
+2. **Sites: pieces within 32 m (a ward's radius) are one site** (`CLUSTER_LINK`). The
+   panel copy now says "Sites of at least N pieces", with the rule in the tooltip, and
+   "No sites this big". The old pairwise loop, at 32 m, took 5.5 s on a synthetic
+   50 k-piece base 120 m square (0.66 s for 40 bases). `groupPieces` now uses cells
+   `link/√2` wide, so a cell's pieces are linked at once. Neighbouring cells are joined
+   by their first close pair, touching cells first and then those two cells out, and
+   cells already in one group aren't compared. Times: 7 ms dense, 8 ms for 40 bases,
+   72 ms for 50 k pieces scattered over 10 km (20 k groups). The old copy is now
+   [1 141, 1]: one workbench beside the build joins it, and the site measures
+   47.8 × 60.1 m (pivots). The gen-80 backup is [1 683, 1].
+3. **Height 0 comes from the structure** (`structuralDatum`): the lowest bottom of the
+   pieces with snap points (floors, walls, beams, poles, roofs), put on the half-metre
+   grid their bottoms share. Stations, chests and props don't count. A workbench on
+   lower ground now sits 5 cm below 0 on level 0 instead of moving every level to
+   x.05. A stray structural piece on its own grid moves 0 by less than one step.
+   - **Levels:** the old copy is back to [0, 4, 5, 7, 8], landing on 4. The gen-80 backup
+     gives [0, 4, 5, 7, 8, 9, 10, 11, 12], landing on 4.
+   - **Terrain:** the frame's `origin.y` is the datum, so the terrain stays in the same
+     frame. Floors sit at least 0.099 m above the ground, as before (ad hoc, both
+     copies).
+   - **The new copy:** a 35-piece site (15.5 × 18.9 m, a shed and 18 chests), a 5-piece
+     group and a lone piece. Imported with terrain in headless Chrome; it lands on
+     level 0.
+4. **Tests.**
+   - A synthetic portal-chunk save with a cart and a mod's piece checks the `skipped`
+     count.
+   - The site test now covers a station beside a shed, and a link just in and just out
+     of reach.
+   - A structural-datum test puts a workbench on lower ground beside two decks.
+   - The real-world goldens now expect a single site.
+   - `realTerrain`'s ghost-support timing is reported, with a blow-up bound of 3 ms
+     (it runs at ~0.03 ms).
+
 ## Terrain storage fix round
 
 1. **A failed IndexedDB read no longer wipes the autosave** (`autosave.ts`): a read that
@@ -1943,3 +1994,77 @@ heights in the localStorage autosave. Measured on the pokemanz site in headless 
    `autosave.test.ts` uses fake records through a seam (`openPlanStorage(sources)`). It
    covers the move from localStorage, never overwriting after a failed read, keeping a
    corrupt record aside, the timeout fallback and both stores blocked.
+
+## Revealed sites on terrain expansion
+
+The user's live test world (Steam Cloud, 6 180 player pieces) holds 16 sites at 32 m:
+4 405, 1 325, 122, 114, 96, 43 … pieces, most of them hundreds of metres apart. Measured
+ad hoc on that world; only aggregates here.
+
+1. **Rule** (`model/world/revealSites.ts`).
+   - **Revealed site:** a world site (`groupPieces`, any size) with a piece on the plan's
+     terrain patch that the plan doesn't hold yet.
+   - **Whole site:** it comes in whole, even where it reaches past the patch (ground off
+     the patch is the nearest edge, as support already does).
+   - **Frame:** pieces go into the plan's frame (origin, yaw and datum from the first
+     import), with their own yaw relative to it.
+   - **Levels:** the wall rule (`framePieces.ts`, shared with `importCluster`), against
+     the site's own floor levels and the plan's elevations. A piece below every level
+     goes on the lowest, and levels may now be negative, down to `MIN_ELEVATION`.
+   - **Refusals:** a site past the 20 000-piece cap, or one reaching too far off every
+     level, is refused with its reason in the notice, never dropped unseen.
+2. **Which sites the plan holds:** `ImportFrame.worldPieces`, the sorted keys of every
+   world piece imported (`worldKeys.ts`). A key is a 52-bit hash of the prefab and the
+   position to the centimetre: the save has no object ids, since the game renumbers
+   them on load.
+   - **In the plan:** a site counts as in the plan when any of its pieces is listed.
+     So pieces deleted from the plan never come back, and a site whose pieces moved in
+     a later save isn't brought in twice.
+   - **Persistence:** the list lives in the plan, so undo, redo, the file and the
+     autosave all keep it. It is optional in the parser, checked as ascending safe
+     integers.
+   - **Older imports** (no list) are matched once: plan pieces are mapped back through
+     the frame onto world pieces of the same prefab within 3 cm.
+   - **Size:** about 17 characters a piece in a file (75 KB for a 4 405-piece import, next
+     to ~660 KB of pieces).
+3. **On extension:** the grown terrain and the revealed pieces are one `transact`: one undo
+   step, "Extend terrain north, 2 sites". The pieces go in through a new command,
+   `site.reveal`: one Immer step instead of one per piece, with the same checks as
+   `raw.insert`.
+   - **Notice:** shown on the handle for 6 s, e.g. "Revealed 2 sites (1,325 + 1 pieces)".
+   - **Toggle:** "Load revealed sites when extending the terrain" (`revealSitesAtom`,
+     `persistedAtom`, on by default) is in the World panel: under the import row, and
+     on the start screen when the plan has terrain. The handle's tooltip says whether
+     revealed sites come in.
+   - **World:** it must be at hand, as before.
+4. **On import:** "Include nearby sites" (on by default) brings the sites on the starting
+   patch (the build plus its 64 m margin; the patch stays the build's). The import row
+   says what it brings ("Brings along 1 site (1 piece)"). It applies with or without
+   terrain.
+5. **Cost.**
+   - **Sites:** worked out once per read world (`sitesOf`, a `WeakMap` on the piece
+     cloud): 4.5 ms for the 6 180-piece world, and the World panel's list now reuses
+     them.
+   - **Reveal check:** an O(n) scan, 1 ms.
+   - **Placing 4 406 pieces:** 24 ms (model).
+   - **In headless Chrome:** an extension that revealed 1 326 pieces (4 405 → 5 731) had
+     one long task of 96 ms. Extensions without a reveal had 72–84 ms, so the reveal
+     adds nothing noticeable over the existing extension hitch. No worker was needed.
+6. **Checked in the browser** (that world, port 5252 with HMR off):
+   - imported the 4 405 site with terrain (nothing nearby);
+   - extended west 256 m and north 384 m, and the 1 325 site and a lone piece appeared
+     on the land to the north-west;
+   - two undos gave 4 405 pieces again and two redos 5 731;
+   - extending again revealed nothing;
+   - saved, New, opened the file: 5 731 pieces, and further extensions added nothing.
+7. **Tests** (`store/worldImport.test.ts`, synthetic world, the worker mocked out):
+   - an import brings the hut on its patch, or doesn't with the option off;
+   - an extension reveals a shed in the frame, on its own floor's level, as one undo step;
+   - nothing comes in twice after an undo and redo, a reopen, or deleting a revealed piece;
+   - the toggle off leaves sites out;
+   - an older plan's own site isn't brought again.
+8. **Not done.**
+   - The 2D view's minimum zoom (2 px/m) can't show a site 500 m away beside the build:
+     use 3D to see both.
+   - A revealed site lands on the plan's levels, so its floors show as levels such as
+     "+16.65 m" when its grid sits off the main build's vertical grid.

@@ -86,6 +86,8 @@ describe.skipIf(!dir)('a real world save', () => {
     expect(world.version).toBe(42);
     expect(pieces.prefabIndex.length).toBe(1_142);
     expect(pieces.prefabs.length).toBe(41);
+    // Nothing a player placed is left out unseen.
+    expect(world.skipped).toBe(0);
   });
 
   it('keeps what the terrain needs (aggregates only; the seed is never printed)', () => {
@@ -106,14 +108,15 @@ describe.skipIf(!dir)('a real world save', () => {
     expect([...yaws.keys()].every((y) => y % 22.5 === 0)).toBe(true);
   });
 
-  it('finds one big build and two lone workbenches', () => {
+  it('finds one big site (with a workbench beside it) and a lone workbench', () => {
     const groups = groupPieces(pieces);
-    expect(groups.map((g) => g.length)).toEqual([1_140, 1, 1]);
+    expect(groups.map((g) => g.length)).toEqual([1_141, 1]);
     const build = describeCluster(pieces, groups[0]!, () => null);
     expect(build.yaw).toBe(22.5);
     expect(build.aligned).toBe(1_090);
-    expect(build.size.x).toBeCloseTo(40, 0);
-    expect(build.size.z).toBeCloseTo(57.8, 0);
+    // The site's pivots, the workbench beside the build included.
+    expect(build.size.x).toBeCloseTo(47.8, 0);
+    expect(build.size.z).toBeCloseTo(60.1, 0);
   });
 
   it('imports the build axis-aligned, every piece, and the plan loads back', async () => {
@@ -121,7 +124,7 @@ describe.skipIf(!dir)('a real world save', () => {
     const build = describeCluster(pieces, groups[0]!, () => null);
     const { plan, level } = importCluster(pieces, build, testLibrary, world.name);
     const raw = Object.values(plan.rawPieces);
-    expect(raw.length).toBe(1_140);
+    expect(raw.length).toBe(1_141);
     expect(raw.filter((p) => p.rotation.yaw % 90 === 0).length).toBe(1_090);
     expect(await readPlanJson(JSON.parse(await planFileText(plan)))).toEqual(plan);
     // Wall and floor pivots sit on the 0.5 m grid from the origin (the game drifts ±3 cm).

@@ -3,21 +3,28 @@ import { useMemo, useState } from 'react';
 import { formatCompact } from '../../format';
 import type { LoadedWorld } from '../../install/loadWorld';
 import {
+  CLUSTER_LINK,
   DEFAULT_MIN_CLUSTER,
   describeCluster,
-  groupPieces,
   type WorldCluster,
 } from '../../model/world/clusters';
 import { getLibrary } from '../../store/libraryInstance';
+import { sitesOf } from '../../store/siteWorld';
 
 import { AddTerrain } from './AddTerrain';
 import { ClusterMap } from './ClusterMap';
 import { ImportRow } from './ImportRow';
+import { RevealToggle } from './RevealToggle';
 import { useBuildImport } from './useBuildImport';
 import { useTerrainTask } from './useTerrainTask';
 import styles from './WorldPanel.module.css';
 
 const materialOf = (prefab: string) => getLibrary().catalog.pieces.get(prefab)?.material ?? null;
+
+const SITE_TITLE = `Pieces within ${CLUSTER_LINK} m of each other (a ward's radius) are one site.`;
+
+const SKIPPED_TITLE =
+  'Placed by a player but not a building piece the planner knows: ships and carts, crops and ground edits, or pieces from a mod or a newer game.';
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -32,11 +39,12 @@ const describe = (c: WorldCluster): string =>
     .filter(Boolean)
     .join(' · ');
 
-/** A read world: its builds on a map and in a list, with the minimum size and Import. */
+/** A read world: its sites on a map and in a list, with the minimum size and Import. */
 export const WorldOverview = ({ world }: { world: LoadedWorld }) => {
   const [minSize, setMinSize] = useState(DEFAULT_MIN_CLUSTER);
   const [selected, setSelectedIndex] = useState(0);
-  const groups = useMemo(() => groupPieces(world.pieces), [world.pieces]);
+  // The same sites the terrain reveals later (worked out once per world).
+  const groups = useMemo(() => sitesOf(world).groups, [world]);
   const clusters = useMemo(
     () =>
       groups
@@ -60,6 +68,13 @@ export const WorldOverview = ({ world }: { world: LoadedWorld }) => {
         {total.toLocaleString('en-GB')} built pieces of {world.zdos.toLocaleString('en-GB')} objects
         {world.generation !== null && ` · save ${world.generation}`} ·{' '}
         {world.fromCache ? 'kept copy' : 'read'} in {Math.round(world.readMs)} ms
+        {world.skipped > 0 && (
+          <span title={SKIPPED_TITLE}>
+            {' '}
+            · {world.skipped.toLocaleString('en-GB')} other placed{' '}
+            {world.skipped === 1 ? 'object' : 'objects'} left out
+          </span>
+        )}
       </p>
       <AddTerrain world={world} task={task} />
       <div className={styles.overviewGrid}>
@@ -70,8 +85,8 @@ export const WorldOverview = ({ world }: { world: LoadedWorld }) => {
           onSelect={(c) => setSelected(clusters.indexOf(c))}
         />
         <div className={styles.clusterSide}>
-          <label className={styles.minSize}>
-            Builds of at least{' '}
+          <label className={styles.minSize} title={SITE_TITLE}>
+            Sites of at least{' '}
             <input
               type="number"
               min={1}
@@ -106,8 +121,9 @@ export const WorldOverview = ({ world }: { world: LoadedWorld }) => {
               </li>
             ))}
           </ol>
-          {clusters.length === 0 && <p className={styles.note}>No builds this big.</p>}
+          {clusters.length === 0 && <p className={styles.note}>No sites this big.</p>}
           <ImportRow importer={importer} />
+          <RevealToggle />
         </div>
       </div>
     </div>

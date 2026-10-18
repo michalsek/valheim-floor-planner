@@ -8,7 +8,10 @@ import { useToolContext } from '../../tools/toolContext';
 
 import type { TerrainTask } from './useTerrainTask';
 
-/** Importing the selected build: the "With terrain" option, progress, Skip terrain. */
+/**
+ * Importing the selected build: the "With terrain" and "Include nearby sites" options,
+ * progress, Skip terrain.
+ */
 export const useBuildImport = (
   world: LoadedWorld,
   cluster: WorldCluster | undefined,
@@ -16,8 +19,12 @@ export const useBuildImport = (
 ) => {
   const ctx = useToolContext();
   const [withTerrain, setWithTerrain] = useState(true);
+  const [nearby, setNearby] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const build = useMemo(() => cluster && prepareBuild(world, cluster), [world, cluster]);
+  const build = useMemo(
+    () => cluster && prepareBuild(world, cluster, nearby),
+    [world, cluster, nearby]
+  );
   const tooBig = !!cluster && cluster.indices.length > MAX_RAW_PIECES;
 
   const start = async () => {
@@ -31,7 +38,18 @@ export const useBuildImport = (
     else if (result && typeof result === 'object') setError(result.error);
   };
 
-  return { build, tooBig, withTerrain, setWithTerrain, error, setError, task, start };
+  return {
+    build,
+    tooBig,
+    withTerrain,
+    setWithTerrain,
+    nearby,
+    setNearby,
+    error,
+    setError,
+    task,
+    start,
+  };
 };
 
 export type BuildImport = ReturnType<typeof useBuildImport>;

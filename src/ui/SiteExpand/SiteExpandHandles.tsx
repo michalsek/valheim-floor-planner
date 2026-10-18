@@ -14,10 +14,12 @@ import { MAX_SITE_SIDE } from '../../model/terrain/sitePatch';
 import type { ImportFrame, SiteTerrain, Vec2 } from '../../model/types';
 import { useViewMode, useViewport, useViewportSize } from '../../store/hooks';
 import { projection3dAtom } from '../../store/session';
+import { revealSitesAtom } from '../../store/siteWorld';
 import { useShownSiteTerrain, type SiteGround } from '../../store/siteTerrain';
 import { extendTerrain } from '../../store/worldImport';
 import { useToolContext } from '../../tools/toolContext';
 import { project3d } from '../../viewport/projection3d';
+import { revealNotice } from '../WorldPanel/worldCopy';
 import { worldToScreen, type ScreenPoint } from '../../viewport/viewportMath';
 
 import styles from './SiteExpand.module.css';
@@ -132,6 +134,7 @@ const stateOf = (
     world: SiteWorldStatus;
     availability: TerrainAvailability | null;
     message: string | null;
+    reveal: boolean;
   }
 ): HandleState => {
   const step = Math.min(EXTEND_STEP, roomToGrow(terrain, side));
@@ -159,7 +162,10 @@ const stateOf = (
     return { label: ctx.message ?? 'no ground', title: ctx.availability.reason, disabled: true };
   }
   const more = Math.min(EXTEND_STEP * SHIFT_STEPS, roomToGrow(terrain, side));
-  const title = `Extend the terrain ${step} m ${side} (Shift: ${more} m). ${length}`;
+  const sites = ctx.reveal
+    ? 'Sites it reveals come in too.'
+    : 'Sites it reveals stay out (Load revealed sites is off in the World panel).';
+  const title = `Extend the terrain ${step} m ${side} (Shift: ${more} m). ${length}\n${sites}`;
   return {
     label,
     title: ctx.message ? `${ctx.message}\n\n${title}` : title,
@@ -241,6 +247,7 @@ const useAvailability = (
 const Handles = ({ ground, project }: { ground: SiteGround; project: Project }) => {
   const ctx = useToolContext();
   const is2d = useViewMode() === '2d';
+  const reveal = useAtomValue(revealSitesAtom);
   const site = useSiteWorld(ground.frame);
   const availability = useAvailability(ground, site.world);
   const [running, setRunning] = useState<SiteSide | null>(null);
@@ -266,9 +273,12 @@ const Handles = ({ ground, project }: { ground: SiteGround; project: Project }) 
     const result = await extendTerrain(ctx, world, side, metres, {
       onPhase: () => {},
       signal: controller.signal,
+      reveal,
     });
     setRunning(null);
-    if (typeof result === 'object') setMessage({ side, text: result.error });
+    if (result === 'cancelled') return;
+    const text = 'error' in result ? result.error : revealNotice(result);
+    if (text) setMessage({ side, text });
   };
   const hovered = () => {
     if (site.status === 'unknown') void site.resolve();
@@ -282,6 +292,7 @@ const Handles = ({ ground, project }: { ground: SiteGround; project: Project }) 
           world: site.status,
           availability: availability.get(handle.side) ?? null,
           message: message?.side === handle.side ? message.text : null,
+          reveal,
         });
         return (
           <Handle

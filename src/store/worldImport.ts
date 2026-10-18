@@ -5,7 +5,9 @@
  * imported without it is one `site.setTerrain` ("Add terrain").
  *
  * Growing the site on one side (the expand handles) is one `site.setTerrain` too
- * ("Extend terrain north").
+ * ("Extend terrain north"), with the sites the larger patch reveals (`site.reveal`) in
+ * the same step when "Load revealed sites" is on. An import brings the sites on its
+ * starting patch along ("Include nearby sites").
  *
  * The terrain is made in a worker (`generateSiteTerrain`), one request at a time: an
  * import, an Add terrain and an extension exclude each other.
@@ -18,6 +20,7 @@ import { growRect, type SiteSide } from '../model/terrain/siteExtend';
 import { MAX_SITE_SIDE, type PatchRect } from '../model/terrain/sitePatch';
 import type { Plan, SiteTerrain } from '../model/types';
 import { importCluster } from '../model/world/importCluster';
+import { revealSites, type Reveal } from '../model/world/revealSites';
 import {
   generateSiteTerrain,
   growSiteGround,
@@ -33,9 +36,13 @@ import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
 import { hoverAtom, selectionAtom } from './selection';
 import { fitViewTo, workDatumAtom, type SessionAccess } from './session';
+import { sitesOf } from './siteWorld';
 import { resetOrbit } from './view3d';
 
 type ImportContext = SessionAccess & { plan: PlanStore };
+
+/** Sites added to a plan beside its build: their piece counts, and those left out. */
+export type RevealSummary = Pick<Reveal, 'sites' | 'refused'>;
 
 /** A build made into a plan, ready to import, and whether its ground can be made. */
 export interface PreparedBuild {
@@ -43,7 +50,11 @@ export interface PreparedBuild {
   level: number;
   rect: PatchRect | null;
   terrain: TerrainAvailability;
+  /** The sites on its starting patch brought along (none unless asked for). */
+  nearby: RevealSummary;
 }
+
+const NO_SITES: RevealSummary = { sites: [], refused: [] };
 
 export type ImportResult = 'done' | 'kept' | 'cancelled' | { error: string };
 
@@ -58,18 +69,33 @@ export interface TerrainOptions {
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
 
-/** The build as a plan (or why it can't be one), and its site's availability. */
+/**
+ * The build as a plan (or why it can't be one), and its site's availability; with
+ * `nearby`, the other sites on its starting patch (the build and its margin) come along
+ * in its frame, the patch staying the build's.
+ */
 export const prepareBuild = (
   world: TerrainSource,
-  cluster: WorldCluster
+  cluster: WorldCluster,
+  nearby = false
 ): PreparedBuild | { error: string } => {
   try {
-    const { plan, level } = importCluster(world.pieces, cluster, getLibrary(), world.name);
-    const rect = siteRect(plan, getLibrary());
+    const built = importCluster(world.pieces, cluster, getLibrary(), world.name);
+    const rect = siteRect(built.plan, getLibrary());
     const terrain: TerrainAvailability = rect
       ? terrainAvailability(world, rect)
       : { ok: false, reason: 'The build has no extent.' };
-    return { plan, level, rect, terrain };
+    if (!nearby || !rect) return { ...built, rect, terrain, nearby: NO_SITES };
+    const found = revealSites(world.pieces, sitesOf(world), built.plan, rect, getLibrary());
+    const plan: Plan = {
+      ...built.plan,
+      rawPieces: {
+        ...built.plan.rawPieces,
+        ...Object.fromEntries(found.pieces.map((p) => [p.id, p])),
+      },
+      importFrame: { ...built.plan.importFrame!, worldPieces: found.worldPieces },
+    };
+    return { plan, level: built.level, rect, terrain, nearby: found };
   } catch (error) {
     return { error: messageOf(error) };
   }
@@ -80,9 +106,9 @@ export const prepareBuild = (
  * plan the other is making ground for (the World panel also disables the other button).
  */
 let busy = false;
-const BUSY: ImportResult = { error: 'The ground is still being made for another request.' };
+const BUSY = { error: 'The ground is still being made for another request.' };
 
-const exclusively = async (run: () => Promise<ImportResult>): Promise<ImportResult> => {
+const exclusively = async <T>(run: () => Promise<T>): Promise<T | typeof BUSY> => {
   if (busy) return BUSY;
   busy = true;
   try {
@@ -192,25 +218,28 @@ const addToPlan = async (
 /** Whether a terrain request (an import, Add terrain, an extension) is running. */
 export const isTerrainBusy = (): boolean => busy;
 
+export type ExtendResult = 'cancelled' | { error: string } | RevealSummary;
+
 /**
- * Grows the plan's site by `metres` on `side` (up to `MAX_SITE_SIDE`), from `world`: one
- * undoable "Extend terrain …". The site's own heights, frame and datum stay.
+ * Grows the plan's site by `metres` on `side` (up to `MAX_SITE_SIDE`), from `world`, and
+ * with `reveal` adds the sites the larger patch reveals: one undoable "Extend terrain …".
+ * The site's own heights, frame and datum stay.
  */
 export const extendTerrain = (
   ctx: ImportContext,
   world: TerrainSource,
   side: SiteSide,
   metres: number,
-  opts: Pick<TerrainOptions, 'onPhase' | 'signal'>
-): Promise<ImportResult> => exclusively(() => growPlanSite(ctx, world, side, metres, opts));
+  opts: Pick<TerrainOptions, 'onPhase' | 'signal'> & { reveal: boolean }
+): Promise<ExtendResult> => exclusively(() => growPlanSite(ctx, world, side, metres, opts));
 
 const growPlanSite = async (
   ctx: ImportContext,
   world: TerrainSource,
   side: SiteSide,
   metres: number,
-  opts: Pick<TerrainOptions, 'onPhase' | 'signal'>
-): Promise<ImportResult> => {
+  opts: Pick<TerrainOptions, 'onPhase' | 'signal'> & { reveal: boolean }
+): Promise<ExtendResult> => {
   const frame = ctx.plan.getPlan().importFrame;
   const terrain = frame?.terrain;
   if (!frame || !terrain) return { error: 'The plan has no terrain.' };
@@ -226,12 +255,22 @@ const growPlanSite = async (
     return { error: `The ground couldn’t be made: ${messageOf(error)}` };
   }
   // Cancelled, or the terrain changed under it (an undo, another plan).
-  if (opts.signal.aborted || ctx.plan.getPlan().importFrame?.terrain !== terrain) {
-    return 'cancelled';
-  }
-  const result = ctx.plan.dispatch(
-    { type: 'site.setTerrain', terrain: made.terrain },
-    { label: `Extend terrain ${side}` }
-  );
-  return result.ok ? 'done' : { error: result.error.message };
+  const plan = ctx.plan.getPlan();
+  if (opts.signal.aborted || plan.importFrame?.terrain !== terrain) return 'cancelled';
+  const found = opts.reveal
+    ? revealSites(world.pieces, sitesOf(world), plan, growth.rect, getLibrary())
+    : null;
+  const sites = found?.sites ?? [];
+  const label =
+    sites.length === 0
+      ? `Extend terrain ${side}`
+      : `Extend terrain ${side}, ${sites.length} ${sites.length === 1 ? 'site' : 'sites'}`;
+  const result = ctx.plan.transact(label, (dispatch) => {
+    dispatch({ type: 'site.setTerrain', terrain: made.terrain });
+    if (found && found.pieces.length > 0) {
+      dispatch({ type: 'site.reveal', pieces: found.pieces, worldPieces: found.worldPieces });
+    }
+  });
+  if (!result.ok) return { error: result.error.message };
+  return found ? { sites, refused: found.refused } : NO_SITES;
 };

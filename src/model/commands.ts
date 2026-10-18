@@ -55,6 +55,11 @@ export type PlanCommand =
   | { type: 'underlay.patch'; changes: Partial<Underlay> }
   /** Adds (or with null removes) the ground under an imported build. */
   | { type: 'site.setTerrain'; terrain: SiteTerrain | null }
+  /**
+   * Adds the pieces of sites the terrain revealed (`model/world/revealSites.ts`) and sets
+   * the frame's `worldPieces` to the list that includes them.
+   */
+  | { type: 'site.reveal'; pieces: RawPiece[]; worldPieces: number[] }
   | { type: 'plan.rename'; name: string }
   | { type: 'plan.replace'; plan: Plan };
 
@@ -84,6 +89,7 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'underlay.set': 'Set underlay',
   'underlay.patch': 'Edit underlay',
   'site.setTerrain': 'Set terrain',
+  'site.reveal': 'Reveal sites',
   'plan.rename': 'Rename plan',
   'plan.replace': 'Replace plan',
 };
@@ -306,6 +312,21 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
       const problem = cmd.terrain && siteTerrainProblem(cmd.terrain);
       if (problem) throw new PlanCommandError(`Invalid terrain: ${problem}`);
       draft.importFrame.terrain = cmd.terrain;
+      return undefined;
+    }
+    case 'site.reveal': {
+      if (!draft.importFrame) throw new PlanCommandError('Only an imported build reveals sites');
+      if (Object.keys(draft.rawPieces).length + cmd.pieces.length > MAX_RAW_PIECES) {
+        throw new PlanCommandError(`A plan holds at most ${MAX_RAW_PIECES} raw pieces`);
+      }
+      for (const piece of cmd.pieces) {
+        if (piece.id in draft.rawPieces) {
+          throw new PlanCommandError(`Piece "${piece.id}" already exists`);
+        }
+        checkRawPiece(piece);
+        draft.rawPieces[piece.id] = { ...piece, rotation: normalYaw(piece.rotation) };
+      }
+      draft.importFrame.worldPieces = cmd.worldPieces;
       return undefined;
     }
     case 'plan.rename': {

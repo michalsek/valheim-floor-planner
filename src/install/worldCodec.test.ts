@@ -7,6 +7,7 @@ const world: StoredWorld = {
   version: 42,
   generation: 7,
   zdos: 9,
+  skipped: 2,
   pieces: {
     prefabs: ['woodwall', 'wood_floor'],
     prefabIndex: Uint16Array.of(0, 1, 1),

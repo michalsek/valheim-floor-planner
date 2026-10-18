@@ -319,7 +319,21 @@ const parseImportFrame = (
       terrain === 'none'
         ? null
         : parseSiteTerrain(f.terrain, `${path}.terrain`, terrain === 'base64'),
+    ...(f.worldPieces === undefined
+      ? {}
+      : { worldPieces: parseWorldPieces(f.worldPieces, `${path}.worldPieces`) }),
   };
+};
+
+/** World piece keys: non-negative safe integers, ascending, each once. */
+const parseWorldPieces = (value: unknown, path: string): number[] => {
+  if (!Array.isArray(value)) fail(path, 'an array');
+  const keys = value as unknown[];
+  keys.forEach((key, i) => {
+    if (!Number.isSafeInteger(key) || (key as number) < 0) fail(`${path}[${i}]`, 'a key');
+    if (i > 0 && (key as number) <= (keys[i - 1] as number)) fail(`${path}[${i}]`, 'ascending');
+  });
+  return keys as number[];
 };
 
 /** Shapes are checked here, ranges by `underlayProblem`. */

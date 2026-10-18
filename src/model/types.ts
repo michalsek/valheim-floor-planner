@@ -161,6 +161,12 @@ export interface ImportFrame {
   yaw: number;
   /** The ground under the build (M16); null when imported without it. */
   terrain: SiteTerrain | null;
+  /**
+   * The world pieces the plan was given (`model/world/worldKeys.ts`), ascending: every
+   * piece of each site imported, kept when pieces are deleted, so revealing sites never
+   * imports one twice. Absent in plans imported before it (then found from the pieces).
+   */
+  worldPieces?: number[];
 }
 
 /**

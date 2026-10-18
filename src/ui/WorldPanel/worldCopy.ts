@@ -1,5 +1,6 @@
 /** The world panel's words. */
 import type { GameDataErrorCode } from '../../gameData/GameDataError';
+import type { RevealSummary } from '../../store/worldImport';
 import { ERROR_MESSAGES } from '../shared/installCopy';
 
 export const WORLD_INTRO =
@@ -32,3 +33,25 @@ const WORLD_ERRORS: Partial<Record<GameDataErrorCode, string>> = {
 
 export const worldErrorMessage = (code: GameDataErrorCode): string =>
   WORLD_ERRORS[code] ?? ERROR_MESSAGES[code];
+
+const sitesText = (sizes: readonly number[]): string =>
+  `${sizes.length} ${sizes.length === 1 ? 'site' : 'sites'} (${sizes
+    .map((n) => n.toLocaleString('en-GB'))
+    .join(' + ')} ${sizes.length === 1 && sizes[0] === 1 ? 'piece' : 'pieces'})`;
+
+/**
+ * "Revealed 2 sites (122 + 96 pieces)", with any left out and why; null for none.
+ * `lead` names what happened to them ("Revealed", "With nearby").
+ */
+export const revealNotice = (summary: RevealSummary, lead = 'Revealed'): string | null => {
+  const { sites, refused } = summary;
+  const parts = [
+    sites.length > 0 && `${lead} ${sitesText(sites)}`,
+    refused.length > 0 &&
+      `${sitesText(refused.map((r) => r.pieces))} left out: ${refused[0]!.reason}`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join('; ') : null;
+};
+
+export const REVEAL_TITLE =
+  'When the terrain is extended from its edge handles, sites of this world that come onto the larger patch are added to the plan (whole, in its frame), in the same undo step.';

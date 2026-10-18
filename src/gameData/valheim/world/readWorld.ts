@@ -2,7 +2,8 @@
  * Reads a world's built pieces: a 1.0 chunked world folder, or a legacy `.db` (v31–39,
  * the same ZDO encoding). Runs in a worker. Only ZDOs whose prefab is in `names` (the
  * Hammer's catalogue) and that a player placed are kept; ruins, which use the same
- * prefabs, have no creator. For the terrain it also keeps the seed, the zones' terrain
+ * prefabs, have no creator. Objects a player placed that aren't kept are counted
+ * (`skipped`), never dropped unseen. For the terrain it also keeps the seed, the zones' terrain
  * edits, legacy terrain-edit pieces and (from `.db2`, async) the location instances.
  * Layouts: research/README.md §7–§8.
  */
@@ -51,6 +52,11 @@ export interface WorldScan extends WorldTerrainEdits {
   zdos: number;
   chunks: ChunkStat[];
   pieces: WorldPieces;
+  /**
+   * Objects a player placed whose prefab isn't in `names`: ships and carts, or a piece
+   * the catalogue doesn't have (a mod's, a newer game's).
+   */
+  skipped: number;
   /** The seed and generator version; null for a legacy `.db` (it has no `.fwl2`). */
   site: WorldSite | null;
   /** The `.db2` location instances; null for a legacy `.db`, or when unreadable. */
@@ -61,12 +67,16 @@ export interface WorldScan extends WorldTerrainEdits {
 const collectors = (names: ReadonlyMap<number, string>) => {
   const pieces = pieceCollector(names);
   const terrain = terrainCollector();
+  let skipped = 0;
   return {
     add(zdo: ReturnType<typeof readZdo>): void {
-      if (zdo.built && names.has(zdo.prefab)) pieces.add(zdo);
+      if (zdo.built) {
+        if (names.has(zdo.prefab)) pieces.add(zdo);
+        else skipped++;
+      }
       terrain.add(zdo);
     },
-    pack: () => ({ pieces: pieces.pack(), ...terrain.pack() }),
+    pack: () => ({ pieces: pieces.pack(), skipped, ...terrain.pack() }),
   };
 };
 

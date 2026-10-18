@@ -121,7 +121,7 @@ export const ClusterMap = ({ cloud, clusters, selected, onSelect }: ClusterMapPr
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       role="img"
-      aria-label="Builds in the world, north up"
+      aria-label="Sites in the world, north up"
     >
       {/* The world's centre (spawn is near it). */}
       <path

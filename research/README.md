@@ -616,6 +616,24 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
   in both Python and JS reads `o` *before* the call, so it loses the 4 length bytes. A
   validator script did exactly this, which shows up as a desync about 600 ZDOs in.
 
+### Second real save (2026-10-18, a Steam Cloud copy)
+- **Data:** the same world 35 generations later, read from a copy of the Steam Cloud
+  `worlds/` folder (so question 6 is answered for the cloud layout: identical). Aggregates
+  only.
+- **Portal chunk:** a 9th manifest entry, `chunk` 1 `size` 0 (`00_01__0_2.chunk`, 180
+  bytes), held the world's 2 portals. It reads like any other chunk: same header, same
+  ZDO encoding. Question 7 is answered.
+- **No format change:** every chunk again ended on its last byte, and the TS reader and
+  the Python reference agree object for object.
+- **Piece count:** it fell from 1 684 (an auto-backup that morning) to 41. The objects
+  are missing from the chunk itself, which shrank by about 1 650 objects, not left
+  undecoded: that is the world's own state as saved, not a reader gap.
+- **Lesson:** a chunk is rewritten whole when it's dirty, so a sudden drop in pieces is
+  checked against the save's own object counts and its auto-backups
+  (`<world>_backup_auto-*`, folders of the same layout) before suspecting the reader.
+  Both readers now also count objects that a player placed but that they don't keep
+  (ships, carts, crops, Hoe edits, mods' pieces), so nothing is dropped unseen.
+
 ### Open questions
 1. ~~Real filenames and sizes~~. **Answered:** `size` 1 chunks, not one `size` 3 (see above).
 2. ~~Do all four `_main.N.*` files survive?~~ **Answered** for one macOS world: yes, one
@@ -625,9 +643,10 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
 4. ~~`health` on undamaged pieces~~. **Answered:** mostly absent; present after damage, and
    still present after a repair.
 5. Whether 1.0 still leaves converted `.db`/`.fwl` files next to the new folder after conversion.
-6. Cloud-save (`worlds/`) layout, and the server `-savedir` layout. Both are expected to be
-   identical, but are untested.
-7. Portals and the `00_01__0_V` portal chunk: none in the validated world.
+6. The server `-savedir` layout: expected to be identical, but untested. (The cloud
+   `worlds/` layout is the same as `worlds_local/`: see the second save above.)
+7. ~~Portals and the `00_01__0_V` portal chunk~~. **Answered:** an ordinary chunk (see
+   the second save above).
 
 ## 8. Terrain generation and TerrainComp (1.0, worldGenVersion 2)
 

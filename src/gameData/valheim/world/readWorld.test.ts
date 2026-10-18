@@ -10,7 +10,14 @@ import { chunkedWorld, legacyDb, type FixtureZdo } from './worldFixture';
 import { scanPrefabs } from './worldPrefabs';
 
 const PLAYER = 0x7fff_1234_5678n;
-const prefabs = scanPrefabs(['woodwall', 'wood_floor', 'piece_chest_wood', 'wood_beam', 'Cart']);
+const prefabs = scanPrefabs([
+  'woodwall',
+  'wood_floor',
+  'piece_chest_wood',
+  'wood_beam',
+  'portal_wood',
+  'Cart',
+]);
 
 /** Built pieces among ruins, a cart, other objects and every kind of extra data. */
 const hut: FixtureZdo[] = [
@@ -67,6 +74,28 @@ describe('reading a world', () => {
     // 22.49° is saved as 22.0° and snapped back; the beam keeps its pitch.
     expect(pieces[1]).toMatchObject({ x: 11, y: 31, z: 19, yaw: 22.5 });
     expect(pieces[3]).toMatchObject({ pitch: 45, yaw: 67.5, roll: 0 });
+  });
+
+  it('reads the portal chunk and counts what a player placed but it leaves out', async () => {
+    // Portals live in chunk 1, size 0 (`00_01__0_V.chunk`), outside the world's grid.
+    const portals: FixtureZdo[] = [
+      { prefab: 'portal_wood', position: [14, 30, 22], creator: PLAYER },
+      { prefab: 'piece_from_a_mod', position: [15, 30, 22], creator: PLAYER },
+    ];
+    const files = chunkedWorld(
+      'Fixture',
+      7,
+      new Map([
+        [0x2020, hut],
+        [0x0001, portals],
+      ])
+    );
+    expect(files.has('00_01__0_3.chunk')).toBe(true);
+    const scan = await readChunkedWorld(folder(files), prefabs);
+    expect(scan.pieces.prefabs).toContain('portal_wood');
+    expect(scan.pieces.prefabIndex.length).toBe(4);
+    // The cart and the mod's piece; ruins and rocks aren't anyone's.
+    expect(scan.skipped).toBe(2);
   });
 
   it('reads a legacy .db the same way', () => {

@@ -13,7 +13,7 @@ import type { WorldSite } from '../gameData/valheim/world/worldFiles';
 export type StoredWorld = Omit<WorldScan, 'chunks'>;
 
 /** Bumped when the layout changes; files of another format are read again. */
-export const WORLD_FORMAT = 2;
+export const WORLD_FORMAT = 3;
 
 interface Header {
   format: number;
@@ -21,6 +21,7 @@ interface Header {
   version: number;
   generation: number | null;
   zdos: number;
+  skipped: number;
   prefabs: string[];
   site: WorldSite | null;
   pieces: number;
@@ -38,6 +39,7 @@ export const encodeWorld = (world: StoredWorld): Blob => {
     version: world.version,
     generation: world.generation,
     zdos: world.zdos,
+    skipped: world.skipped,
     prefabs: pieces.prefabs,
     site: world.site,
     pieces: pieces.prefabIndex.length,
@@ -99,6 +101,7 @@ export const decodeWorld = (buffer: ArrayBuffer): StoredWorld | null => {
     version: h.version,
     generation: h.generation,
     zdos: h.zdos,
+    skipped: h.skipped,
     pieces,
     site: h.site,
     terrainComps,
