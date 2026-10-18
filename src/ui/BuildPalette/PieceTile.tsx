@@ -9,6 +9,7 @@ import { keepFocus } from '../../controls/keepFocus';
 
 import styles from './BuildPalette.module.css';
 import { cachedGlyph } from './pieceGlyph';
+import { useThumbnail } from './useThumbnail';
 
 /** The tooltip: names, prefab, size and material, cost. */
 const tooltip = (def: PieceDef, lib: Library): string => {
@@ -53,11 +54,15 @@ interface PieceTileProps {
   onArm(prefab: string): void;
 }
 
-/** A palette tile: the piece's glyph, name and snap size; a click arms it. */
+/**
+ * A palette tile: the piece's model thumbnail once there is one (its glyph meanwhile, or
+ * without a model), name and snap size; a click arms it.
+ */
 export const PieceTile = memo(function PieceTile({ def, lib, armed, onArm }: PieceTileProps) {
   const size = pieceSizeLabel(def);
+  const [thumbnail, watchTile] = useThumbnail(def.prefab);
   return (
-    <li>
+    <li ref={watchTile}>
       <button
         type="button"
         className={armed ? `${styles.tile} ${styles.armed}` : styles.tile}
@@ -66,7 +71,11 @@ export const PieceTile = memo(function PieceTile({ def, lib, armed, onArm }: Pie
         onMouseDown={keepFocus}
         onClick={() => onArm(def.prefab)}
       >
-        <Glyph def={def} lib={lib} />
+        {thumbnail ? (
+          <img className={styles.thumbnail} src={thumbnail} alt="" draggable={false} />
+        ) : (
+          <Glyph def={def} lib={lib} />
+        )}
         <span className={styles.name}>{def.name}</span>
         {size && <span className={styles.size}>{size}</span>}
       </button>

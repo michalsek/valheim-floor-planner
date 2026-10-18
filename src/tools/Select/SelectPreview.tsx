@@ -4,6 +4,7 @@ import styles from '../../overlay/Overlay.module.css';
 import { useWorldToScreen } from '../../overlay/useWorldToScreen';
 import type { ScreenPoint } from '../../viewport/viewportMath';
 
+import { CarryMarks2d } from './CarryMarks';
 import { HANDLE_DRAWN_PX, handleClass, useHandles } from './handles';
 import { boxMode, selectGestureAtom } from './selectState';
 
@@ -46,10 +47,11 @@ const VertexHandles = () => {
   );
 };
 
-/** The Select tool's screen-space overlay: corner handles and the selection box. */
+/** The Select tool's screen-space overlay: corner handles, the selection box, snap-move marks. */
 export const SelectPreview = () => (
   <>
     <VertexHandles />
     <SelectBox />
+    <CarryMarks2d />
   </>
 );

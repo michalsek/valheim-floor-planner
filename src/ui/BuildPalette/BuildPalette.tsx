@@ -1,5 +1,12 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { useCallback, useMemo, useRef, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
 
 import {
   BUILD_CATEGORIES,
@@ -9,7 +16,6 @@ import {
 } from '../../catalog/buildPalette';
 import type { PieceDef } from '../../catalog/pieceDefs';
 import { keepFocus } from '../../controls/keepFocus';
-import { ToggleButton } from '../../controls/ToggleButton';
 import { addRecentAtom, buildRecentsAtom } from '../../store/buildRecents';
 import { useActiveToolId } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
@@ -68,14 +74,28 @@ const Tabs = ({ current, onChange }: TabsProps) => {
   );
 };
 
+/**
+ * Recent in the order it had when this view of the list (`view`: tab, search, chip)
+ * opened, so arming a tile from it doesn't move the tiles; the new order shows the
+ * next time the list is opened.
+ */
+const useStableRecents = (recents: readonly string[], view: string): readonly string[] => {
+  const [shown, setShown] = useState({ view, recents });
+  if (shown.view !== view) {
+    setShown({ view, recents });
+    return recents;
+  }
+  return shown.recents;
+};
+
 const countLabel = (n: number, searching: boolean) =>
   `${n} ${n === 1 ? 'piece' : 'pieces'}${searching ? ' in all categories' : ''}`;
 
 /**
  * The Build tool's piece palette (M17 §2.4), beside the canvas while Build is active:
  * category tabs with Recent, material chips, a search over EN / PL names and prefabs,
- * and glyph tiles that arm a piece. Enter arms the first result; Esc clears the search,
- * then leaves the box.
+ * and tiles (model thumbnails, glyphs meanwhile) that arm a piece. Enter arms the first
+ * result; Esc clears the search, then leaves the box.
  */
 export const BuildPalette = () => {
   const active = useActiveToolId() === 'build';
@@ -90,24 +110,34 @@ export const BuildPalette = () => {
   const lib = getLibrary();
   const tab = chosenTab ?? (recents.length > 0 ? 'recent' : 'building');
   const searching = query.trim() !== '';
+  const shownRecents = useStableRecents(recents, `${active}|${tab}|${query}|${material}`);
+  // The tiles follow a step behind (rendered in slices React can interrupt), so typing
+  // never waits for hundreds of tiles.
+  const filter = useDeferredValue(
+    useMemo(() => ({ tab, query, material }), [tab, query, material])
+  );
   const results = useMemo(
-    () => paletteResults(lib.catalog.pieces, recents, { tab, query, material }),
-    [lib, recents, tab, query, material]
+    () => paletteResults(lib.catalog.pieces, shownRecents, filter),
+    [lib, shownRecents, filter]
   );
 
   const arm = useCallback(
     (prefab: string) => {
       armPrefab(prefab);
       addRecent(prefab);
+      // The first piece armed would otherwise turn the default tab into Recent.
+      if (chosenTab === null) setTab(tab);
       // Leave the search box, so R, Q/E and Esc reach the tool.
       inputRef.current?.blur();
     },
-    [armPrefab, addRecent]
+    [armPrefab, addRecent, chosenTab, setTab, tab]
   );
 
   if (!active) return null;
 
-  const first: PieceDef | undefined = results[0];
+  // Enter takes the first result of what is typed now, not of the deferred list.
+  const first = (): PieceDef | undefined =>
+    paletteResults(lib.catalog.pieces, shownRecents, { tab, query, material })[0];
   return (
     <aside className={styles.palette} aria-label="Pieces">
       <input
@@ -119,7 +149,8 @@ export const BuildPalette = () => {
         value={query}
         onChange={(e) => setQuery(e.currentTarget.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && first) arm(first.prefab);
+          const def = e.key === 'Enter' ? first() : undefined;
+          if (def) arm(def.prefab);
           if (e.key === 'Escape') {
             e.preventDefault();
             if (query) setQuery('');
@@ -136,18 +167,20 @@ export const BuildPalette = () => {
       />
       <div className={styles.chips} role="group" aria-label="Material">
         {BUILD_MATERIALS.map((m) => (
-          <ToggleButton
+          <button
             key={m}
-            variant="pill"
-            pressed={material === m}
-            onChange={(on) => setMaterial(on ? m : null)}
+            type="button"
+            className={material === m ? `${styles.chip} ${styles.chipOn}` : styles.chip}
+            aria-pressed={material === m}
+            onMouseDown={keepFocus}
+            onClick={() => setMaterial(material === m ? null : m)}
           >
             {MATERIAL_LABELS[m]}
-          </ToggleButton>
+          </button>
         ))}
       </div>
       <p className={styles.count} aria-live="polite">
-        {countLabel(results.length, searching)}
+        {countLabel(results.length, filter.query.trim() !== '')}
       </p>
       {results.length === 0 ? (
         <div className={styles.empty}>

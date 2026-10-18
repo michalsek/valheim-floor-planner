@@ -78,17 +78,33 @@ const targets2d = (get: Getter, plan: Plan): readonly PieceBox[] => {
   return flat([level, below], () => [...level, ...below]);
 };
 
-/** The Build tool's targets for the current view and level. */
-export const buildTargetsAtom = atom<BuildTargets>((get) => {
-  const plan = get(committedPlanAtom);
+const kept = memoList();
+
+/**
+ * The Build targets for the current view and level of `plan`, less the boxes whose keys
+ * are in `exclude` (the pieces being carried: they are neither hit nor snapped to).
+ */
+export const buildTargets = (
+  get: Getter,
+  plan: Plan,
+  exclude: ReadonlySet<string> | null = null
+): BuildTargets => {
   const in3d = get(viewModeAtom) === '3d';
-  const boxes = in3d ? targets3d(get, plan) : targets2d(get, plan);
+  const shown = in3d ? targets3d(get, plan) : targets2d(get, plan);
+  const boxes = exclude
+    ? kept([shown, exclude], () => shown.filter((b) => !exclude.has(b.key)))
+    : shown;
   const site = in3d && get(terrainShownAtom) ? getSiteGround(plan) : null;
   return {
     plan,
     boxes,
     index: snapIndex(boxes, getLibrary()),
     terrain: site && { grid: site.grid, frame: site.frame },
-    hidden: in3d && boxes.length < getPieceBoxes(plan).length,
+    hidden: in3d && shown.length < getPieceBoxes(plan).length,
   };
-});
+};
+
+/** The Build tool's targets for the current view and level. */
+export const buildTargetsAtom = atom<BuildTargets>((get) =>
+  buildTargets(get, get(committedPlanAtom))
+);

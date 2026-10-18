@@ -14,6 +14,9 @@ const armedSetBase = atom<GhostSet | null>(null);
 /** The manual snap point (Q/E), as an index into the set's snap points; null is auto. */
 export const manualSnapAtom = atom<number | null>(null);
 
+/** The armed set is copies of a selection (Select's Mod+D): Esc goes back to Select. */
+export const carriedCopiesAtom = atom<boolean>(false);
+
 /** The prefabs armed last, newest first (at most `GHOST_KEPT`). */
 export const keptPrefabsAtom = atom<readonly string[]>([]);
 
@@ -26,6 +29,7 @@ export const armedSetAtom = atom(
   (get, set, next: GhostSet | null) => {
     set(armedSetBase, next);
     set(manualSnapAtom, null);
+    set(carriedCopiesAtom, false);
     if (!next) return;
     const prefabs = [...new Set(next.pieces.map((p) => p.prefab))];
     const kept = get(keptPrefabsAtom);

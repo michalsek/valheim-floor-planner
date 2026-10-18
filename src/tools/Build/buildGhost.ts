@@ -23,6 +23,7 @@ import type { Bounds3 } from '../../model/geometry/bounds3';
 import { pickBoxes, type Ray3 } from '../../model/geometry/ray';
 import { levelPlan } from '../../model/levels';
 import type { PieceBox } from '../../model/pieceBoxes';
+import type { Plan } from '../../model/types';
 import { ghostSupport } from '../../model/support/ghostSupport';
 import type { BoxSupport } from '../../model/support/planSupport';
 import { getLibrary } from '../../store/libraryInstance';
@@ -39,10 +40,15 @@ import {
 import { committedSupportIndex, latestSupportAtom } from '../../store/supportSync';
 import { viewModeAtom } from '../../store/view3d';
 import { screenRay } from '../../viewport/projection3d';
-import { screenToWorld } from '../../viewport/viewportMath';
+import { screenToWorld, type ScreenPoint } from '../../viewport/viewportMath';
 
 import { armedSetAtom, buildYawAtom, manualSnapAtom } from './buildState';
-import { buildTargetsAtom, type BuildTargets } from './buildTargets';
+import {
+  buildTargets,
+  buildTargetsAtom,
+  committedPlanAtom,
+  type BuildTargets,
+} from './buildTargets';
 
 /** Hits further than this many orbit distances don't count (M10's far limit). */
 const MAX_DISTANCES = 6;
@@ -69,13 +75,17 @@ export interface BuildGhost {
   overlap: DeepOverlap | null;
   /** Each piece's support if placed now; null while the committed result is stale. */
   support: BoxSupport[] | null;
+  /** Support is stale and the label says "checking…". */
+  checking: boolean;
   /** Some pieces are hidden by the view and don't snap. */
   hidden: boolean;
 }
 
-/** The ray under the pointer: the camera's in 3D, straight down onto the plane in 2D. */
-const pointerRay = (get: Getter): { ray: Ray3; maxT: number } | null => {
-  const screen = get(pointerScreenAtom);
+/** The ray under a canvas point: the camera's in 3D, straight down onto the plane in 2D. */
+const pointerRay = (
+  get: Getter,
+  screen: ScreenPoint | null
+): { ray: Ray3; maxT: number } | null => {
   if (!screen) return null;
   if (get(viewModeAtom) === '3d') {
     const projection = get(projection3dAtom);
@@ -123,8 +133,13 @@ const deepest = (overlaps: readonly DeepOverlap[]): DeepOverlap | null =>
   overlaps.reduce<DeepOverlap | null>((a, b) => (a && a.depth >= b.depth ? a : b), null);
 
 /** Where the ray lands, moved onto the grid on the ground unless placing freely. */
-const landing = (get: Getter, targets: BuildTargets, free: boolean): BuildHit | null => {
-  const pointer = pointerRay(get);
+const landing = (
+  get: Getter,
+  screen: ScreenPoint,
+  targets: BuildTargets,
+  free: boolean
+): BuildHit | null => {
+  const pointer = pointerRay(get, screen);
   if (!pointer) return null;
   const scene = sceneOf(get, targets, pointer.maxT);
   const hit = buildHit(pointer.ray, scene);
@@ -132,27 +147,44 @@ const landing = (get: Getter, targets: BuildTargets, free: boolean): BuildHit | 
   return hitOnGrid(hit, get(effectiveSnapStepAtom), scene);
 };
 
-/** The ghost where a click would place the armed set; null with nothing armed or no hit. */
-export const buildGhostAtom = atom<BuildGhost | null>((get) => {
-  const set = get(armedSetAtom);
-  const modifiers = get(modifiersAtom);
-  if (!set || modifiers.mod) return null;
-  const targets = get(buildTargetsAtom);
-  const free = modifiers.shift || modifiers.alt;
-  const hit = landing(get, targets, free);
+/** What to place, and where the pointer is: the Build tool's armed set, or a carried one. */
+export interface GhostRequest {
+  set: GhostSet;
+  /** The set's turn (degrees, clockwise). */
+  yaw: number;
+  manual: number | null;
+  /** Shift or Alt: no snapping, no grid. */
+  free: boolean;
+  screen: ScreenPoint;
+  /** The committed plan. */
+  plan: Plan;
+  /** The carried pieces' box keys: left out of hits, snaps, duplicates and support. */
+  exclude?: ReadonlySet<string> | null;
+  /** While the committed support is stale, say "checking…" (else leave support out). */
+  awaitSupport?: boolean;
+}
+
+/**
+ * The ghost of a set under a canvas point (M17 §3): the ray's landing, the base pose,
+ * the snap, then blocked, deep overlap and the support preview. Reads the view through
+ * `get`, so a derived atom and a tool (`ctx.get`) both use it.
+ */
+export const ghostFor = (get: Getter, request: GhostRequest): BuildGhost | null => {
+  const { set, yaw, manual, free, screen, plan, exclude = null } = request;
+  const targets = buildTargets(get, plan, exclude);
+  const hit = landing(get, screen, targets, free);
   if (!hit) return null;
   const lib = getLibrary();
-  const manual = get(manualSnapAtom);
-  const base = basePose(hit, set, get(buildYawAtom), manual, lib);
+  const base = basePose(hit, set, yaw, manual, lib);
   const { pose, pair } = snapPose(base, set, targets.index, { lib, manual, free });
   const placed = placeSet(set, pose);
   const boxes = setBoxes(set, pose, lib);
   const near = boxesNear(targets.index, unionBounds(boxes));
   const latest = get(latestSupportAtom);
-  const support =
-    latest?.plan === targets.plan
-      ? ghostSupport(boxes, committedSupportIndex(targets.plan), latest.support)
-      : null;
+  const fresh = latest?.plan === plan;
+  const support = fresh
+    ? ghostSupport(boxes, committedSupportIndex(plan), latest.support, exclude ?? undefined)
+    : null;
   return {
     set,
     pose,
@@ -165,8 +197,26 @@ export const buildGhostAtom = atom<BuildGhost | null>((get) => {
     blockedBy: blockedBy(placed, targets.index),
     overlap: deepest(deepOverlaps(boxes, near)),
     support,
+    checking: !fresh && (request.awaitSupport ?? false),
     hidden: targets.hidden,
   };
+};
+
+/** The ghost where a click would place the armed set; null with nothing armed or no hit. */
+export const buildGhostAtom = atom<BuildGhost | null>((get) => {
+  const set = get(armedSetAtom);
+  const modifiers = get(modifiersAtom);
+  const screen = get(pointerScreenAtom);
+  if (!set || modifiers.mod || !screen) return null;
+  return ghostFor(get, {
+    set,
+    yaw: get(buildYawAtom),
+    manual: get(manualSnapAtom),
+    free: modifiers.shift || modifiers.alt,
+    screen,
+    plan: get(committedPlanAtom),
+    awaitSupport: true,
+  });
 });
 
 export interface BuildRemoval {
@@ -182,7 +232,7 @@ export interface BuildRemoval {
  */
 export const buildRemovalAtom = atom<BuildRemoval | null>((get) => {
   if (!get(modifiersAtom).mod) return null;
-  const pointer = pointerRay(get);
+  const pointer = pointerRay(get, get(pointerScreenAtom));
   if (!pointer) return null;
   const targets = get(buildTargetsAtom);
   const boxes =

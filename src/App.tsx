@@ -20,7 +20,6 @@ import { RoofLayer } from './overlay/RoofLayer';
 import { RoomLabels } from './overlay/RoomLabels';
 import { RoomOutlines } from './overlay/RoomOutlines';
 import { SelectionHighlight } from './overlay/SelectionHighlight';
-import { SnapCursor } from './overlay/SnapCursor';
 import { UnderlayLayer } from './overlay/UnderlayLayer';
 import { WallLines } from './overlay/WallLines';
 import { PlanCanvas } from './scene/PlanCanvas';
@@ -28,7 +27,7 @@ import { useActiveToolId, useViewMode } from './store/hooks';
 import { sessionStore } from './store/session';
 import type { ToolId } from './tools/toolIds';
 import { ToolHost } from './tools/ToolHost';
-import { ToolOverlay3d, ToolPreview, ToolWorldPreview } from './tools/ToolPreview';
+import { ToolOverlay3d, ToolPreview, ToolSnapCursor, ToolWorldPreview } from './tools/ToolPreview';
 import { BomPanel } from './ui/BomPanel/BomPanel';
 import { BuildPalette } from './ui/BuildPalette/BuildPalette';
 import { CatalogBrowser } from './ui/CatalogBrowser/CatalogBrowser';
@@ -67,7 +66,7 @@ const PlanOverlay = () => (
     <PropLabels />
     <PinnedDimensions />
     <ToolPreview />
-    <SnapCursor />
+    <ToolSnapCursor />
   </Overlay>
 );
 

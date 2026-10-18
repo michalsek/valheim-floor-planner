@@ -1629,3 +1629,93 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    labels); with Ctrl held the ghost hides (it shows the removal target instead); the
    options-bar hint "Hidden pieces don't snap" shows whenever nothing snaps and the view
    hides pieces (always in Cut on a multi-level plan), even over open ground.
+
+## Palette follow-ups (M17 pass 2 review)
+
+1. **Accent marks:** the selected tab, the material chip that is on (now the palette's own
+   buttons, not the shared pill toggle) and the armed tile carry a flat accent bar along
+   their bottom (`::after`, clipped by the rounded corners, so its inner edge is straight)
+   over the accent tint; no accent border on a rounded element.
+2. **Stable order:** Recent keeps the order it had when that list was opened, so arming a
+   tile from it no longer moves the tiles; the new recency shows the next time Recent (or
+   a search or chip change) is opened. Arming the first piece no longer flips the default
+   tab from Building to Recent (the tab in use is kept). Categories and chips keep the
+   catalogue's order; search still ranks exact names first.
+3. **Model thumbnails** (`scene/thumbnails/`): tiles show the piece's real model once it is
+   rendered, the glyph meanwhile, when the model can't be read, or when it draws nothing.
+   - **Renderer:** one small `WebGPURenderer` of its own (detached canvas, 128 × 106 px;
+     WebGL2 on `?webgl`), with its own `createModelResources` (last 32 models kept), so the
+     plan's renderer and resources are untouched. A fixed orthographic 3/4 view from the
+     −z side (where roof slopes and furniture face), fitted to the model's box; the plan's
+     sky / ground and sun intensities, ACES at exposure 1.5 (dark wood reads at tile size);
+     a transparent background, one render for both themes. Frames are copied to a 2D
+     canvas in the same task and stored as WebP. Released after 20 s idle (resources and
+     device disposed; a later thumbnail makes a new one, checked).
+   - **Scheduling:** one shared IntersectionObserver (a row of margin); a tile in view
+     asks for its thumbnail, out of view drops a render not started; renders are serial,
+     one per animation frame at most. The tile list itself follows the search through
+     `useDeferredValue`, so typing never waits for hundreds of tiles (a first keystroke
+     rendering ~300 tiles was a 116–146 ms long task in dev; now none). Enter still arms
+     the first result of what is typed.
+   - **Cache:** IndexedDB `valheimFloorPlanner.thumbnails`, key = catalogue key | asset
+     version | thumbnail version | prefab, a WebP or "none"; keys of other builds or
+     versions are deleted when the key changes; every access is guarded. Failures retry
+     when the game folder or the model cache changes.
+   - **Measured** (headless Chrome 155, models in OPFS): the first 15 tiles in ~0.5 s; a
+     scroll through Building (90 tiles), typing "stair", Furniture, Crafting: no long task
+     on WebGPU (main device 4 pipelines before and after, the thumbnail device 4–7) nor on
+     `?webgl` (main context's programs unchanged; one cold dev-server run showed a
+     94–154 ms task, not reproduced in two more runs). From the cache no thumbnail
+     device is created at all.
+
+## From M17 pass 3 (snap-move, Mod+D carry, sink handle, screenshot and perf pass)
+
+1. **Snap-move** (`tools/Select/snapMove.ts`, phase `carrying`): dragging a selection of
+   raw pieces only carries it as a ghost set about the grabbed piece (`setFromRaw`), placed
+   by the Build rules through the shared `ghostFor` (`buildGhost.ts`, refactored out of
+   `buildGhostAtom`). The carried pieces' keys are left out of hits, snap targets,
+   duplicates and support (`buildTargets(get, plan, exclude)`, memoised per drag, so the
+   snap index is built once per drag). The pieces preview in `editPreviewAtom`, each
+   keeping its elevation; the release is one entry ("Move piece" / "Move 2 items"). The
+   wheel and R turn the set about the grabbed pivot mid-drag; Alt, or Shift pressed after
+   the drag started (Shift held from the press only selected), places freely. A pose that
+   would duplicate a piece keeps the last preview. The label and snap dots show as in
+   Build (`CarryMarks.tsx`); support appears only when the committed result is fresh
+   (support isn't computed for Select unless the support view or Integrity is open).
+   Mixed selections keep the work-plane move. Checked: a wall dragged to another's end
+   snaps; four wheel notches mid-drag turn it 90° and it lands as a corner exactly.
+2. **Mod+D** on raw pieces arms Build with copies (`carryCopies`, about the first piece,
+   turned as it is; `useToolKeyboard` switches the tool, so no import cycle); each click
+   drops a copy; Esc disarms and returns to Select (`carriedCopiesAtom`). Esc in Build with
+   nothing armed now also returns to Select. Other selections duplicate as before.
+3. **2D snap cross** hides while Build's ghost or removal target shows (`ToolSnapCursor`
+   in `ToolPreview.tsx`; `App.tsx` uses it in place of `SnapCursor`).
+4. **Sink handle** (`sinkHandle.ts`, `sinkPointer.ts`, `SinkHandle3d.tsx`; 3D, Select): over
+   a selection of raw pieces, items, wall runs and floors where every item is free of
+   unselected pieces (none rests on an unselected piece's top; raw pieces and items share
+   no snap point with one, openings aside) and one rests on the ground (its bottom within
+   0.1 m above the ground under its footprint, `groundUnderOrEdge` as support uses, or
+   y = 0 without terrain; a floor counts by its walking surface). A ring with a vertical
+   arrow sits 26 px over the top of the highest item; dragging it down sinks the whole
+   selection (a stack goes as one), up raises it until a grounded item is back on the
+   ground. Depth snaps to the elevation step, 0.1 m with Shift; a live "−0.4 m" label;
+   one entry ("Sink 2 items" / "Raise piece"). Raw pieces change `position.y` (≥ −256 off
+   the level and ≥ −16 absolute), drawn items their elevation (≥ −16). It is hit-tested
+   in screen space by the tool (ToolHost owns the press, so orbit controls and Build
+   never see it), and the handle rides on the items while dragged. Sunk pieces are
+   grounded in support (checked in the support view). Not checked with the camera
+   underground (the camera agent's controls were in flux); the handle doesn't depend on
+   what is in front of it.
+5. **Ghost vs committed on the import** (Build, +4, three floor tiles beside the loft):
+   75 / 100 / 73.2 in the label, the same after each click (fresh).
+6. **Perf, production build** (`vite build` + preview, the import at +4 in Cut, 150-move
+   sweep, M4 Pro, WebGPU): Boxes **1.78 ms** of script per move with a ghost (1.30
+   without), Models **2.98 ms** (2.42 without); the ghost chain itself 0.16–0.19 ms per
+   move; no long tasks. Within §6.6's 3 ms.
+7. **§9.1 constants kept as first values:** the IL ones (0.5 m, 10 m, 0.05 m, 22.5°) need no
+   tuning; `DUPLICATE_ANGLE` 10° blocked only true duplicates in testing; `DEEP_OVERLAP`
+   0.5 m flagged the stone-wall test and no rebuilt import piece; tint 0.45 and edges
+   0.35 read well in both themes; 12 recents and 8 kept ghost prefabs left as planned.
+8. **Open:** the release recomputes the sink depth from the release event, so letting go
+   of Shift a moment before the button snaps to the coarse step; the sink handle can sit
+   off screen when the camera is close under a tall selection (zoom out).

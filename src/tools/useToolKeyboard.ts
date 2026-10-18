@@ -21,6 +21,7 @@ import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
 import { isMod, isRedoKey, isUndoKey } from './keys';
 import { jumpLevel, moveSelectionLevel, stepLevel, type LevelDirection } from './levelActions';
+import { carryCopies } from './Select/selectActions';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, TOOLS } from './toolbox';
 import type { ToolContext } from './types';
@@ -117,6 +118,21 @@ const KEYMAP: readonly KeyBinding[] = [
   },
   ...levelBindings('PageUp', 1),
   ...levelBindings('PageDown', -1),
+  // Select's Mod+D on raw pieces (it leaves it to here): carry copies into Build.
+  {
+    keys: ['d'],
+    mod: true,
+    run: (s) => {
+      if (s.get(activeToolIdAtom) === 'select' && carryCopies(s)) setActiveTool(s, 'build');
+    },
+  },
+  // Esc with nothing left to cancel in Build goes back to Select.
+  {
+    keys: ['escape'],
+    run: (s) => {
+      if (s.get(activeToolIdAtom) === 'build') setActiveTool(s, 'select');
+    },
+  },
   { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },
   { test: isRedoKey, repeat: true, run: (s) => s.plan.redo() },
 ];

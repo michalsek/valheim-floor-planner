@@ -3,9 +3,11 @@ import { useAtomValue } from 'jotai';
 import { Marker3d } from '../../overlay/Marker3d';
 import { OverlayPlaneContext } from '../../overlay/useProject3d';
 
+import { CarryMarks3d } from './CarryMarks';
 import { HANDLE_DRAWN_PX, handleClass, useHandles } from './handles';
 import { SelectRect } from './SelectPreview';
 import { boxMode, selectGestureAtom } from './selectState';
+import { SinkHandle3d } from './SinkHandle3d';
 
 /** The box being dragged, on screen (it selects by where items are drawn). */
 const SelectBox3d = () => {
@@ -30,10 +32,12 @@ const Handles3d = () => {
   );
 };
 
-/** The Select tool's 3D overlay: corner handles and the selection box. */
+/** The Select tool's 3D overlay: corner handles, the selection box, snap-move marks, sink handle. */
 export const SelectOverlay3d = () => (
   <>
     <Handles3d />
     <SelectBox3d />
+    <CarryMarks3d />
+    <SinkHandle3d />
   </>
 );

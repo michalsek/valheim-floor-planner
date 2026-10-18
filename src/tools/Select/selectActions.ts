@@ -5,6 +5,7 @@ import {
   rotateCommands,
   translateCommands,
 } from '../../model/editCommands';
+import { setFromRaw } from '../../model/build/ghostSet';
 import { newId } from '../../model/newId';
 import { itemsAt } from '../../model/levels';
 import { snapAnchorAt } from '../../model/geometry/propGeometry';
@@ -15,7 +16,10 @@ import type { PlanCommand } from '../../model/commands';
 import { getLibrary } from '../../store/libraryInstance';
 import { selectionAtom } from '../../store/selection';
 import { snapStepAtom, workDatumAtom } from '../../store/session';
+import { armedSetAtom, buildYawAtom, carriedCopiesAtom } from '../Build/buildState';
 import type { ToolContext } from '../types';
+
+import { isRawOnly } from './snapMove';
 
 /** Commits `cmds` as one history entry; true when it worked (or there was nothing to do). */
 export const commitCommands = (
@@ -115,5 +119,21 @@ export const rotateItems = (
   const cmds = rotateCommands(ctx.plan.getPlan(), props, deltaDeg, getLibrary());
   if (cmds.length === 0) return false;
   commitCommands(ctx, itemsLabel('Rotate', props), cmds);
+  return true;
+};
+
+/**
+ * Raw pieces only (Mod+D): arms Build with a copy of the selection about its first piece,
+ * turned as it is, so each click drops a copy; Esc ends. False for any other selection.
+ */
+export const carryCopies = (ctx: ToolContext): boolean => {
+  const plan = ctx.plan.getPlan();
+  const items = ctx.get(selectionAtom);
+  if (!isRawOnly(plan, items)) return false;
+  const first = plan.rawPieces[items[0]!.id]!;
+  const pieces = items.map((item) => plan.rawPieces[item.id]!);
+  ctx.set(armedSetAtom, setFromRaw(pieces, first.id));
+  ctx.set(buildYawAtom, first.rotation.yaw);
+  ctx.set(carriedCopiesAtom, true);
   return true;
 };

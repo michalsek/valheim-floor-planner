@@ -1,4 +1,4 @@
-import { hoverAtom } from '../../store/selection';
+import { hoverAtom, selectionAtom } from '../../store/selection';
 import { cursorStyleAtom } from '../../store/session';
 import { isMod, isRedoKey, isUndoKey, rotateStep } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
@@ -16,7 +16,8 @@ import { SelectIcon } from './SelectIcon';
 import { cancelGesture, onSelectDown, onSelectMove, onSelectUp } from './selectPointer';
 import { SelectPreview } from './SelectPreview';
 import { SelectOverlay3d } from './SelectPreview3d';
-import { selectGestureAtom } from './selectState';
+import { selectGestureAtom, sinkHotAtom } from './selectState';
+import { isRawOnly, turnCarry, wheelCarry } from './snapMove';
 
 const ARROWS: Record<string, readonly [number, number]> = {
   ArrowLeft: [-1, 0],
@@ -39,6 +40,12 @@ const isEditKey = (e: KeyboardEvent): boolean => {
  */
 const onGestureKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
   if (e.key === 'Escape' || isUndoKey(e) || isRedoKey(e)) return cancelGesture(ctx);
+  const g = ctx.get(selectGestureAtom);
+  const turn = rotateStep(e);
+  if (g.phase === 'carrying' && turn !== null) {
+    ctx.set(selectGestureAtom, { ...g, carry: turnCarry(ctx, g.carry, turn) });
+    return true;
+  }
   return isEditKey(e);
 };
 
@@ -49,6 +56,8 @@ const onIdleKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
   if (isMod(e)) {
     const key = e.key.toLowerCase();
     if (key === 'd') {
+      // Raw pieces only: Mod+D carries copies into Build (`useToolKeyboard`).
+      if (isRawOnly(ctx.plan.getPlan(), ctx.get(selectionAtom))) return false;
       duplicateSelection(ctx);
       // Claimed even with nothing selected: unclaimed, Mod+D bookmarks the page.
       return true;
@@ -66,10 +75,11 @@ const onIdleKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
 };
 
 /**
- * Click to select (Shift toggles), drag a selected item to move the selection, drag
- * a selected wall's corner to reshape it, or drag on empty space to box-select.
- * Delete, arrows (nudge), R / Shift+R (turn props), Mod+D (duplicate), Mod+A and Esc act
- * on the selection.
+ * Click to select (Shift toggles), drag a selected item to move the selection (raw
+ * pieces snap as in Build; the wheel and R turn them mid-drag), drag a selected wall's
+ * corner to reshape it, or drag on empty space to box-select. Delete, arrows (nudge),
+ * R / Shift+R (turn props), Mod+D (duplicate; raw pieces: carry copies into Build), Mod+A
+ * and Esc act on the selection.
  */
 export const selectTool: Tool = {
   id: 'select',
@@ -89,6 +99,14 @@ export const selectTool: Tool = {
     if (ctx.get(selectGestureAtom).phase !== 'idle') return;
     ctx.set(hoverAtom, null);
     ctx.set(cursorStyleAtom, null);
+    ctx.set(sinkHotAtom, false);
+  },
+  // While a snap-move carries raw pieces, the wheel turns them.
+  onWheel(e, ctx) {
+    const g = ctx.get(selectGestureAtom);
+    if (g.phase !== 'carrying') return false;
+    ctx.set(selectGestureAtom, { ...g, carry: wheelCarry(ctx, g.carry, e) });
+    return true;
   },
   onKeyDown(e, ctx) {
     return ctx.get(selectGestureAtom).phase === 'idle' ? onIdleKey(e, ctx) : onGestureKey(e, ctx);
@@ -97,6 +115,7 @@ export const selectTool: Tool = {
     cancelGesture(ctx);
     ctx.set(hoverAtom, null);
     ctx.set(cursorStyleAtom, null);
+    ctx.set(sinkHotAtom, false);
   },
   Preview: SelectPreview,
   Overlay3d: SelectOverlay3d,

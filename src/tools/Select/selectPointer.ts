@@ -1,6 +1,7 @@
 /**
  * The Select tool's pointer state machine: press, then either a click (select), a
- * move of the selection, a corner drag or a box select. Moves and corner drags are
+ * move of the selection (a snap-move for raw pieces only), a corner drag, a sink-handle
+ * drag (3D) or a box select. Moves and corner drags are
  * previewed through `editPreviewAtom` and committed on release as one history entry.
  */
 import { refusedSlides, translateCommands, vertexDragCommands } from '../../model/editCommands';
@@ -18,10 +19,13 @@ import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { ToolContext, ToolPointerEvent } from '../types';
 
 import { anchoredDelta, anchorOf, commitCommands, moveStep } from './selectActions';
+import { commitSink, dragSink, overSinkHandle, pressSinkHandle } from './sinkPointer';
+import { carryTo, startCarry } from './snapMove';
 import {
   boxMode,
   SELECT_IDLE,
   selectGestureAtom,
+  sinkHotAtom,
   type Grab,
   type SelectGesture,
 } from './selectState';
@@ -29,6 +33,13 @@ import {
 type Gesture<P extends SelectGesture['phase']> = Extract<SelectGesture, { phase: P }>;
 
 const updateHover = (ctx: ToolContext, e: ToolPointerEvent): void => {
+  const sink = overSinkHandle(ctx, e.screen);
+  ctx.set(sinkHotAtom, sink);
+  if (sink) {
+    ctx.set(hoverAtom, null);
+    ctx.set(cursorStyleAtom, 'ns-resize');
+    return;
+  }
   const { hit } = pickGrab(ctx, e);
   ctx.set(hoverAtom, hit);
   ctx.set(cursorStyleAtom, hit ? (hit.kind === 'vertex' ? 'grab' : 'move') : null);
@@ -56,6 +67,12 @@ const grabOf = (ctx: ToolContext, e: ToolPointerEvent, y: number): Grab => {
 
 export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
   if (e.button !== PRIMARY_BUTTON) return;
+  const sink = pressSinkHandle(ctx, e);
+  if (sink) {
+    ctx.set(selectGestureAtom, sink);
+    ctx.set(cursorStyleAtom, 'ns-resize');
+    return;
+  }
   const { hit, y } = pickGrab(ctx, e);
   const selection = ctx.get(selectionAtom);
   // Select on press, so press-and-drag moves an unselected item in one gesture.
@@ -93,6 +110,10 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
   }
   if (hit) {
     ctx.set(cursorStyleAtom, 'move');
+    const items = ctx.get(selectionAtom);
+    const carry =
+      hit.kind === 'raw' ? startCarry(ctx.plan.getPlan(), items, hit.id, press.shift) : null;
+    if (carry) return { phase: 'carrying', items, carry };
     const anchor = anchorOf(ctx.plan.getPlan(), hitItem(hit));
     return { phase: 'moving', grab, items: ctx.get(selectionAtom), anchor };
   }
@@ -170,6 +191,12 @@ const drag = (ctx: ToolContext, g: SelectGesture, e: ToolPointerEvent): SelectGe
       if (on) moveSelection(ctx, g, on);
       return g;
     }
+    case 'carrying': {
+      const pointer = { screen: e.screen, alt: e.altKey, shift: e.shiftKey };
+      return { ...g, carry: carryTo(ctx, g.carry, pointer) };
+    }
+    case 'sinking':
+      return dragSink(ctx, g, e);
     case 'box':
       return { ...g, currentWorld: e.world, currentScreen: e.screen };
     case 'vertex':
@@ -228,6 +255,7 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
       click(ctx, g);
       break;
     case 'moving':
+    case 'carrying':
       commitCommands(ctx, itemsLabel('Move', g.items), preview);
       break;
     case 'box':
@@ -235,6 +263,9 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
       break;
     case 'vertex':
       commitCommands(ctx, 'Move corner', preview);
+      break;
+    case 'sinking':
+      commitSink(ctx, g);
       break;
     case 'idle':
       break;

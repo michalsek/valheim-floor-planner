@@ -20,7 +20,7 @@ const oneDecimal = (n: number): string => String(Math.round(n * 10) / 10);
 
 /** The weakest piece's support as "value / maximum"; null when none takes part. */
 const supportText = (ghost: BuildGhost): string | null => {
-  if (!ghost.support) return 'checking…';
+  if (!ghost.support) return ghost.checking ? 'checking…' : null;
   let weakest: number | null = null;
   ghost.support.forEach((support, i) => {
     if (support.state === 'none') return;

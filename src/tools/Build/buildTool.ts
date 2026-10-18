@@ -15,7 +15,7 @@ import { BuildOptions } from './BuildOptions';
 import { BuildOverlay3d } from './BuildOverlay3d';
 import { BuildPreview } from './BuildPreview';
 import { BuildPreview3d } from './BuildPreview3d';
-import { armedSetAtom, buildYawAtom, manualSnapAtom } from './buildState';
+import { armedSetAtom, buildYawAtom, carriedCopiesAtom, manualSnapAtom } from './buildState';
 import { wheelSteps } from './buildWheel';
 
 /** Places the ghost's pieces as one undo entry; nothing when blocked or without a ghost. */
@@ -65,7 +65,8 @@ let wheelRest = 0;
  * the nearest pair of snap points; a click places it (the tool stays armed). The wheel
  * turns it 22.5° a notch (up is clockwise), R / Shift+R 90° / 22.5°; Q / E pick the snap
  * point (auto → 1 … n → auto); Shift or Alt places freely; Ctrl/⌘ + click removes a raw
- * piece or item. Esc disarms.
+ * piece or item. Esc disarms; with nothing armed (or copies carried from Select) it goes
+ * back to Select.
  */
 export const buildTool: Tool = {
   id: 'build',
@@ -105,8 +106,10 @@ export const buildTool: Tool = {
       return true;
     }
     if (e.key === 'Escape' && set) {
+      // Copies carried from Select go back to it (`useToolKeyboard`); a piece stays in Build.
+      const copies = ctx.get(carriedCopiesAtom);
       ctx.set(armedSetAtom, null);
-      return true;
+      return !copies;
     }
     return false;
   },

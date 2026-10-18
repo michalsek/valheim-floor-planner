@@ -1,3 +1,6 @@
+import { atom, useAtomValue } from 'jotai';
+
+import { SnapCursor } from '../overlay/SnapCursor';
 import { useActiveToolId } from '../store/hooks';
 
 import { getTool } from './toolbox';
@@ -24,4 +27,12 @@ export const ToolPreview3d = () => {
 export const ToolOverlay3d = () => {
   const { Overlay3d } = getTool(useActiveToolId());
   return Overlay3d ? <Overlay3d /> : null;
+};
+
+const NEVER = atom(false);
+
+/** The 2D snap cross, unless the active tool's ghost is the cursor (`Tool.hidesCursor`). */
+export const ToolSnapCursor = () => {
+  const { hidesCursor } = getTool(useActiveToolId());
+  return useAtomValue(hidesCursor ?? NEVER) ? null : <SnapCursor />;
 };
