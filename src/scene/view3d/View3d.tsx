@@ -16,7 +16,7 @@ import { LevelPlate } from './LevelPlate';
 import { Lights } from './Lights';
 import { OrbitRig } from './OrbitRig';
 import { BoxPieces, ModelPieces } from './PlanPieces';
-import { siteReach, withGround } from './siteBounds';
+import { cameraFloor, siteReach, withGround } from './siteBounds';
 import { SnapCursor3d } from './SnapCursor3d';
 import { Terrain3d } from './Terrain3d';
 import { useLevelShading } from './useLevelShading';
@@ -47,10 +47,11 @@ export const View3d = () => {
   const site = useShownSiteTerrain();
   // The camera fit and the shadows also hold the ground under the plan.
   const bounds = useMemo(() => withGround(planBounds, site), [planBounds, site]);
+  const floor = useMemo(() => cameraFloor(site), [site]);
 
   return (
     <>
-      <OrbitRig camera={camera} bounds={bounds} reach={siteReach(site)} ground={site} />
+      <OrbitRig camera={camera} bounds={bounds} reach={siteReach(site)} floor={floor} />
       <Lights bounds={bounds} />
       {site ? <Terrain3d ground={site} /> : <Ground />}
       <LevelPlate bounds={bounds} />

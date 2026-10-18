@@ -1240,19 +1240,27 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    the cut on the build is cut away and the plate at 0 is underground except near the
    water. Expected, and the landing level is +4 anyway.
 7. **Open:** the opaque 2D relief hides an underlay under the patch. Ground outside the
-   shadow camera's plan bounds is unshadowed, as planned. (The plate tag at 0 and the
-   camera inside hills were fixed in the fix round, item 9.)
+   shadow camera's plan bounds is unshadowed, as planned. (The plate tag at 0 was fixed
+   in the fix round, item 9.)
 8. **Synthetic site** for work before the import existed: a scratchpad script built a v5
    plan from pass 1's generator with a made-up seed (not committed).
 9. **Fix round.**
-   - **Camera above the terrain:** `OrbitRig` takes the shown site (`ground`) and keeps
-     the camera 0.5 m (`TERRAIN_CLEARANCE`) above the collider height under it, after
-     every move (orbit, pan, zoom to the cursor, push-through); off the patch, or without
-     terrain, the old y = 0.05 floor. The push-through levels out when the target would
-     go under the ground ahead rather than under y = 0. Checked on the import with a low
-     orbit all round the pad and wheel pushes towards the western hill: the camera stays
-     on the hillside's surface, never inside it. The orbit target itself is not moved
-     onto the ground (at level 0 it can sit under the pad; orbiting around it still works).
+   - **Views from below (user request, replacing the fix round's terrain clamp).** The
+     camera may go under the plate and the ground: `maxPolarAngle` is π − 0.05 (was
+     π/2 − 0.05), and the only floor is a safety limit (`cameraFloor`): 20 m under the
+     site block's skirt bottom, or −50 m without terrain (`DEFAULT_CAMERA_FLOOR`; the
+     old y = 0.05 floor is gone). Push-through levels out at that limit instead of
+     y = 0, so a wheel zoom goes on through the ground. From under the ground (below the
+     collider height at the camera, or the patch's lowest point off it) `Terrain3d`
+     hides the surface and its draped grid for that frame (visibility only, no new
+     pipelines). Culled back faces alone still drew slivers of far slopes facing the
+     camera, floating in the sky. The skirts stay, and so does the sea (its back face
+     is culled). The plate and its grid were already double-sided and keep their
+     frosting. The flat ground's grid is now double-sided, so the datum reads from below;
+     its shadow catcher stays one-sided (nothing from below). Checked on the import:
+     Boxes and Models, WebGPU and `?webgl`, terrain on and off, at +4 and 0. Orbiting
+     below and back, PageUp/PageDown and C made no long task and no new pipelines or
+     programs.
    - **The plate tag at 0:** `LevelTags3d` uses `usePlateShown`, so "0 m" shows at the
      plate's corner and the cursor at level 0 over terrain.
    - **Dev-only WebGPU validation errors** ("Buffer used in submit while destroyed",

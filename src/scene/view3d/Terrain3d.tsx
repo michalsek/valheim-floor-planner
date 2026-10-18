@@ -1,12 +1,13 @@
-import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { MeshLambertNodeMaterial } from 'three/webgpu';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MeshLambertNodeMaterial, type Group } from 'three/webgpu';
 
+import { groundAt } from '../../model/terrain/siteTerrain';
 import { useThemeTokens } from '../../store/hooks';
 import type { SiteGround } from '../../store/siteTerrain';
 import { useRelease } from '../useRelease';
 
-import { surfaceGeometry, skirtGeometry, waterGeometry } from './terrainGeometry';
+import { lowestGround, surfaceGeometry, skirtGeometry, waterGeometry } from './terrainGeometry';
 import { useGroundGrid } from './useGroundGrid';
 
 /** How much of the ground shows through the sea. */
@@ -44,6 +45,10 @@ const createMaterials = () => ({
  * the ground dips under it, and the plan grid draped over the surface. The grid is
  * always the coarse reference: with terrain, the level plate is the work plane at every
  * level, the ground included.
+ *
+ * From under the ground the surface and its grid are left out, so the build's underside
+ * and foundations show (back faces alone would still draw slivers of far slopes that
+ * face the camera). The skirts stay: they outline the block.
  */
 export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -52,6 +57,17 @@ export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
   const grid = useGroundGrid({ coarse: true, draped: true });
   const geometry = useMemo(() => createGeometry(ground), [ground]);
   useRelease(geometry, disposeGeometry);
+  const lowest = useMemo(() => lowestGround(ground), [ground]);
+  const surface = useRef<Group>(null);
+
+  // Before every frame drawn: hide the surface while the camera is under the ground
+  // (under its lowest point off the patch). Visibility only: no new pipelines.
+  useFrame(({ camera }) => {
+    if (!surface.current) return;
+    const { x, y, z } = camera.position;
+    const below = groundAt(ground.grid, ground.frame, { x, z }) ?? lowest;
+    surface.current.visible = y >= below;
+  });
   useEffect(
     () => () => {
       materials.ground.dispose();
@@ -67,9 +83,15 @@ export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
 
   return (
     <>
-      <mesh geometry={geometry.surface} material={materials.ground} castShadow receiveShadow />
+      <group ref={surface}>
+        <mesh geometry={geometry.surface} material={materials.ground} castShadow receiveShadow />
+        <mesh
+          geometry={geometry.surface}
+          material={grid.material}
+          renderOrder={GRID_RENDER_ORDER}
+        />
+      </group>
       <mesh geometry={geometry.skirt} material={materials.ground} receiveShadow />
-      <mesh geometry={geometry.surface} material={grid.material} renderOrder={GRID_RENDER_ORDER} />
       {geometry.water && (
         <mesh
           geometry={geometry.water}

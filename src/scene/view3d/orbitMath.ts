@@ -22,6 +22,12 @@ export const directionFrom = (azimuthDeg: number, elevationDeg: number): Vec3 =>
 /** Looking from the screen-bottom side of the plan (+z), a little from the right, 40° down. */
 export const DEFAULT_DIR: Vec3 = directionFrom(25, 40);
 
+/**
+ * The lowest the camera goes without a site's terrain (metres): only a safety limit, as
+ * views from under the plate and the ground are allowed.
+ */
+export const DEFAULT_CAMERA_FLOOR = -50;
+
 /** Room left around a framed box. */
 const FIT_MARGIN = 1.1;
 /** The smallest radius framed, so a single piece isn't filled edge to edge. */

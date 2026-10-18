@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Vector3 } from 'three/webgpu';
+import { DoubleSide, Vector3 } from 'three/webgpu';
 
 import { useThemeTokens } from '../../store/hooks';
 import { createGridMaterial } from '../grid/gridMaterial';
@@ -55,9 +55,13 @@ export const useGroundGrid = ({
   const invalidate = useThree((s) => s.invalidate);
   const [grid] = useState(() => {
     const handle = createGridMaterial({ perspective: true });
+    // The flat grid also shows from under the ground (the datum seen from below); the
+    // draped one doesn't, so the terrain is see-through from underneath.
     if (draped) {
       handle.material.polygonOffset = true;
       [handle.material.polygonOffsetFactor, handle.material.polygonOffsetUnits] = DRAPE_OFFSET;
+    } else {
+      handle.material.side = DoubleSide;
     }
     return handle;
   });
