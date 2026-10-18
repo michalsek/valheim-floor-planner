@@ -15,10 +15,11 @@ export const MIN_SIDE = 128;
 export const MAX_SIDE = 384;
 /**
  * The greatest a side may grow to when the site is extended from the view
- * (`siteExtend.ts`), and so the most a stored patch may have: about 1.2 MB of heights
- * in the plan (1.6 MB base64), which the localStorage autosave still holds.
+ * (`siteExtend.ts`), and so the most a stored patch may have: 4.7 MB of heights in
+ * memory and in the IndexedDB autosave, ~2.6 M characters packed in a file; the 3D
+ * surface is about 100 MB of tile meshes (Findings, "Site terrain storage").
  */
-export const MAX_SITE_SIDE = 768;
+export const MAX_SITE_SIDE = 1536;
 
 /** A patch: vertex (0, 0) at world (x0, z0), `cols` × `rows` vertices 1 m apart. */
 export interface PatchRect {

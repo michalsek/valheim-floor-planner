@@ -1,11 +1,12 @@
 /**
- * Plan (de)serialisation. `parsePlan` validates untrusted input (storage, files) and
- * throws on a bad shape. Collections added by later milestones default to `{}`, a
- * missing underlay and import frame to null, and a missing name to "Untitled". Version 1
- * files (before levels) load with every elevation at 0, version 2 ones (before roofs)
- * without roofs, version 3 ones (before world imports) without raw pieces, version 4
- * import frames without terrain; plans are always written as version 5, so an older
- * app refuses them instead of dropping what it doesn't know.
+ * Plan validation. `parsePlan` validates untrusted input (storage, files) and throws on
+ * a bad shape; `planFile.ts` turns files to and from JSON. Collections added by later
+ * milestones default to `{}`, a missing underlay and import frame to null, and a missing
+ * name to "Untitled". Version 1 files (before levels) load with every elevation at 0,
+ * version 2 ones (before roofs) without roofs, version 3 ones (before world imports)
+ * without raw pieces, version 4 import frames without terrain; version 5 terrain heights
+ * are base64 (version 6 ones arrive already unpacked). Plans are always version 6, so an
+ * older app refuses them instead of dropping what it doesn't know.
  */
 import { elevationProblem, MAX_ELEVATION, MIN_ELEVATION } from './elevation';
 import { samePoint } from './geometry/polyline';
@@ -32,11 +33,8 @@ import {
 } from './types';
 import { roofProblem } from './roofs/roofCheck';
 import { siteTerrainProblem } from './terrain/siteCheck';
+import { heightsFromBase64 } from './terrain/siteTerrain';
 import { underlayProblem } from './underlay';
-
-/** The plan as JSON; `extras` adds top-level fields (a file's embedded image). */
-export const serializePlan = (plan: Plan, extras: Record<string, unknown> = {}): string =>
-  JSON.stringify({ ...plan, ...extras });
 
 export class PlanParseError extends Error {
   constructor(path: string, expected: string) {
@@ -256,21 +254,27 @@ const parseRawPieces = (value: unknown): Plan['rawPieces'] => {
 const asArray = (value: unknown, path: string): unknown[] =>
   Array.isArray(value) ? value : fail(path, 'an array');
 
+/** Int16 heights (version 6, unpacked), or version 5's base64 of them. */
+const asHeights = (value: unknown, path: string, base64: boolean): Int16Array => {
+  if (value instanceof Int16Array) return value;
+  const heights = base64 && typeof value === 'string' ? heightsFromBase64(value) : null;
+  return heights ?? fail(path, base64 ? 'base64 of int16 heights' : 'int16 heights');
+};
+
 /** Shapes are checked here, values by `siteTerrainProblem`. */
-const parseSiteTerrain = (value: unknown, path: string): SiteTerrain | null => {
+const parseSiteTerrain = (value: unknown, path: string, base64: boolean): SiteTerrain | null => {
   if (value === undefined || value === null) return null;
   const t = asRecord(value, path);
   const b = asRecord(t.biomes, `${path}.biomes`);
   const n = asRecord(t.notices, `${path}.notices`);
   const check = asRecord(n.check, `${path}.notices.check`);
-  if (typeof t.heights !== 'string') fail(`${path}.heights`, 'a string');
   const num = (v: unknown, at: string) => asFinite(v, `${path}.${at}`);
   const terrain: SiteTerrain = {
     x0: num(t.x0, 'x0'),
     z0: num(t.z0, 'z0'),
     cols: num(t.cols, 'cols'),
     rows: num(t.rows, 'rows'),
-    heights: t.heights,
+    heights: asHeights(t.heights, `${path}.heights`, base64),
     biomes: {
       zx0: num(b.zx0, 'biomes.zx0'),
       zz0: num(b.zz0, 'biomes.zz0'),
@@ -297,10 +301,13 @@ const parseSiteTerrain = (value: unknown, path: string): SiteTerrain | null => {
   return problem ? fail(path, problem) : terrain;
 };
 
+/** Which import frames have terrain, and how its heights are written. */
+type TerrainReading = 'none' | 'base64' | 'int16';
+
 const parseImportFrame = (
   value: unknown,
   path: string,
-  withTerrain: boolean
+  terrain: TerrainReading
 ): ImportFrame | null => {
   if (value === undefined || value === null) return null;
   const f = asRecord(value, path);
@@ -308,7 +315,10 @@ const parseImportFrame = (
     worldName: asString(f.worldName, `${path}.worldName`),
     origin: asPoint3(f.origin, `${path}.origin`),
     yaw: normalizeDeg(asFinite(f.yaw, `${path}.yaw`)),
-    terrain: withTerrain ? parseSiteTerrain(f.terrain, `${path}.terrain`) : null,
+    terrain:
+      terrain === 'none'
+        ? null
+        : parseSiteTerrain(f.terrain, `${path}.terrain`, terrain === 'base64'),
   };
 };
 
@@ -360,13 +370,13 @@ const parseName = (value: unknown): string =>
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
   const { version } = root;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5) {
-    fail('$.version', '1 to 5');
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > 6) {
+    fail('$.version', '1 to 6');
   }
   const elevationOf = version === 1 ? groundElevation : readElevation;
   const walls = parseCollection(root.walls, '$.walls', parseWall(elevationOf));
   return {
-    version: 5,
+    version: 6,
     name: parseName(root.name),
     walls,
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension(elevationOf)),
@@ -377,6 +387,12 @@ export const parsePlan = (raw: unknown): Plan => {
     rawPieces: version >= 4 ? parseRawPieces(root.rawPieces) : {},
     underlay: parseUnderlay(root.underlay, '$.underlay'),
     importFrame:
-      version >= 4 ? parseImportFrame(root.importFrame, '$.importFrame', version === 5) : null,
+      version >= 4
+        ? parseImportFrame(
+            root.importFrame,
+            '$.importFrame',
+            version === 4 ? 'none' : version === 5 ? 'base64' : 'int16'
+          )
+        : null,
   };
 };

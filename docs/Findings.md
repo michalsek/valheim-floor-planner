@@ -1499,3 +1499,93 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 8. **Open:** a handle can sit under the Levels bar or another bar over the canvas (pan
    to free it); the 3D walls are drawn over everything (no depth test), which reads as a
    UI layer. `App.tsx` gained one line (`<SiteExpandHandles />` in the canvas chrome).
+
+## Site terrain storage (typed arrays, IndexedDB autosave, 1536 m cap)
+
+Follows "Terrain opacity and site expansion": the 768 m cap there came from the base64
+heights in the localStorage autosave. Measured on the pokemanz site in headless Chrome
+155 on an M4 Pro (sizes in characters for text, bytes for binary).
+
+1. **In memory** `SiteTerrain.heights` is an `Int16Array` of centimetres (plan v6), never
+   written in place (a grown site is a new array). Undo and redo clone the terrain
+   object but keep the array, so `terrainGrid` caches the decoded metres per array (a
+   redo is now a cache hit; checked by a test). `parsePlan` takes the array as it is, or
+   version 5's base64 (`heightsFromBase64`). Immer leaves typed arrays alone (not
+   draftable: not frozen, not copied, shared by the patches).
+2. **Autosave in IndexedDB** (`store/planDb.ts`, database `valheimFloorPlanner.autosave`):
+   the plan as a structured clone, its heights under a key of their own, written only
+   when another array is stored (an id per array, compared inside the same transaction,
+   so the plan and its heights always match whichever tab wrote last). A write with new
+   heights takes 10–16 ms at 1537², one without 1 ms; reading and `parsePlan` 7 ms.
+   Start-up awaits the load before rendering and before autosave starts (`main.tsx`).
+   - **Migration:** with nothing in IndexedDB, the old localStorage plan is read (any
+     version), stored in IndexedDB, and only then its key is removed. Checked with a
+     4.6 M character v5 autosave (a 1089 × 1537 site): same heights (checksum), key gone.
+   - **Fallbacks:** if IndexedDB won't open, localStorage holds the plan as file JSON
+     (packed heights: 2.61 M characters at 1537², which fits); if neither works, the
+     "Autosave is off" notice shows and the app runs. Both checked by blocking them
+     before load. In a private context (an off-the-record browser context) IndexedDB
+     works: a site grown to 1025² survived a reload.
+3. **Plan files: JSON, version 6,** with the heights packed (`heightPacking.ts`):
+   residuals against the plane through the left, upper and upper-left neighbours,
+   wrapping as int16, their low bytes then high bytes, `CompressionStream('deflate')`,
+   base64, as `{ packing: 'plane/deflate', data }`. Lossless (any int16, checked);
+   unpacking stops past the patch's size, so a file can't ask for a huge buffer.
+   Version 5 files still load. Heights of the pokemanz site, by encoding (1537² in
+   brackets where it was the only size measured):
+
+   | Site | int16 | v5 base64 | packed, base64 | v5 file | v6 file |
+   |---|---|---|---|---|---|
+   | 190 × 200 (the import) | 76 KB | 0.10 M | 0.044 M | 0.28 M | 0.22 M |
+   | 769 × 769 | 1.18 MB | 1.58 M | 0.65 M | 1.76 M | ~0.83 M |
+   | 1025 × 1025 | 2.10 MB | 2.80 M | 1.16 M | 2.98 M | 1.25 M |
+   | 1537 × 1537 | 4.72 MB | 6.30 M | 2.58 M | 6.49 M | 2.61 M |
+
+   Other encodings at 1537² (deflated bytes): the raw int16 4.02 MB, row deltas 2.47 MB,
+   row deltas split into byte planes 2.30 MB, the plane predictor 2.05 MB, and the plane
+   predictor in byte planes 1.93 MB (chosen). A binary container would drop the base64
+   third (1.93 MB against 2.58 M characters) at the cost of a readable, diffable JSON
+   file and a second file type; not worth it. Packing 1537² takes 155–175 ms (async,
+   once per array: the save and the fallback share it), reading 24 ms.
+4. **The 3D surface in tiles** (`model/terrain/siteTiles.ts`, `view3d/tileGeometry.ts`,
+   `useTerrainTiles.ts`): 128 m squares on zone borders (two zones: 64 m tiles would be
+   576 meshes at 1536 m, each drawn up to 3 times a frame), each a mesh with a 16-bit
+   index. A tile's key hashes its heights and the ring the normals read, its biome
+   corners and the frame, so an extension or an undo remakes only the tiles that
+   changed; meshes are cached by key (least recently used dropped beyond 600 k extra
+   vertices), made a few a frame (6 ms budget) nearest the camera first, and a tile
+   shows its previous mesh until the new one is ready. Attribute arrays are no longer
+   copied (`Float32BufferAttribute` copied them: memory was double), and bounds come
+   from the corners and the height range.
+
+   | 3D surface | 1025² | 1537² |
+   |---|---|---|
+   | one mesh (before): build, arrays | 177 ms, 60 MB (+60 MB copies) | 523 ms, 135 MB (+135 MB) |
+   | entering 3D (before): longest task | | 692 ms |
+   | tiles: build in all, arrays | | 187–199 ms over ~33 frames (~0.6 s), 100 MB |
+   | entering 3D: longest task | | 70–88 ms (first), 105 ms (again) |
+
+   Undo or redo of an extension in 3D at 1537²: one 95–120 ms task (the tile keys are
+   20–40 ms of it). Rendering is unchanged: one mesh against tiles at 1536 m differ in
+   2 pixels above 8/255. See-through (opacity 0.4) and `?webgl` checked; entering 3D on
+   `?webgl` is still ~600 ms of program linking, as before.
+5. **2D at the larger size.** Contours are traced per tile too, cached by key and
+   interval (`Terrain2d.tsx`), and the tracing rejects triangles no level crosses
+   before making any objects; the plan positions come from one affine map (not a
+   rotation per point), and the attribute isn't copied. At 1409 × 1537: 5 m 30–46 ms,
+   1 m 121–149 ms, 0.5 m 198–225 ms (1.4 M segments: the size of the output). Switching
+   to 2D at 1536 m went from a 690 ms task to 108 ms (the hillshade, remade per mount,
+   33–52 ms); a 64 m extension in 2D is one ~113 ms task, a 256 m one ~190 ms.
+6. **New cap: `MAX_SITE_SIDE = 1536` m a side** (1537 vertices). Not raised further:
+   2048 m was not measured, and the 0.5 m contours and the history (below) grow with
+   the area.
+7. **Open:**
+   - Each site in undo history keeps its heights (4.7 MB at 1537²) and, once drawn, its
+     decoded grid (9.4 MB). Measured: 11 more versions in history added ~40 MB of JS
+     heap after GC. The first extension of a session loads the kept world, which costs
+     far more (the heap went from 1.08 to 1.66 GB; not looked into).
+   - The IndexedDB write is asynchronous: a tab closed within the 400 ms debounce of an
+     edit may lose it (localStorage was synchronous). Hiding the page still starts the
+     save at once.
+   - The localStorage fallback's save packs a new site first (~170 ms at the cap).
+   - On the first entry into 3D the far tiles of a large site appear over ~0.6 s.

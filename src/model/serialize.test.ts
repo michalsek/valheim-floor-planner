@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { applyCommands, type PlanCommand } from './commands';
 import { MAX_PROPS } from './props';
-import { parsePlan, serializePlan } from './serialize';
+import { planFileText, readPlanJson } from './planFile';
+import { parsePlan } from './serialize';
 import { encodeHeights } from './terrain/siteTerrain';
 import { emptyPlan, type Plan, type SiteTerrain } from './types';
 
@@ -25,7 +26,7 @@ const terrain: SiteTerrain = {
 };
 
 const plan: Plan = {
-  version: 5,
+  version: 6,
   name: 'Longhouse',
   walls: {
     a: {
@@ -107,9 +108,31 @@ const withProp = (prop: Record<string, unknown>) => ({
   props: { p: { id: 'p', ...prop } },
 });
 
+/**
+ * The plan as the autosave stores it (a structured clone), untyped as parsed JSON is, to
+ * edit into older shapes.
+ */
+const stored = (): ReturnType<typeof JSON.parse> => structuredClone(plan);
+
 describe('serialize', () => {
-  it('round-trips a plan', () => {
-    expect(parsePlan(JSON.parse(serializePlan(plan)))).toEqual(plan);
+  it('round-trips a plan through a file, its heights packed', async () => {
+    const text = await planFileText(plan);
+    expect(JSON.parse(text).importFrame.terrain.heights.packing).toBe('plane/deflate');
+    expect(await readPlanJson(JSON.parse(text))).toEqual(plan);
+    expect(parsePlan(stored())).toEqual(plan);
+  });
+
+  it('reads a version 5 file’s base64 heights', async () => {
+    const v5 = stored();
+    v5.version = 5;
+    v5.importFrame.terrain.heights = Buffer.from(terrain.heights.buffer).toString('base64');
+    expect(await readPlanJson(JSON.parse(JSON.stringify(v5)))).toEqual(plan);
+  });
+
+  it('refuses packed heights that don’t fill the patch', async () => {
+    const file = JSON.parse(await planFileText(plan));
+    file.importFrame.terrain.rows = 3;
+    await expect(readPlanJson(file)).rejects.toThrow(/packed heights of 3 × 3/);
   });
 
   it('loads an M2-era file: name "Untitled", empty collections and no underlay', () => {
@@ -118,22 +141,22 @@ describe('serialize', () => {
   });
 
   it('loads a version 4 import frame without terrain', () => {
-    const loaded = parsePlan({ ...JSON.parse(serializePlan(plan)), version: 4 });
-    expect(loaded.version).toBe(5);
+    const loaded = parsePlan({ ...stored(), version: 4 });
+    expect(loaded.version).toBe(6);
     expect(loaded.importFrame).toEqual({ ...plan.importFrame, terrain: null });
     expect(loaded.rawPieces).toEqual(plan.rawPieces);
   });
 
   it('reads terrain saved before the unread-edits notice as none unread', () => {
-    const saved = JSON.parse(serializePlan(plan));
+    const saved = stored();
     delete saved.importFrame.terrain.notices.unreadEdits;
     expect(parsePlan(saved).importFrame?.terrain?.notices.unreadEdits).toBe(0);
   });
 
-  it('loads a version 2 file without roofs, and saves it as version 5', () => {
-    const v2 = { ...JSON.parse(serializePlan(plan)), version: 2 };
+  it('loads a version 2 file without roofs, and saves it as version 6', () => {
+    const v2 = { ...stored(), version: 2 };
     const loaded = parsePlan(v2);
-    expect(loaded.version).toBe(5);
+    expect(loaded.version).toBe(6);
     expect(loaded.roofs).toEqual({});
     expect(loaded.rawPieces).toEqual({});
     expect(loaded.importFrame).toBeNull();
@@ -141,13 +164,13 @@ describe('serialize', () => {
   });
 
   it('loads a version 3 file with its roofs and without raw pieces', () => {
-    const loaded = parsePlan({ ...JSON.parse(serializePlan(plan)), version: 3 });
+    const loaded = parsePlan({ ...stored(), version: 3 });
     expect(loaded.roofs).toEqual(plan.roofs);
     expect(loaded.rawPieces).toEqual({});
   });
 
-  it('loads a version 1 file with every elevation at 0, and saves it as version 5', () => {
-    const v1 = JSON.parse(serializePlan(plan));
+  it('loads a version 1 file with every elevation at 0, and saves it as version 6', () => {
+    const v1 = stored();
     v1.version = 1;
     for (const kind of ['walls', 'floors', 'props', 'dimensions']) {
       for (const item of Object.values(v1[kind]) as { elevation?: number }[]) {
@@ -155,7 +178,7 @@ describe('serialize', () => {
       }
     }
     const loaded = parsePlan(v1);
-    expect(loaded.version).toBe(5);
+    expect(loaded.version).toBe(6);
     expect(loaded.walls.a?.elevation).toBe(0);
     expect(loaded.floors.f?.elevation).toBe(0);
     expect(loaded.props.p?.elevation).toBe(0);
@@ -174,16 +197,16 @@ describe('serialize', () => {
   it.each([
     null,
     [],
-    { version: 6, walls: {} },
+    { version: 7, walls: {} },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, elevation: 200 } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, position: { x: 0, y: 300, z: 0 } } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, rotation: { yaw: 0 } } } },
     { version: 4, importFrame: { ...plan.importFrame, worldName: 7 } },
-    { version: 5, importFrame: { ...plan.importFrame, terrain: { ...terrain, cols: 4 } } },
-    { version: 5, importFrame: { ...plan.importFrame, terrain: { ...terrain, x0: 0.5 } } },
-    { version: 5, importFrame: { ...plan.importFrame, terrain: { ...terrain, heights: 7 } } },
+    { version: 6, importFrame: { ...plan.importFrame, terrain: { ...terrain, cols: 4 } } },
+    { version: 6, importFrame: { ...plan.importFrame, terrain: { ...terrain, x0: 0.5 } } },
+    { version: 6, importFrame: { ...plan.importFrame, terrain: { ...terrain, heights: 7 } } },
     {
-      version: 5,
+      version: 6,
       importFrame: {
         ...plan.importFrame,
         terrain: { ...terrain, biomes: { ...terrain.biomes, codes: [1] } },
@@ -191,14 +214,14 @@ describe('serialize', () => {
     },
     // A 1 × 1 corner grid, and a grid that stops short of the patch.
     {
-      version: 5,
+      version: 6,
       importFrame: {
         ...plan.importFrame,
         terrain: { ...terrain, biomes: { zx0: 2, zz0: -1, cols: 1, rows: 1, codes: [1] } },
       },
     },
     {
-      version: 5,
+      version: 6,
       importFrame: {
         ...plan.importFrame,
         terrain: { ...terrain, biomes: { ...terrain.biomes, zx0: 3 } },
@@ -278,7 +301,7 @@ describe('commands accept only what loads', () => {
       Array.from({ length: MAX_PROPS }, (_, i) => [`p${i}`, { ...bench, id: `p${i}` }])
     );
     const full = { ...plan, props };
-    expect(() => parsePlan(JSON.parse(serializePlan(full)))).not.toThrow();
+    expect(() => parsePlan(full)).not.toThrow();
     const insert: PlanCommand = { type: 'prop.insert', prop: { ...bench, id: 'extra' } };
     expect(() => applyCommands(full, [insert])).toThrow();
   });

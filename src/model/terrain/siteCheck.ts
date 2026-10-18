@@ -28,13 +28,6 @@ const covers = (first: number, corners: number, start: number, vertices: number)
  */
 export const MISMATCH = 0.05;
 
-/** Bytes the base64 string decodes to (without decoding it). */
-const base64Bytes = (text: string): number | null => {
-  if (text.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(text)) return null;
-  const pad = text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0;
-  return (text.length / 4) * 3 - pad;
-};
-
 const sideProblem = (n: number, what: string): string | null =>
   Number.isInteger(n) && n >= 2 && n <= MAX_VERTICES_SIDE
     ? null
@@ -45,8 +38,8 @@ export const siteTerrainProblem = (t: SiteTerrain): string | null => {
   if (!Number.isInteger(t.x0) || !Number.isInteger(t.z0)) return 'whole-metre x0 and z0';
   const sides = sideProblem(t.cols, 'cols') ?? sideProblem(t.rows, 'rows');
   if (sides) return sides;
-  if (base64Bytes(t.heights) !== t.cols * t.rows * 2) {
-    return `heights of ${t.cols} × ${t.rows} int16 values in base64`;
+  if (!(t.heights instanceof Int16Array) || t.heights.length !== t.cols * t.rows) {
+    return `heights of ${t.cols} × ${t.rows} int16 values`;
   }
   const b = t.biomes;
   if (![b.zx0, b.zz0, b.cols, b.rows].every(Number.isInteger) || b.cols < 2 || b.rows < 2) {

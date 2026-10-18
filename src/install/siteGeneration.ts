@@ -11,7 +11,7 @@ import { SUPPORTED_WORLD_GEN_VERSION } from '../gameData/valheim/terrain/worldGe
 import { planBounds } from '../model/planBounds';
 import { growSiteTerrain, type SiteGrowth } from '../model/terrain/siteExtend';
 import { patchRect, type PatchRect } from '../model/terrain/sitePatch';
-import { encodeHeightBytes, heightBytes } from '../model/terrain/siteTerrain';
+import { encodeHeights } from '../model/terrain/siteTerrain';
 import type { ImportFrame, Plan, SiteNotices, SiteTerrain } from '../model/types';
 
 import { GENERATOR_REVISION, loadRivers, saveRivers } from './terrainCache';
@@ -124,8 +124,8 @@ export const terrainJobFor = (
 };
 
 /** World heights (metres) as plan centimetres, int16, for `frame`. */
-const planBytes = (frame: Pick<ImportFrame, 'origin'>, heights: Float32Array): Uint8Array =>
-  heightBytes(Float64Array.from(heights, (h) => h - frame.origin.y)).bytes;
+const planHeights = (frame: Pick<ImportFrame, 'origin'>, heights: Float32Array): Int16Array =>
+  encodeHeights(Float64Array.from(heights, (h) => h - frame.origin.y)).heights;
 
 /** The finished ground as the plan stores it, with its notices. */
 export const siteTerrainFrom = (
@@ -135,7 +135,7 @@ export const siteTerrainFrom = (
   result: Pick<TerrainResult, 'heights' | 'biomes' | 'check' | 'unreadEdits'>
 ): SiteTerrain => ({
   ...rect,
-  heights: encodeHeightBytes(planBytes(frame, result.heights)),
+  heights: planHeights(frame, result.heights),
   biomes: result.biomes,
   worldGenVersion: world.site?.worldGenVersion ?? SUPPORTED_WORLD_GEN_VERSION,
   revision: GENERATOR_REVISION,
@@ -201,7 +201,7 @@ export const growSiteGround = (
     growSiteTerrain(
       terrain,
       growth,
-      { bytes: planBytes(frame, result.heights), biomes: result.biomes },
+      { heights: planHeights(frame, result.heights), biomes: result.biomes },
       siteNotices(world, growth.rect, result)
     )
   );

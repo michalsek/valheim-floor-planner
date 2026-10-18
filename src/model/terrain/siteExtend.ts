@@ -1,13 +1,12 @@
 /**
  * Growing a site's terrain on one side (the expand handles): the patch gains whole rows
  * or columns of the world's vertex grid there, up to `MAX_SITE_SIDE` a side. The frame
- * and datum stay; the patch's own heights are kept byte for byte, and only the new strip
- * comes from the world. Pure.
+ * and datum stay; the patch's own heights are kept value for value, and only the new
+ * strip comes from the world. Pure.
  */
 import type { SiteNotices, SiteTerrain } from '../types';
 
 import { MAX_SITE_SIDE, type PatchRect } from './sitePatch';
-import { decodeHeightBytes, encodeHeightBytes } from './siteTerrain';
 
 /** A patch side, by the world's compass: west −x, east +x, south −z, north +z. */
 export type SiteSide = 'west' | 'east' | 'south' | 'north';
@@ -68,13 +67,12 @@ export const growRect = (rect: PatchRect, side: SiteSide, metres: number): SiteG
   }
 };
 
-/** Copies a patch's int16 rows into a larger patch's, where it lies in it. */
-const placeRows = (out: Uint8Array, into: PatchRect, bytes: Uint8Array, from: PatchRect) => {
-  const width = from.cols * 2;
+/** Copies a patch's rows into a larger patch's, where it lies in it. */
+const placeRows = (out: Int16Array, into: PatchRect, heights: Int16Array, from: PatchRect) => {
   const col = from.x0 - into.x0;
   for (let row = 0; row < from.rows; row++) {
-    const at = ((from.z0 - into.z0 + row) * into.cols + col) * 2;
-    out.set(bytes.subarray(row * width, (row + 1) * width), at);
+    const at = (from.z0 - into.z0 + row) * into.cols + col;
+    out.set(heights.subarray(row * from.cols, (row + 1) * from.cols), at);
   }
 };
 
@@ -97,15 +95,16 @@ export const mergeBiomes = (a: BiomeGrid, b: BiomeGrid): BiomeGrid => {
 
 /** The new strip's ground, as `growSiteTerrain` takes it. */
 export interface GrownStrip {
-  /** int16 little-endian plan centimetres over `growth.strip`, row-major. */
-  bytes: Uint8Array;
+  /** Plan centimetres over `growth.strip`, row-major (as `SiteTerrain.heights`). */
+  heights: Int16Array;
   /** The zone-corner biomes over the strip. */
   biomes: BiomeGrid;
 }
 
 /**
- * The site's terrain grown by `growth`: its own heights kept byte for byte, the strip's
- * placed beside them, the biome grids joined, and the notices of the whole new patch.
+ * The site's terrain grown by `growth`: its own heights kept value for value, the
+ * strip's placed beside them, the biome grids joined, and the notices of the whole new
+ * patch.
  */
 export const growSiteTerrain = (
   terrain: SiteTerrain,
@@ -113,21 +112,20 @@ export const growSiteTerrain = (
   strip: GrownStrip,
   notices: SiteNotices
 ): SiteTerrain => {
-  const old = decodeHeightBytes(terrain.heights);
   const { rect } = growth;
-  if (!old || old.length !== terrain.cols * terrain.rows * 2) {
+  if (terrain.heights.length !== terrain.cols * terrain.rows) {
     throw new Error('The terrain’s heights don’t read.');
   }
-  if (strip.bytes.length !== growth.strip.cols * growth.strip.rows * 2) {
+  if (strip.heights.length !== growth.strip.cols * growth.strip.rows) {
     throw new Error('The new ground doesn’t fit its strip.');
   }
-  const bytes = new Uint8Array(rect.cols * rect.rows * 2);
-  placeRows(bytes, rect, strip.bytes, growth.strip);
-  placeRows(bytes, rect, old, terrain);
+  const heights = new Int16Array(rect.cols * rect.rows);
+  placeRows(heights, rect, strip.heights, growth.strip);
+  placeRows(heights, rect, terrain.heights, terrain);
   return {
     ...terrain,
     ...rect,
-    heights: encodeHeightBytes(bytes),
+    heights,
     biomes: mergeBiomes(terrain.biomes, strip.biomes),
     notices,
   };

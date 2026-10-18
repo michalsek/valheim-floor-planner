@@ -19,6 +19,18 @@ const segmentsOf = (data: Float32Array) =>
   Array.from({ length: data.length / 4 }, (_, i) => [...data.subarray(4 * i, 4 * i + 4)]);
 
 describe('contours', () => {
+  it('traces a range of quads as its part of the whole', () => {
+    const grid = gridOf(6, (x, z) => 0.4 * x + 0.25 * z * z);
+    const whole = segmentsOf(contourSegments(grid, 0.5)).map(String).sort();
+    const left = { i0: 0, i1: 5, j0: 0, j1: 12 };
+    const right = { i0: 5, i1: 12, j0: 0, j1: 12 };
+    const parts = [left, right]
+      .flatMap((range) => segmentsOf(contourSegments(grid, 0.5, null, range)))
+      .map(String)
+      .sort();
+    expect(parts).toEqual(whole);
+  });
+
   it('draws a plane as straight lines at the right offsets, each once', () => {
     // 0.3 m per metre along x: the 1 m lines at x = 10/3 · k.
     const segments = segmentsOf(

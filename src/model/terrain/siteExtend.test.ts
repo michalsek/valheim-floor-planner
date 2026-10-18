@@ -6,7 +6,7 @@ import { emptyPlan, type SiteTerrain } from '../types';
 import { siteTerrainProblem } from './siteCheck';
 import { growRect, growSiteTerrain, roomToGrow, SITE_SIDES, type SiteGrowth } from './siteExtend';
 import { MAX_SITE_SIDE } from './sitePatch';
-import { decodeHeightBytes, encodeHeights, heightBytes } from './siteTerrain';
+import { encodeHeights } from './siteTerrain';
 
 /** A 65 × 65 vertex patch (one zone's span) whose heights spell their index. */
 const terrain: SiteTerrain = {
@@ -30,27 +30,24 @@ const stripFor = (growth: SiteGrowth) => {
   const bc = zone(x0 + cols - 1) - zx0 + 2;
   const br = zone(z0 + rows - 1) - zz0 + 2;
   return {
-    bytes: heightBytes(new Array<number>(cols * rows).fill(-1)).bytes,
+    heights: new Int16Array(cols * rows).fill(-100),
     biomes: { zx0, zz0, cols: bc, rows: br, codes: new Array<number>(bc * br).fill(16) },
   };
 };
 
-const int16At = (bytes: Uint8Array, i: number) => new DataView(bytes.buffer).getInt16(2 * i, true);
-
 describe('growing a site', () => {
-  it('keeps the patch’s heights byte for byte on every side and fills the strip', () => {
+  it('keeps the patch’s heights value for value on every side and fills the strip', () => {
     for (const side of SITE_SIDES) {
       const growth = growRect(terrain, side, 64)!;
       const grown = growSiteTerrain(terrain, growth, stripFor(growth), terrain.notices);
       expect(siteTerrainProblem(grown)).toBeNull();
-      const bytes = decodeHeightBytes(grown.heights)!;
       const { x0, z0, cols } = grown;
       for (let row = 0; row < grown.rows; row++) {
         for (let col = 0; col < cols; col++) {
           const u = x0 + col - terrain.x0;
           const w = z0 + row - terrain.z0;
           const inOld = u >= 0 && w >= 0 && u < terrain.cols && w < terrain.rows;
-          expect(int16At(bytes, row * cols + col)).toBe(inOld ? w * terrain.cols + u : -100);
+          expect(grown.heights[row * cols + col]).toBe(inOld ? w * terrain.cols + u : -100);
         }
       }
     }
@@ -76,5 +73,8 @@ describe('growing a site', () => {
     expect(store.getPlan().importFrame?.terrain?.rows).toBe(129);
     store.undo();
     expect(store.getPlan().importFrame?.terrain).toEqual(terrain);
+    // Redo brings back the same heights array (caches are keyed on it).
+    store.redo();
+    expect(store.getPlan().importFrame?.terrain?.heights).toBe(grown.heights);
   });
 });

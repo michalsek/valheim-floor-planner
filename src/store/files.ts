@@ -2,7 +2,8 @@
  * Plan files on disk: save (picker or download), pick and read. Browser I/O only. A
  * file may carry the underlay image as a top-level `underlayImage` data URL.
  */
-import { parsePlan, PlanParseError, serializePlan } from '../model/serialize';
+import { planFileText, readPlanJson } from '../model/planFile';
+import { PlanParseError } from '../model/serialize';
 import { DEFAULT_PLAN_NAME, type Plan } from '../model/types';
 
 import { blobToDataUrl, dataUrlToBlob } from './prepareImage';
@@ -68,10 +69,10 @@ const buildPlanBlob = async (
   const toBlob = (text: string) => new Blob([text], { type: 'application/json' });
   const image = underlayImage ? await underlayImage() : null;
   if (image) {
-    const blob = toBlob(serializePlan(plan, { underlayImage: await blobToDataUrl(image) }));
+    const blob = toBlob(await planFileText(plan, { underlayImage: await blobToDataUrl(image) }));
     if (blob.size <= MAX_PLAN_FILE_BYTES) return { blob, imageSkipped: false };
   }
-  return { blob: toBlob(serializePlan(plan)), imageSkipped: image !== null };
+  return { blob: toBlob(await planFileText(plan)), imageSkipped: image !== null };
 };
 
 /**
@@ -145,7 +146,7 @@ export const readPlanFile = async (file: File): Promise<PlanFile> => {
   }
   try {
     const raw: unknown = JSON.parse(await file.text());
-    return { plan: parsePlan(raw), underlayImage: await embeddedImage(raw) };
+    return { plan: await readPlanJson(raw), underlayImage: await embeddedImage(raw) };
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new Error(`"${file.name}" isn't valid JSON.`, { cause: error });
