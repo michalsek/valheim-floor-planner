@@ -63,11 +63,11 @@ const continuity = (pieces: readonly RawPiece[]) => {
 describe.skipIf(!dir)('a real world save', () => {
   const catalogue = [...testLibrary.catalog.pieces.keys()];
   let scanMs = 0;
-  let world!: ReturnType<typeof readChunkedWorld>;
+  let world!: Awaited<ReturnType<typeof readChunkedWorld>>;
   let pieces!: typeof world.pieces;
-  beforeAll(() => {
+  beforeAll(async () => {
     const started = performance.now();
-    world = readChunkedWorld(folderFiles(dir!), scanPrefabs(catalogue));
+    world = await readChunkedWorld(folderFiles(dir!), scanPrefabs(catalogue));
     scanMs = performance.now() - started;
     pieces = world.pieces;
   });
@@ -82,6 +82,16 @@ describe.skipIf(!dir)('a real world save', () => {
     expect(world.version).toBe(42);
     expect(pieces.prefabIndex.length).toBe(1_142);
     expect(pieces.prefabs.length).toBe(41);
+  });
+
+  it('keeps what the terrain needs (aggregates only; the seed is never printed)', () => {
+    expect(world.site?.worldGenVersion).toBe(2);
+    expect(Number.isInteger(world.site?.seed)).toBe(true);
+    // Three edited zones; every payload is gzip (1f 8b).
+    expect(world.terrainComps.length).toBe(3);
+    expect(world.terrainComps.every((c) => c.data[0] === 0x1f && c.data[1] === 0x8b)).toBe(true);
+    expect(world.legacyEdits.length).toBe(0);
+    expect(world.locations?.hash.length).toBe(12_165);
   });
 
   it('snaps the saved yaws onto the Hammer steps', () => {

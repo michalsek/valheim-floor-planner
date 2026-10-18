@@ -203,6 +203,11 @@ export const showAllRadiiAtom = atom<boolean>(false);
  * so 3D clicks reach inside the house; their gable walls and filler courses still show.
  */
 export const roofsVisibleAtom = atom<boolean>(true);
+/**
+ * Whether an imported site's terrain is drawn, in both views (session only). Support
+ * uses the terrain either way.
+ */
+export const terrainShownAtom = atom<boolean>(true);
 /** Whether the underlay image is drawn (session only; the plan keeps it either way). */
 export const underlayVisibleAtom = atom<boolean>(true);
 /** Whether Save puts the underlay image in the file (as a data URL). */

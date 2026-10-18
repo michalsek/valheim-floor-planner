@@ -1,3 +1,5 @@
+import { gzipSync } from 'node:zlib';
+
 import { describe, expect, it } from 'vitest';
 
 import { cloudPiece } from '../../../model/world/pieceCloud';
@@ -47,11 +49,11 @@ describe('reading a world', () => {
     ]);
   });
 
-  it('keeps the pieces players built, and only those', () => {
+  it('keeps the pieces players built, and only those', async () => {
     const files = world();
     // A stale, incomplete generation is ignored.
     files.set('_main.8.fwl2', new Uint8Array(4));
-    const scan = readChunkedWorld(folder(files), prefabs);
+    const scan = await readChunkedWorld(folder(files), prefabs);
     expect(scan).toMatchObject({ name: 'Fixture', version: 42, generation: 7, zdos: 8 });
     const pieces = Array.from({ length: scan.pieces.prefabIndex.length }, (_, i) =>
       cloudPiece(scan.pieces, i)
@@ -70,25 +72,67 @@ describe('reading a world', () => {
   it('reads a legacy .db the same way', () => {
     const scan = readLegacyDb(legacyDb([...hut, ...shed]), 'Old.db', prefabs);
     expect(scan).toMatchObject({ name: 'Old', version: 34, generation: null, zdos: 8 });
+    expect(scan).toMatchObject({ site: null, locations: null });
     expect(scan.pieces.prefabIndex.length).toBe(4);
     expect(cloudPiece(scan.pieces, 1).yaw).toBe(22.5);
   });
 
-  it('refuses unknown versions, missing chunks and stray bytes', () => {
+  it('keeps the seed, terrain edits, legacy edits and locations', async () => {
+    const tc = Uint8Array.from(gzipSync(new Uint8Array(40).fill(3)));
+    const files = chunkedWorld(
+      'Site',
+      3,
+      new Map([
+        [
+          0x2020,
+          [
+            ...hut,
+            { prefab: '_TerrainCompiler', position: [128, 0, -64], terrainData: tc, bytes: 4 },
+            { prefab: 'raise', position: [130.5, 31, -60.25], creator: PLAYER },
+            { prefab: 'path', position: [131, 31, -61], creator: PLAYER },
+          ],
+        ],
+      ]),
+      {
+        seed: -123456789,
+        worldGenVersion: 2,
+        locations: [{ prefab: 'StoneCircle', position: [500.5, 42.25, -800] }],
+      }
+    );
+    const scan = await readChunkedWorld(folder(files), prefabs);
+    // The .fwl2 ends in bytes no reader could parse: the player history is never read.
+    expect(scan.site).toEqual({ seed: -123456789, worldGenVersion: 2 });
+    expect(scan.terrainComps).toEqual([{ zx: 2, zz: -1, data: tc }]);
+    // Only height edits count: `path` just paints.
+    expect([...scan.legacyEdits]).toEqual([130.5, -60.25]);
+    expect([...scan.locations!.position]).toEqual([500.5, 42.25, -800]);
+    expect([...scan.locations!.hash]).toEqual([stableHash('StoneCircle')]);
+    expect(scan.pieces.prefabIndex.length).toBe(3);
+  });
+
+  it('reads the pieces even when .db2 does not parse', async () => {
+    const files = world();
+    files.set('_main.7.db2', new Uint8Array(16));
+    const scan = await readChunkedWorld(folder(files), prefabs);
+    expect(scan.locations).toBeNull();
+    expect(scan.pieces.prefabIndex.length).toBe(4);
+  });
+
+  it('refuses unknown versions, missing chunks and stray bytes', async () => {
     expect(() => readLegacyDb(legacyDb(hut, 30), 'Old.db', prefabs)).toThrow(/unsupported/);
     const missing = world();
     missing.delete([...missing.keys()].find((n) => n.endsWith('.chunk'))!);
-    expect(() => readChunkedWorld(folder(missing), prefabs)).toThrow(/incomplete/);
+    await expect(readChunkedWorld(folder(missing), prefabs)).rejects.toThrow(/incomplete/);
     const stray = world();
     const name = [...stray.keys()].find((n) => n.endsWith('.chunk'))!;
     stray.set(name, Uint8Array.from([...stray.get(name)!, 0]));
-    expect(() => readChunkedWorld(folder(stray), prefabs)).toThrow(/after its last object/);
-    expect(() => readChunkedWorld(folder(new Map()), prefabs)).toThrow(/notWorld/);
+    await expect(readChunkedWorld(folder(stray), prefabs)).rejects.toThrow(/after its last object/);
+    await expect(readChunkedWorld(folder(new Map()), prefabs)).rejects.toThrow(/notWorld/);
     const cut = world();
     cut.set(name, stray.get(name)!.subarray(0, 40));
-    expect(() => readChunkedWorld(folder(cut), prefabs)).toThrow(new RegExp(name));
+    await expect(readChunkedWorld(folder(cut), prefabs)).rejects.toThrow(new RegExp(name));
     const unfinished = world();
     unfinished.delete('_main.7.ok');
-    expect(() => readChunkedWorld(folder(unfinished), prefabs)).toThrow(/missing files/);
+    await expect(readChunkedWorld(folder(unfinished), prefabs)).rejects.toThrow(/missing files/);
   });
 });

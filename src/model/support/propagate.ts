@@ -1,6 +1,6 @@
 /**
  * Structural support, after the game's `WearNTear.UpdateSupport` (research/README.md
- * §4). A body on the ground gets its material's maximum. Any other takes the best of:
+ * §4, §8). A body on the ground gets its material's maximum. Any other takes the best of:
  *
  * - each neighbour's support `s` less its loss over the distance between their centres
  *   of mass (+0.1 m per joint): `s · (1 − loss · (d + 0.1))`, where the loss is the
@@ -20,8 +20,12 @@ import type { Vec3 } from '../types';
 
 import type { Contact } from './contacts';
 
-/** A body whose bottom is this low rests on the terrain (flat, at y = 0). */
-export const GROUND_HEIGHT = 0.05;
+/**
+ * How far above the ground a body's bottom may be and still rest on it: the game grows
+ * each collider's box by 0.15 m a side and any overlap with the terrain grounds the
+ * piece (`WearNTear.SetupColliders`, research §8).
+ */
+export const GROUND_REACH = 0.15;
 /** Added to every centre-to-centre distance: the game's per-joint penalty. */
 const JOINT = 0.1;
 /** Support points within this of the centre's height (or lower) count as below. */
@@ -39,16 +43,26 @@ export interface SupportBody {
   com: Vec3;
   /** The height of its lowest point. */
   bottom: number;
+  /**
+   * The highest ground under its footprint (0 on flat ground). At or below
+   * `ground + GROUND_REACH` it rests on the ground; a buried body does too.
+   */
+  ground?: number;
   /** Null: it takes no part (no material in the game data). */
   material: MaterialSupport | null;
   /** Whether other bodies can rest on it: walls, floors, poles, stairs; not doors or furniture. */
   gives: boolean;
   /**
    * Held up whatever is under it, and not checked (an imported raw piece): it gives its
-   * material's maximum, like a grounded body, and its state is 'none'.
+   * material's maximum, like a grounded body. Its state only says whether it touches the
+   * ground ('grounded') or not ('none').
    */
   fixed?: boolean;
 }
+
+/** Whether a body's bottom reaches the ground under it. */
+export const onGround = (body: Pick<SupportBody, 'bottom' | 'ground'>): boolean =>
+  body.bottom <= (body.ground ?? 0) + GROUND_REACH;
 
 export type SupportState = 'grounded' | 'supported' | 'collapsing' | 'none';
 
@@ -197,9 +211,7 @@ export const propagateSupport = (
     pairs: pairsOf(list),
   }));
 
-  const grounded = bodies.map(
-    (b) => b.material !== null && (b.fixed === true || b.bottom <= GROUND_HEIGHT)
-  );
+  const grounded = bodies.map((b) => b.material !== null && (b.fixed === true || onGround(b)));
   const value = new Float64Array(n);
   const published = new Float64Array(n);
   const heap = createHeap();
@@ -228,7 +240,8 @@ export const propagateSupport = (
   }
 
   const state = bodies.map((body, i): SupportState => {
-    if (!body.material || body.fixed) return 'none';
+    if (!body.material) return 'none';
+    if (body.fixed) return onGround(body) ? 'grounded' : 'none';
     if (grounded[i]) return 'grounded';
     return published[i]! > 0 ? 'supported' : 'collapsing';
   });

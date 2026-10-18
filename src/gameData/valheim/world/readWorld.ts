@@ -1,12 +1,15 @@
 /**
  * Reads a world's built pieces: a 1.0 chunked world folder, or a legacy `.db` (v31–39,
- * the same ZDO encoding). Synchronous (it runs in a worker). Only ZDOs whose prefab is
- * in `names` (the Hammer's catalogue) and that a player placed are kept; ruins, which
- * use the same prefabs, have no creator. Layouts: research/README.md §7.
+ * the same ZDO encoding). Runs in a worker. Only ZDOs whose prefab is in `names` (the
+ * Hammer's catalogue) and that a player placed are kept; ruins, which use the same
+ * prefabs, have no creator. For the terrain it also keeps the seed, the zones' terrain
+ * edits, legacy terrain-edit pieces and (from `.db2`, async) the location instances.
+ * Layouts: research/README.md §7–§8.
  */
 import { ByteReader } from '../../bytes/ByteReader';
 import { check, GameDataError } from '../../GameDataError';
 
+import { readDb2Locations, type WorldLocations } from './readDb2';
 import { readZdo } from './readZdo';
 import {
   chunkFileName,
@@ -15,8 +18,10 @@ import {
   newestGeneration,
   readFwl2Header,
   readManifest,
+  type WorldSite,
 } from './worldFiles';
 import { pieceCollector, type WorldPieces } from './worldPieces';
+import { terrainCollector, type WorldTerrainEdits } from './worldTerrain';
 import { CHUNKED_VERSION, isKnownVersion } from './zpackage';
 
 /** A chunked world folder's files, read synchronously. */
@@ -36,7 +41,7 @@ export interface ChunkStat {
   bytes: number;
 }
 
-export interface WorldScan {
+export interface WorldScan extends WorldTerrainEdits {
   /** The world's name (a legacy `.db`'s file name). */
   name: string;
   version: number;
@@ -46,22 +51,37 @@ export interface WorldScan {
   zdos: number;
   chunks: ChunkStat[];
   pieces: WorldPieces;
+  /** The seed and generator version; null for a legacy `.db` (it has no `.fwl2`). */
+  site: WorldSite | null;
+  /** The `.db2` location instances; null for a legacy `.db`, or when unreadable. */
+  locations: WorldLocations | null;
 }
 
-type Collector = ReturnType<typeof pieceCollector>;
+/** The pieces and the terrain edits, gathered as ZDOs are read. */
+const collectors = (names: ReadonlyMap<number, string>) => {
+  const pieces = pieceCollector(names);
+  const terrain = terrainCollector();
+  return {
+    add(zdo: ReturnType<typeof readZdo>): void {
+      if (zdo.built && names.has(zdo.prefab)) pieces.add(zdo);
+      terrain.add(zdo);
+    },
+    pack: () => ({ pieces: pieces.pack(), ...terrain.pack() }),
+  };
+};
 
-/** Decodes `count` ZDOs, keeping the built catalogue pieces. */
+type Collector = ReturnType<typeof collectors>;
+
+/** Decodes `count` ZDOs into `collect`. */
 const readZdos = (
   r: ByteReader,
   version: number,
   count: number,
-  names: ReadonlyMap<number, string>,
   collect: Collector,
   onZdo?: () => void
 ): void => {
   for (let i = 0; i < count; i++) {
-    const zdo = readZdo(r, version);
-    if (zdo.built && names.has(zdo.prefab)) collect.add(zdo);
+    collect.add(readZdo(r, version));
     onZdo?.();
   }
 };
@@ -71,7 +91,6 @@ const readChunk = (
   bytes: Uint8Array,
   file: string,
   expected: number,
-  names: ReadonlyMap<number, string>,
   collect: Collector
 ): number => {
   const r = new ByteReader(bytes, true);
@@ -82,7 +101,7 @@ const readChunk = (
   const count = r.i32();
   check(count === expected, () => `${file} holds ${count} objects, the index says ${expected}`);
   try {
-    readZdos(r, version, count, names, collect);
+    readZdos(r, version, count, collect);
   } catch (error) {
     // A cut-short chunk: say which file.
     if (error instanceof GameDataError)
@@ -93,11 +112,24 @@ const readChunk = (
   return count;
 };
 
-export const readChunkedWorld = (
+/**
+ * The locations, or null when `.db2` doesn't parse: they only feed the terrain's
+ * self-check, so a surprise there mustn't stop an import of the pieces.
+ */
+const readLocations = async (bytes: Uint8Array): Promise<WorldLocations | null> => {
+  try {
+    return await readDb2Locations(bytes);
+  } catch (error) {
+    if (error instanceof GameDataError) return null;
+    throw error;
+  }
+};
+
+export const readChunkedWorld = async (
   files: WorldFolderFiles,
   names: ReadonlyMap<number, string>,
   onProgress: ScanProgress = () => {}
-): WorldScan => {
+): Promise<WorldScan> => {
   const generation = newestGeneration(files.names);
   if (generation === null) {
     // Some of a save's files but no complete one: a copy taken mid-save, or partial.
@@ -118,7 +150,7 @@ export const readChunkedWorld = (
     throw new GameDataError('incomplete', `Missing ${missing.map((m) => m.file).join(', ')}`);
   }
   const total = listed.reduce((n, { file }) => n + files.size(file), 0);
-  const collect = pieceCollector(names);
+  const collect = collectors(names);
   const chunks: ChunkStat[] = [];
   let done = 0;
   onProgress(0, total);
@@ -126,19 +158,22 @@ export const readChunkedWorld = (
     const bytes = files.read(file);
     chunks.push({
       file,
-      zdos: readChunk(bytes, file, entry.zdos, names, collect),
+      zdos: readChunk(bytes, file, entry.zdos, collect),
       bytes: bytes.length,
     });
     done += bytes.length;
     onProgress(done, total);
   }
+  const { seed, worldGenVersion } = header;
   return {
     name: header.name,
     version: header.version,
     generation,
     zdos: manifest.totalZdos,
     chunks,
-    pieces: collect.pack(),
+    ...collect.pack(),
+    site: { seed, worldGenVersion },
+    locations: await readLocations(files.read(generationFile(generation, 'db2'))),
   };
 };
 
@@ -162,9 +197,9 @@ export const readLegacyDb = (
   }
   r.bytesView(8 + 8 + 4); // net time, own id, next uid
   const count = r.count(10);
-  const collect = pieceCollector(names);
+  const collect = collectors(names);
   let seen = 0;
-  readZdos(r, version, count, names, collect, () => {
+  readZdos(r, version, count, collect, () => {
     if (++seen % PROGRESS_EVERY === 0) onProgress(r.pos, bytes.length);
   });
   onProgress(bytes.length, bytes.length);
@@ -174,6 +209,8 @@ export const readLegacyDb = (
     generation: null,
     zdos: count,
     chunks: [],
-    pieces: collect.pack(),
+    ...collect.pack(),
+    site: null,
+    locations: null,
   };
 };

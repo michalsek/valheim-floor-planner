@@ -156,7 +156,8 @@ export const IntegrityList = ({ level }: { level: number | null }) => {
       {rawCount > 0 && (
         <p className={styles.advice}>
           {rawCount} imported {rawCount === 1 ? 'piece is' : 'pieces are'} not checked: raw pieces
-          hold up what rests on them, as if they stood firm.
+          hold up what rests on them, as if they stood firm. Those touching the ground show blue in
+          the support view.
         </p>
       )}
     </details>

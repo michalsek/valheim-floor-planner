@@ -1,7 +1,8 @@
 /**
  * One ZDO (`ZDO.Load`), v31–42. There's no per-ZDO length, so every ZDO is walked in
  * full; only what the planner needs is kept. The creator (a player ID) is reduced to
- * "built by a player" on the spot and never leaves this function.
+ * "built by a player" on the spot and never leaves this function. A terrain compiler's
+ * edits (`TCData`, gzip) are copied out as they are.
  */
 import type { ByteReader } from '../../bytes/ByteReader';
 
@@ -21,9 +22,18 @@ export interface Zdo {
   roll: number;
   /** A non-zero `creator` long: placed by a player (ruins have none). */
   built: boolean;
+  /** A `_TerrainCompiler`'s `TCData` byte array (a copy, still gzip); null for others. */
+  terrainData: Uint8Array<ArrayBuffer> | null;
 }
 
 const CREATOR = stableHash('creator');
+const TC_DATA = stableHash('TCData');
+
+/** What the data sections hold that the planner keeps. */
+interface Kept {
+  built: boolean;
+  terrainData: Uint8Array<ArrayBuffer> | null;
+}
 
 /** `ZDO.ExtraDataFlags`. */
 const CONNECTION = 1;
@@ -41,26 +51,25 @@ const FIXED_SECTIONS: ReadonlyMap<number, number> = new Map([
   [16, 4], // ints
 ]);
 
-/** Walks one data section; returns whether it held a non-zero creator. */
-const readSection = (r: ByteReader, version: number, bit: number): boolean => {
-  let built = false;
+/** Walks one data section, noting a non-zero creator and terrain edits in `kept`. */
+const readSection = (r: ByteReader, version: number, bit: number, kept: Kept): void => {
   const count = readNumItems(r, version);
   for (let i = 0; i < count; i++) {
     const key = r.i32();
     if (bit === LONGS) {
       const value = r.i64();
-      if (key === CREATOR && value !== 0n) built = true;
+      if (key === CREATOR && value !== 0n) kept.built = true;
     } else if (bit === STRINGS) {
       skipString(r);
     } else if (bit === BYTE_ARRAYS) {
       // The length goes into a local first (research §7, "a1 pitfall").
       const length = r.i32();
-      r.bytesView(length);
+      const data = r.bytesView(length);
+      if (key === TC_DATA) kept.terrainData = data.slice();
     } else {
       r.bytesView(FIXED_SECTIONS.get(bit)!);
     }
   }
-  return built;
 };
 
 const SECTION_BITS = [2, 4, 8, 16, LONGS, STRINGS, BYTE_ARRAYS];
@@ -83,13 +92,13 @@ export const readZdo = (r: ByteReader, version: number): Zdo => {
   if (flags & HAS_ROTATION) {
     rotation = version >= CHUNKED_VERSION ? readSmallRotation(r) : [r.f32(), r.f32(), r.f32()];
   }
-  let built = false;
+  const kept: Kept = { built: false, terrainData: null };
   if (flags & 0xff) {
     if (flags & CONNECTION) r.bytesView(5); // a type byte (a flag set) and a hash
     for (const bit of SECTION_BITS) {
-      if (flags & bit && readSection(r, version, bit)) built = true;
+      if (flags & bit) readSection(r, version, bit, kept);
     }
   }
   const [pitch, yaw, roll] = rotation;
-  return { prefab, x, y, z, pitch, yaw, roll, built };
+  return { prefab, x, y, z, pitch, yaw, roll, ...kept };
 };

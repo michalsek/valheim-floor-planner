@@ -5,7 +5,7 @@
 import { ByteReader } from '../../bytes/ByteReader';
 import { check, GameDataError } from '../../GameDataError';
 
-import { isKnownVersion, readString } from './zpackage';
+import { isKnownVersion, readString, skipString } from './zpackage';
 
 const GENERATION_FILE = /^_main\.(\d+)\.(fwl2|db2|chunks|ok)$/;
 const GENERATION_PARTS = ['fwl2', 'db2', 'chunks', 'ok'];
@@ -31,7 +31,8 @@ export const newestGeneration = (names: readonly string[]): number | null => {
   return complete.length === 0 ? null : Math.max(...complete.map(([n]) => n));
 };
 
-export const generationFile = (n: number, part: 'fwl2' | 'chunks'): string => `_main.${n}.${part}`;
+export const generationFile = (n: number, part: 'fwl2' | 'db2' | 'chunks'): string =>
+  `_main.${n}.${part}`;
 
 const checkVersion = (version: number, what: string): void => {
   if (!isKnownVersion(version)) {
@@ -39,15 +40,22 @@ const checkVersion = (version: number, what: string): void => {
   }
 };
 
-export interface WorldHeader {
+/** What the terrain is generated from: the world's seed and its generator version. */
+export interface WorldSite {
+  seed: number;
+  worldGenVersion: number;
+}
+
+export interface WorldHeader extends WorldSite {
   version: number;
   name: string;
 }
 
 /**
- * The `.fwl2` header: an int32 length, then a package starting with the version and
- * the world name. Reading stops there: the seed, keys and the player history (platform
- * IDs and names) that follow are never parsed.
+ * The `.fwl2` header: an int32 length, then a package with the version, the world name,
+ * the seed's name (skipped), the seed, a uid (skipped) and the generator version.
+ * Reading stops there: the keys and the player history (platform IDs and names) that
+ * follow are never parsed.
  */
 export const readFwl2Header = (bytes: Uint8Array): WorldHeader => {
   const r = new ByteReader(bytes, true);
@@ -55,7 +63,11 @@ export const readFwl2Header = (bytes: Uint8Array): WorldHeader => {
   check(length > 0 && length <= r.remaining, () => `bad .fwl2 length ${length}`);
   const version = r.i32();
   checkVersion(version, 'The world file');
-  return { version, name: readString(r) };
+  const name = readString(r);
+  skipString(r); // the seed's name
+  const seed = r.i32();
+  r.bytesView(8); // uid
+  return { version, name, seed, worldGenVersion: r.i32() };
 };
 
 export interface ChunkEntry {

@@ -1,13 +1,14 @@
 /**
  * The shapes the support check works with. Contacts, support points and the ground
- * test only go through `SupportShape` (its bounds, centre of mass, closest point and
- * overlap test). `boxShape` is the one for `PieceBox`es: most only turn about y; a roof
+ * test only go through `SupportShape` (its bounds, footprint, centre of mass, closest
+ * point and overlap test). `boxShape` is the one for `PieceBox`es: most only turn about y; a roof
  * slab is tilted down its slope too, and roof corners and gable triangles count as the
  * box around them.
  */
+import { convexHull } from '../geometry/convex';
 import { boxAxes, boxCorners, toLocal, type OrientedBox } from '../geometry/orient';
 import type { PieceBox } from '../pieceBoxes';
-import type { Vec3 } from '../types';
+import type { Vec2, Vec3 } from '../types';
 
 /** An axis-aligned box. */
 export interface Aabb {
@@ -18,6 +19,8 @@ export interface Aabb {
 export interface SupportShape {
   /** The axis-aligned box around the shape (the broad phase and the ground test). */
   aabb: Aabb;
+  /** Its outline on the plan, a convex ring (the ground under it is looked up there). */
+  footprint: Vec2[];
   /** Its centre of mass. */
   com: Vec3;
   /** The point of the shape closest to `p` (`p` itself when inside). */
@@ -94,6 +97,18 @@ const obbClosestPoint = (box: Obb, p: Vec3): Vec3 => {
     z: box.center.z + u.z * lu + v.z * lv,
   };
 };
+
+/** The box's four corners on the plan, in order around it. */
+const obbFootprint = ({ center: c, half, u, v }: Obb): Vec2[] =>
+  [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ].map(([a, b]) => ({
+    x: c.x + a! * half.x * u.x + b! * half.z * v.x,
+    z: c.z + a! * half.x * u.z + b! * half.z * v.z,
+  }));
 
 const obbAabb = (box: Obb): Aabb => {
   const r = { x: radiusAlong(box, { x: 1, z: 0 }), z: radiusAlong(box, { x: 0, z: 1 }) };
@@ -196,8 +211,10 @@ const tiltedShape = (box: OrientedBox): SupportShape => {
     tiltX: box.tiltX,
     rollZ: box.rollZ,
   });
+  const corners = boxCorners(obb.box);
   const shape: SupportShape = {
-    aabb: cornersAabb(boxCorners(obb.box)),
+    aabb: cornersAabb(corners),
+    footprint: convexHull(corners),
     com: box.center,
     closestPoint: (p) => obb3ClosestPoint(obb, p),
     touches: (other, eps) => {
@@ -226,6 +243,7 @@ export const boxShape = (
   };
   const shape: SupportShape = {
     aabb: obbAabb(obb),
+    footprint: obbFootprint(obb),
     com: box.center,
     closestPoint: (p) => obbClosestPoint(obb, p),
     // Another kind of shape knows how it touches a box.

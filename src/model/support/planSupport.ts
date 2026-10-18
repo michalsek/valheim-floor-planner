@@ -1,12 +1,13 @@
 /**
  * Support for a plan's boxes: each box a body, contacts by collider overlap, then
- * propagation. Also what the bill of materials warns about: the items with pieces that
- * would collapse.
+ * propagation, on flat ground at 0 or the site's terrain. Also what the bill of
+ * materials warns about: the items with pieces that would collapse.
  */
 import { LOAD_BEARING_GROUPS } from '../../catalog/propDefs';
 import type { MaterialSupport } from '../../catalog/pieceDefs';
 import type { PieceBox } from '../pieceBoxes';
 import type { SelectionItem } from '../selection';
+import type { Vec2 } from '../types';
 
 import { findContacts } from './contacts';
 import { propagateSupport, type SupportBody, type SupportState } from './propagate';
@@ -48,13 +49,18 @@ const gives = (box: PieceBox): boolean =>
   box.kind === 'roof' ||
   (box.kind === 'prop' && box.group !== null && LOAD_BEARING_GROUPS.has(box.group));
 
+/** The highest ground (plan height) under a plan footprint. */
+export type GroundUnder = (footprint: readonly Vec2[]) => number;
+
 const bodyOf = (
   box: PieceBox,
   shape: SupportShape,
-  materials: Record<string, MaterialSupport>
+  materials: Record<string, MaterialSupport>,
+  groundUnder: GroundUnder | null
 ): SupportBody => ({
   com: shape.com,
   bottom: shape.aabb.min.y,
+  ground: groundUnder ? groundUnder(shape.footprint) : 0,
   material: (box.material !== null && materials[box.material]) || null,
   gives: gives(box),
   fixed: box.kind === 'raw',
@@ -63,14 +69,16 @@ const bodyOf = (
 /**
  * Support of every box. `extra` pairs boxes (by `PieceBox.key`) that rest on each other
  * whatever their shapes say (`roofContacts`: a roof piece on a wall's top edge).
+ * `groundUnder` is the site's terrain; without it the ground is flat at 0.
  */
 export const planSupport = (
   boxes: readonly PieceBox[],
   materials: Record<string, MaterialSupport>,
-  extra: readonly (readonly [string, string])[] = []
+  extra: readonly (readonly [string, string])[] = [],
+  groundUnder: GroundUnder | null = null
 ): PlanSupport => {
   const shapes = boxes.map(boxShape);
-  const bodies = boxes.map((box, i) => bodyOf(box, shapes[i]!, materials));
+  const bodies = boxes.map((box, i) => bodyOf(box, shapes[i]!, materials, groundUnder));
   const indexOf = new Map(boxes.map((box, i) => [box.key, i]));
   const pairs = extra.flatMap(([a, b]) => {
     const [i, j] = [indexOf.get(a), indexOf.get(b)];

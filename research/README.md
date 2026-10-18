@@ -701,6 +701,45 @@ The gaps are smooth 0→1 bands ±400 m around the Ashlands and Deep North borde
   terrain and none below it; against base terrain alone 115 floors would be underground.
   Chests, fire pit and bed sit within 2 cm of the ground.
 
+### Ground contact (`WearNTear.SetupColliders` / `UpdateSupport`, M16 Stage 1)
+Read from the 1.0.20 IL with `ilDump.py`; paraphrased.
+- **The test boxes.** For each of the piece's own non-trigger colliders without a
+  rigidbody, the piece keeps one box: a `BoxCollider` gives its own oriented box (its
+  transform's rotation, centre and lossy-scaled size); any other collider (mesh) gives
+  its world `bounds`, axis-aligned. **Every box is grown by 0.3 m in total on each axis
+  (0.15 m per side)** before halving into the overlap's half extents.
+- **The overlap.** `Physics.OverlapBox` with each box, on the layers `piece`, `Default`,
+  `static_solid`, `Default_small` and `terrain`. Hits on triggers, rigidbodies and the
+  piece's own colliders are skipped. Then:
+  - a hit on the **terrain layer** marks the piece grounded; after all boxes it gets its
+    material's maximum support;
+  - a hit with **no `WearNTear` in its parents** (a rock, a tree, a static location
+    piece) gives the maximum support at once;
+  - a `WearNTear` hit with `m_supports` set is a support candidate (research §4).
+- **So the grounding rule is:** the piece's collider box, grown by 0.15 m, overlaps the
+  terrain collider: some ground lies within 0.15 m of the box, below or beside it. For a
+  body resting over the ground, **`bottom ≤ ground under it + 0.15 m`** (the planner's
+  `GROUND_REACH`). It matches the spike's floors at +0.10–0.15 m reading grounded.
+- **Side notes, not modelled:** the distance in the support formula is the smaller of
+  centre-of-mass to centre-of-mass and centre of mass to the other piece's pivot (each
+  + 0.1 m), unless the piece forces the COM form; the angle term is
+  `acos(1 − |dir.y|) / (π/2)`, as in §4.
+
+### Legacy terrain-edit pieces (pre-1.0 `TerrainModifier` with `m_playerModifiction`)
+- Found with UnityPy over the main asset bundle (prefabs whose `TerrainModifier` has the
+  player flag set). Eight prefabs:
+  - **height:** `raise`, `digg`, `digg_v2` (level), `cultivate`, `mud_road`,
+    `paved_road` (smooth);
+  - **paint only:** `path`, `replant`.
+  The current tools use `TerrainOp` prefabs (`raise_v2`, `digg_v3`, `mud_road_v2`, …)
+  that write into `TerrainComp` and are not saved as pieces.
+- **They are not converted on load.** `Heightmap.ApplyModifiers` still applies every
+  enabled `TerrainModifier` (before the zone's `TerrainComp`), so a legacy piece keeps
+  shaping the ground live. They are folded into `TerrainComp` only by the console
+  command **`optterrain`** ("optimize old terrain modifications", not a cheat), which
+  copies the modified heights and paint into the zone's compiler and destroys the pieces.
+- The planner counts the six height-changing ones inside the patch as "not applied".
+
 ## 9. Implications for the planner's data model
 
 - Work in **metres**, with a **0.5 m base grid** and 1 m / 2 m snap levels.

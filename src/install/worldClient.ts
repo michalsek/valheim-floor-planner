@@ -1,6 +1,7 @@
 /**
  * Reads a world save in a Web Worker (`world.worker.ts`): `File`s go in, the built
- * pieces come out as typed arrays (transferred, not copied), with progress in between.
+ * pieces and the terrain's inputs (seed, terrain edits, locations) come out as typed
+ * arrays (transferred, not copied), with progress in between.
  * One fresh worker per read, terminated afterwards. Nothing leaves the browser.
  */
 import { GameDataError, type GameDataErrorCode } from '../gameData/GameDataError';

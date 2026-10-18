@@ -3,10 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { applyCommands, type PlanCommand } from './commands';
 import { MAX_PROPS } from './props';
 import { parsePlan, serializePlan } from './serialize';
-import { emptyPlan, type Plan } from './types';
+import { encodeHeights } from './terrain/siteTerrain';
+import { emptyPlan, type Plan, type SiteTerrain } from './types';
+
+/** A 3 × 2 vertex patch with one location notice. */
+const terrain: SiteTerrain = {
+  x0: 100,
+  z0: -50,
+  cols: 3,
+  rows: 2,
+  heights: encodeHeights([0, 0.5, 1, -0.25, 0, 2.5]).heights,
+  biomes: { zx0: 2, zz0: -1, cols: 2, rows: 2, codes: [1, 1, 1, 8] },
+  worldGenVersion: 2,
+  revision: 1,
+  notices: { locations: [{ x: 120, z: -40 }], legacyEdits: 0, check: { n: 4, maxError: 0.001 } },
+};
 
 const plan: Plan = {
-  version: 4,
+  version: 5,
   name: 'Longhouse',
   walls: {
     a: {
@@ -75,7 +89,12 @@ const plan: Plan = {
     opacity: 0.4,
     locked: true,
   },
-  importFrame: { worldName: 'Fixture', origin: { x: 120.5, y: 31, z: -40 }, yaw: 22.5 },
+  importFrame: {
+    worldName: 'Fixture',
+    origin: { x: 120.5, y: 31, z: -40 },
+    yaw: 22.5,
+    terrain,
+  },
 };
 
 const withProp = (prop: Record<string, unknown>) => ({
@@ -93,10 +112,17 @@ describe('serialize', () => {
     expect(parsePlan({ version: 1, name: '  ', walls: {} }).name).toBe('Untitled');
   });
 
-  it('loads a version 2 file without roofs, and saves it as version 4', () => {
+  it('loads a version 4 import frame without terrain', () => {
+    const loaded = parsePlan({ ...JSON.parse(serializePlan(plan)), version: 4 });
+    expect(loaded.version).toBe(5);
+    expect(loaded.importFrame).toEqual({ ...plan.importFrame, terrain: null });
+    expect(loaded.rawPieces).toEqual(plan.rawPieces);
+  });
+
+  it('loads a version 2 file without roofs, and saves it as version 5', () => {
     const v2 = { ...JSON.parse(serializePlan(plan)), version: 2 };
     const loaded = parsePlan(v2);
-    expect(loaded.version).toBe(4);
+    expect(loaded.version).toBe(5);
     expect(loaded.roofs).toEqual({});
     expect(loaded.rawPieces).toEqual({});
     expect(loaded.importFrame).toBeNull();
@@ -109,7 +135,7 @@ describe('serialize', () => {
     expect(loaded.rawPieces).toEqual({});
   });
 
-  it('loads a version 1 file with every elevation at 0, and saves it as version 4', () => {
+  it('loads a version 1 file with every elevation at 0, and saves it as version 5', () => {
     const v1 = JSON.parse(serializePlan(plan));
     v1.version = 1;
     for (const kind of ['walls', 'floors', 'props', 'dimensions']) {
@@ -118,7 +144,7 @@ describe('serialize', () => {
       }
     }
     const loaded = parsePlan(v1);
-    expect(loaded.version).toBe(4);
+    expect(loaded.version).toBe(5);
     expect(loaded.walls.a?.elevation).toBe(0);
     expect(loaded.floors.f?.elevation).toBe(0);
     expect(loaded.props.p?.elevation).toBe(0);
@@ -137,11 +163,21 @@ describe('serialize', () => {
   it.each([
     null,
     [],
-    { version: 5, walls: {} },
+    { version: 6, walls: {} },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, elevation: 200 } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, position: { x: 0, y: 300, z: 0 } } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, rotation: { yaw: 0 } } } },
     { version: 4, importFrame: { ...plan.importFrame, worldName: 7 } },
+    { version: 5, importFrame: { ...plan.importFrame, terrain: { ...terrain, cols: 4 } } },
+    { version: 5, importFrame: { ...plan.importFrame, terrain: { ...terrain, x0: 0.5 } } },
+    { version: 5, importFrame: { ...plan.importFrame, terrain: { ...terrain, heights: 7 } } },
+    {
+      version: 5,
+      importFrame: {
+        ...plan.importFrame,
+        terrain: { ...terrain, biomes: { ...terrain.biomes, codes: [1] } },
+      },
+    },
     { version: 3, roofs: { r: { ...plan.roofs.r, pitch: 30 } } },
     { version: 2, walls: { a: { ...plan.walls.a, elevation: 200 } } },
     { version: 2, props: { p: { ...plan.props.p, elevation: undefined } } },
@@ -191,6 +227,16 @@ describe('commands accept only what loads', () => {
     ],
   ])('refuses %s', (_case, cmd) => {
     expect(() => applyCommands(plan, [cmd])).toThrow();
+  });
+
+  it('sets and removes terrain only on an imported build', () => {
+    const bare = { ...plan, importFrame: { ...plan.importFrame!, terrain: null } };
+    const set = applyCommands(bare, [{ type: 'site.setTerrain', terrain }]);
+    expect(set.importFrame?.terrain).toBe(terrain);
+    expect(applyCommands(set, [{ type: 'site.setTerrain', terrain: null }])).toEqual(bare);
+    expect(() => applyCommands(emptyPlan(), [{ type: 'site.setTerrain', terrain }])).toThrow();
+    const bad = { ...terrain, heights: terrain.heights.slice(4) };
+    expect(() => applyCommands(bare, [{ type: 'site.setTerrain', terrain: bad }])).toThrow();
   });
 
   it('normalises a raw piece yaw as parsing does', () => {

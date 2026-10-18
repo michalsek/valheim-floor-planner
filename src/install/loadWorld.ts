@@ -111,16 +111,22 @@ const fail = (error: unknown) => {
   setStatus({ kind: 'error', code, detail });
 };
 
-/** What identifies a save's content: a newer save (or catalogue) reads again. */
+/**
+ * What a read keeps besides the pieces; a change here reads kept worlds again. `site1`:
+ * the seed, terrain edits and locations (M16).
+ */
+const KEPT = 'site1';
+
+/** What identifies a save's content: a newer save (or catalogue, or `KEPT`) reads again. */
 const signatureOf = async (candidate: WorldCandidate, prefabs: number): Promise<string> => {
   if (candidate.kind === 'db') {
     const { file } = candidate;
-    return `db|${file.name}|${file.size}|${file.lastModified}|${prefabs}`;
+    return `db|${file.name}|${file.size}|${file.lastModified}|${prefabs}|${KEPT}`;
   }
   const files = await candidate.files();
   const generation = newestGeneration(files.map((f) => f.name));
   const size = files.reduce((n, f) => n + f.size, 0);
-  return `folder|${candidate.name}|${generation}|${size}|${prefabs}`;
+  return `folder|${candidate.name}|${generation}|${size}|${prefabs}|${KEPT}`;
 };
 
 const requestFor = async (candidate: WorldCandidate, prefabs: string[]): Promise<WorldRequest> =>

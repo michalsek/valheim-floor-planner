@@ -159,6 +159,46 @@ export interface ImportFrame {
   origin: Vec3;
   /** Degrees, the game's yaw of the plan's x axis, in [0, 360). */
   yaw: number;
+  /** The ground under the build (M16); null when imported without it. */
+  terrain: SiteTerrain | null;
+}
+
+/**
+ * The ground under an imported build (M16): the game's own 1 m vertex grid,
+ * world-aligned, as the final ground (generated, then the save's terrain edits). The
+ * seed is not stored: a plan file gets shared, and seed plus origin give the map away.
+ */
+export interface SiteTerrain {
+  /** World coordinates (game axes, integers) of vertex (0, 0); rows run along world +z. */
+  x0: number;
+  z0: number;
+  cols: number;
+  rows: number;
+  /**
+   * Base64 of int16 little-endian centimetres above `ImportFrame.origin.y`, row-major
+   * (row = z). Kept as a string so the plan stays plain JSON (`terrainGrid` decodes it).
+   */
+  heights: string;
+  /**
+   * Biome codes (the game's bitmask) at the zone corners over the patch, row-major,
+   * corner (0, 0) at world (zx0 · 64 − 32, zz0 · 64 − 32).
+   */
+  biomes: { zx0: number; zz0: number; cols: number; rows: number; codes: number[] };
+  /** The world generator's version (2). */
+  worldGenVersion: number;
+  /** The planner's generator revision that made it. */
+  revision: number;
+  notices: SiteNotices;
+}
+
+/** What the terrain may get wrong, shown with the Terrain toggle. */
+export interface SiteNotices {
+  /** Location centres (world x, z) near the patch: they flatten ground the save lacks. */
+  locations: { x: number; z: number }[];
+  /** Pre-1.0 terrain-edit pieces inside the patch (not applied). */
+  legacyEdits: number;
+  /** The save's location heights near the site against the generator's. */
+  check: { n: number; maxError: number };
 }
 
 /**
@@ -182,7 +222,7 @@ export interface Underlay {
  * Levels aren't stored: they are the distinct elevations of its objects (`levels.ts`).
  */
 export interface Plan {
-  version: 4;
+  version: 5;
   /** Shown in the plan header and used for the file name. */
   name: string;
   walls: Record<WallId, WallRun>;
@@ -200,7 +240,7 @@ export interface Plan {
 export const DEFAULT_PLAN_NAME = 'Untitled';
 
 export const emptyPlan = (): Plan => ({
-  version: 4,
+  version: 5,
   name: DEFAULT_PLAN_NAME,
   walls: {},
   dimensions: {},

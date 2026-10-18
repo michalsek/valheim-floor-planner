@@ -7,13 +7,15 @@
 import { atom, useAtomValue } from 'jotai';
 
 import { roofContacts } from '../model/roofs/roofContacts';
-import { planSupport, type PlanSupport } from '../model/support/planSupport';
+import { planSupport, type GroundUnder, type PlanSupport } from '../model/support/planSupport';
+import { groundUnder } from '../model/terrain/siteTerrain';
 import type { Plan } from '../model/types';
 
 import { getLibrary } from './libraryInstance';
 import { getDerived, getPieceBoxes, usePlan } from './planHooks';
 import type { PlanStore } from './planStore';
 import { supportViewAtom, type SessionStore } from './session';
+import { getSiteGround } from './siteTerrain';
 
 /** The Integrity list is open and on screen. */
 export const integrityShownAtom = atom<boolean>(false);
@@ -35,12 +37,22 @@ const whenIdle = (run: () => void): (() => void) => {
   return () => clearTimeout(handle);
 };
 
+/**
+ * The site's ground under a footprint, whether the terrain is shown or not; null on flat
+ * ground. Off the patch (far from the import) the ground is the datum, 0.
+ */
+const siteGroundUnder = (plan: Plan): GroundUnder | null => {
+  const site = getSiteGround(plan);
+  return site && ((footprint) => groundUnder(site.grid, site.frame, footprint) ?? 0);
+};
+
 /** Raw pieces hold up what rests on them but aren't checked themselves (an info note says so). */
 export const computeSupport = (plan: Plan): PlanSupport =>
   planSupport(
     getPieceBoxes(plan),
     getLibrary().catalog.materialSupport,
-    roofContacts(plan, getDerived(plan), getLibrary())
+    roofContacts(plan, getDerived(plan), getLibrary()),
+    siteGroundUnder(plan)
   );
 
 /** Keeps `supportAtom` following the committed plan while support is wanted. */

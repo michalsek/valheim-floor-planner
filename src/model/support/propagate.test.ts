@@ -9,7 +9,7 @@ import { emptyPlan, type Plan } from '../types';
 
 import { findContacts } from './contacts';
 import { planSupport } from './planSupport';
-import { propagateSupport, type SupportBody } from './propagate';
+import { GROUND_REACH, propagateSupport, type SupportBody } from './propagate';
 import { boxShape } from './shape';
 
 const MATERIALS: Record<string, MaterialSupport> = {
@@ -127,6 +127,46 @@ describe('propagateSupport', () => {
     const { value } = solve(column('wood', 10, 2, 1));
     expect(value[8]).toBeGreaterThan(0);
     expect(value[9]).toBe(0);
+  });
+});
+
+describe('ground contact', () => {
+  /** Ground rising 0.5 m per metre along x; a body's ground is the max under its footprint. */
+  const slope = (p: { x: number }) => 0.5 * p.x;
+  const onSlope = (bottom: number, extra: Partial<SupportBody> = {}): SupportBody => {
+    const shape = boxShape({
+      center: { x: 2, y: bottom + 1, z: 0 },
+      size: { x: 2, y: 2, z: 0.3 },
+      rotationY: Math.PI / 8,
+    });
+    return {
+      com: shape.com,
+      bottom,
+      ground: Math.max(...shape.footprint.map(slope)),
+      material: MATERIALS.wood!,
+      gives: true,
+      ...extra,
+    };
+  };
+  const stateOf = (body: SupportBody) => propagateSupport([body], []).state[0];
+
+  it('grounds a box resting within reach of sloped ground, and not one 0.5 m above', () => {
+    const ground = onSlope(0).ground!;
+    expect(ground).toBeGreaterThan(1.4);
+    expect(stateOf(onSlope(ground + 0.1))).toBe('grounded');
+    expect(stateOf(onSlope(ground + GROUND_REACH + 0.01))).toBe('collapsing');
+    expect(stateOf(onSlope(ground + 0.5))).toBe('collapsing');
+    // Buried: its bottom far into the hill.
+    expect(stateOf(onSlope(ground - 3))).toBe('grounded');
+  });
+
+  it('keeps raw pieces fixed, reporting only whether they touch the ground', () => {
+    const ground = onSlope(0).ground!;
+    const touching = onSlope(ground, { fixed: true });
+    const raised = onSlope(ground + 2, { fixed: true });
+    const { state, value } = propagateSupport([touching, raised], []);
+    expect(state).toEqual(['grounded', 'none']);
+    expect([...value]).toEqual([100, 100]);
   });
 });
 

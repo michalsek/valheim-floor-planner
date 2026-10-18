@@ -20,11 +20,13 @@ import type {
   RawPieceId,
   Roof,
   RoofId,
+  SiteTerrain,
   Underlay,
   WallId,
   WallRun,
 } from './types';
 import { roofProblem } from './roofs/roofCheck';
+import { siteTerrainProblem } from './terrain/siteCheck';
 import { underlayProblem } from './underlay';
 
 export type PlanCommand =
@@ -51,6 +53,8 @@ export type PlanCommand =
   | { type: 'raw.remove'; id: RawPieceId }
   | { type: 'underlay.set'; underlay: Underlay | null }
   | { type: 'underlay.patch'; changes: Partial<Underlay> }
+  /** Adds (or with null removes) the ground under an imported build. */
+  | { type: 'site.setTerrain'; terrain: SiteTerrain | null }
   | { type: 'plan.rename'; name: string }
   | { type: 'plan.replace'; plan: Plan };
 
@@ -79,6 +83,7 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'raw.remove': 'Delete piece',
   'underlay.set': 'Set underlay',
   'underlay.patch': 'Edit underlay',
+  'site.setTerrain': 'Set terrain',
   'plan.rename': 'Rename plan',
   'plan.replace': 'Replace plan',
 };
@@ -296,6 +301,13 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
       Object.assign(draft.underlay, cmd.changes);
       checkUnderlay(draft.underlay);
       return undefined;
+    case 'site.setTerrain': {
+      if (!draft.importFrame) throw new PlanCommandError('Only an imported build has terrain');
+      const problem = cmd.terrain && siteTerrainProblem(cmd.terrain);
+      if (problem) throw new PlanCommandError(`Invalid terrain: ${problem}`);
+      draft.importFrame.terrain = cmd.terrain;
+      return undefined;
+    }
     case 'plan.rename': {
       const name = cmd.name.trim();
       if (!name) throw new PlanCommandError('A plan needs a name');

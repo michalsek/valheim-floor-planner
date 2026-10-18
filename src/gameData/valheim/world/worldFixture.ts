@@ -1,7 +1,10 @@
+/// <reference types="node" />
 /**
  * Writes tiny synthetic world saves for tests (the layouts of research/README.md §7):
- * a chunked world folder or a legacy `.db`. Tests only.
+ * a chunked world folder or a legacy `.db`. Tests only (Node: gzip from `node:zlib`).
  */
+import { gzipSync } from 'node:zlib';
+
 import { stableHash } from './stableHash';
 import { chunkFileName } from './worldFiles';
 import { CHUNKED_VERSION } from './zpackage';
@@ -17,6 +20,8 @@ export interface FixtureZdo {
   ints?: number;
   strings?: string[];
   bytes?: number;
+  /** A terrain compiler's `TCData` byte array. */
+  terrainData?: Uint8Array;
   connection?: boolean;
   /** Saved as two int16s (y = 0), as the game does for whole-number ground objects. */
   smallPosition?: boolean;
@@ -89,7 +94,7 @@ const writeZdo = (w: Writer, z: FixtureZdo, version: number) => {
   if (z.ints) flags |= 16;
   if (longs) flags |= 32;
   if (z.strings) flags |= 64;
-  if (z.bytes) flags |= 128;
+  if (z.bytes || z.terrainData) flags |= 128;
   if (rotation.some((r) => r !== 0)) flags |= 1 << 12;
   if (z.smallPosition) flags |= 1 << 13;
   w.u16(flags);
@@ -133,24 +138,39 @@ const writeZdo = (w: Writer, z: FixtureZdo, version: number) => {
       w.string(s);
     });
   }
-  if (z.bytes) {
-    w.count(1, version);
-    w.i32(stableHash('data'));
-    w.i32(z.bytes);
-    w.raw(new Uint8Array(z.bytes).fill(7));
+  if (z.bytes || z.terrainData) {
+    const arrays: [string, Uint8Array][] = [];
+    if (z.bytes) arrays.push(['data', new Uint8Array(z.bytes).fill(7)]);
+    if (z.terrainData) arrays.push(['TCData', z.terrainData]);
+    w.count(arrays.length, version);
+    for (const [key, data] of arrays) {
+      w.i32(stableHash(key));
+      w.i32(data.length);
+      w.raw(data);
+    }
   }
 };
 
-const fwl2 = (name: string): Uint8Array => {
+/** What a fixture world's `.fwl2` and `.db2` hold besides the pieces. */
+export interface FixtureSite {
+  seed: number;
+  worldGenVersion: number;
+  /** Location instances: prefab name and world position. */
+  locations: { prefab: string; position: [number, number, number] }[];
+}
+
+const DEFAULT_SITE: FixtureSite = { seed: 1234, worldGenVersion: 2, locations: [] };
+
+const fwl2 = (name: string, site: FixtureSite): Uint8Array => {
   const body = new Writer();
   body.i32(42);
   body.string(name);
   body.string('seed');
-  body.i32(1234);
+  body.i32(site.seed);
   body.i64(99n);
-  body.i32(2);
-  // Player history and the rest: never read.
-  body.raw(new Uint8Array([1, 2, 3, 4]));
+  body.i32(site.worldGenVersion);
+  // Player history and the rest: never read, so here bytes no reader could parse.
+  body.raw(new Uint8Array([0xff, 0xff, 0xff, 0xff]));
   const data = body.done();
   const w = new Writer();
   w.i32(data.length);
@@ -158,11 +178,37 @@ const fwl2 = (name: string): Uint8Array => {
   return w.done();
 };
 
+/** `.db2`: version, net time, the gzip ZoneSystem block, then events (never read). */
+const db2 = ({ locations }: FixtureSite): Uint8Array => {
+  const zones = new Writer();
+  zones.i32(2); // generated zones
+  [0, 0, 1, -1].forEach((v) => zones.i16(v));
+  zones.i32(26); // location version
+  zones.i32(1);
+  zones.string('defeated_eikthyr');
+  zones.u8(1);
+  zones.i32(locations.length);
+  for (const { prefab, position } of locations) {
+    zones.i32(stableHash(prefab));
+    position.forEach((v) => zones.f32(v));
+    zones.u8(1);
+  }
+  const packed = gzipSync(zones.done());
+  const w = new Writer();
+  w.i32(42);
+  w.f64(1234.5);
+  w.i32(packed.length);
+  w.raw(packed);
+  w.raw(new Uint8Array([0xff, 0xff, 0xff, 0xff]));
+  return w.done();
+};
+
 /** A chunked world folder: file name → bytes. `chunks` maps a chunk index to its ZDOs. */
 export const chunkedWorld = (
   name: string,
   generation: number,
-  chunks: ReadonlyMap<number, readonly FixtureZdo[]>
+  chunks: ReadonlyMap<number, readonly FixtureZdo[]>,
+  site: FixtureSite = DEFAULT_SITE
 ): Map<string, Uint8Array> => {
   const files = new Map<string, Uint8Array>();
   const manifest = new Writer();
@@ -184,8 +230,8 @@ export const chunkedWorld = (
   }
   const n = generation;
   files.set(`_main.${n}.chunks`, manifest.done());
-  files.set(`_main.${n}.fwl2`, fwl2(name));
-  files.set(`_main.${n}.db2`, new Uint8Array(16));
+  files.set(`_main.${n}.fwl2`, fwl2(name, site));
+  files.set(`_main.${n}.db2`, db2(site));
   files.set(`_main.${n}.ok`, Uint8Array.of(42, 0, 0, 0));
   return files;
 };

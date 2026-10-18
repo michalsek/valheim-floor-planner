@@ -191,6 +191,7 @@ export const importCluster = (
     worldName,
     origin: { x: round6(planOrigin.x), y: round6(datum), z: round6(-planOrigin.z) },
     yaw: frameYaw,
+    terrain: null,
   };
   return {
     plan: { ...emptyPlan(), name: `${worldName} build`, rawPieces, importFrame },
