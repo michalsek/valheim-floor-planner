@@ -1,19 +1,20 @@
 /**
- * A world build as a new plan of raw pieces. The build is turned by its grid direction
- * so its walls run along the plan's axes, its corner goes to the origin (on the 0.5 m
- * grid its pieces sit on) and its structure's lowest bottom to height 0
- * (`structuralDatum`). Each piece goes on the level of the floor it stands on
- * (`framePieces.ts`). The frame lists the world pieces it holds (`worldPieces`), so
- * sites revealed later never bring them in twice.
+ * A world build as a new plan of raw pieces. By default the plan's axes are the world's
+ * and its origin is on the world's lattice, so the plan grid is the game's terrain grid
+ * and the build shows at its true angle; with the `'build'` grid it is turned by its
+ * grid direction so its walls run along the plan's axes, on the 0.5 m grid its pieces
+ * sit on (`frameGrid.ts`). Its corner goes to the origin and its structure's lowest
+ * bottom to height 0 (`structuralDatum`). Each piece goes on the level of the floor it
+ * stands on (`framePieces.ts`). The frame lists the world pieces it holds
+ * (`worldPieces`), so sites revealed later never bring them in twice.
  *
  * Planner space is the game's mirrored in z (see `catalog/pieceDefs.ts`): a world point
  * (x, z) is plan point (x, −z), so north (+z) is up on screen. A game yaw turns
  * clockwise seen from above with north up, which is the plan's clockwise yaw: a piece's
- * plan yaw is its game yaw less the build's. Pure.
+ * plan yaw is its game yaw less the frame's. Pure.
  */
-import { propCorners, rotate } from '../geometry/propGeometry';
-import { rawRect } from '../rawPieces';
-import { emptyPlan, type ImportFrame, type Plan, type Vec2 } from '../types';
+import { rotate } from '../geometry/propGeometry';
+import { emptyPlan, type ImportFrame, type Plan } from '../types';
 
 import type { WorldCluster } from './clusters';
 import {
@@ -25,13 +26,10 @@ import {
   type FramedPiece,
   type ImportLib,
 } from './framePieces';
+import { frameCorner, frameYaw, gridFloor, gridOffset, type FrameGrid } from './frameGrid';
 import type { PieceCloud } from './pieceCloud';
 import { sortedKeys, worldPieceKey } from './worldKeys';
 
-/** The grid imported builds are put on (metres). */
-const GRID = 0.5;
-/** Colliders may poke this far past the origin's grid line (they overhang their snaps). */
-const OVERHANG = 0.05;
 /**
  * The import starts on the lowest level holding at least this share of the build's
  * pieces that aren't roofs: its main floor, not a few stray poles at the bottom.
@@ -39,32 +37,6 @@ const OVERHANG = 0.05;
 const LANDING_SHARE = 0.1;
 
 const round6 = (n: number): number => Math.round(n * 1e6) / 1e6 + 0;
-
-/** `v` modulo `GRID`, in [−GRID/2, GRID/2) around `centre`. */
-const gridResidual = (v: number, centre: number): number =>
-  ((((v - centre) % GRID) + 1.5 * GRID) % GRID) - GRID / 2;
-
-/**
- * Where the grid lines of `values` fall modulo `GRID`: the most common centimetre, then
- * the mean of the values near it, as the game drifts a centimetre or two.
- */
-const gridOffset = (values: readonly number[]): number => {
-  const counts = new Map<number, number>();
-  for (const v of values) {
-    const key = Math.round((((v % GRID) + GRID) % GRID) * 100) % (GRID * 100);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  let mode = 0;
-  let bestCount = 0;
-  for (const [key, count] of counts) if (count > bestCount) [mode, bestCount] = [key / 100, count];
-  const near = values.map((v) => gridResidual(v, mode)).filter((r) => Math.abs(r) < 0.05);
-  const mean = near.reduce((sum, r) => sum + r, 0) / Math.max(near.length, 1);
-  return (((mode + mean) % GRID) + GRID) % GRID;
-};
-
-/** The highest grid line (shifted by `offset`) at or below `v`. */
-const gridFloor = (v: number, offset: number): number =>
-  offset + Math.floor((v - offset) / GRID + 1e-6) * GRID;
 
 /**
  * Height 0 of an import: the lowest bottom of its structure (the pieces with snap points:
@@ -97,26 +69,21 @@ const landingLevel = (counts: ReadonlyMap<number, number>): number => {
   return landing?.[0] ?? entries.reduce((best, e) => (e[1] > best[1] ? e : best), [0, 0])[0];
 };
 
-/** Throws when a piece can't be stored (a build far taller than any level reaches). */
+/**
+ * Throws when a piece can't be stored (a build far taller than any level reaches).
+ * `grid` picks the frame: world axes (the default) or the build's own grid.
+ */
 export const importCluster = (
   cloud: PieceCloud,
   cluster: Pick<WorldCluster, 'indices' | 'yaw'>,
   lib: ImportLib,
-  worldName: string
+  worldName: string,
+  grid: FrameGrid = 'world'
 ): ImportedBuild => {
-  const yaw = cluster.yaw;
-  // First in a frame at the world's origin, turned by the build's grid.
+  const yaw = frameYaw(grid, cluster.yaw);
+  // First in a frame at the world's origin, turned by the frame's yaw.
   const turned = framePieces(cloud, cluster.indices, { origin: { x: 0, y: 0, z: 0 }, yaw }, lib);
-
-  // The corner: below and left of every footprint, on the grid the pieces sit on.
-  const square = turned.filter((p) => p.yaw % 90 === 0);
-  const corners = turned.flatMap((p) => propCorners(p.plan, p.yaw, rawRect(p.def)));
-  const corner = (axis: 'x' | 'z'): number =>
-    gridFloor(
-      corners.reduce((m, c) => Math.min(m, c[axis]), Infinity) + OVERHANG,
-      gridOffset(square.map((p) => p.plan[axis]))
-    );
-  const origin: Vec2 = { x: corner('x'), z: corner('z') };
+  const origin = frameCorner(turned, grid);
   // Heights: floors by their tops, from the structure's datum.
   const datum = structuralDatum(turned);
   const framed = turned.map((p) => ({

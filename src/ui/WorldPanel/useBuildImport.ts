@@ -1,16 +1,17 @@
+import { useAtom } from 'jotai';
 import { useMemo, useState } from 'react';
 
 import { closeWorldPanel, type LoadedWorld } from '../../install/loadWorld';
 import { MAX_RAW_PIECES } from '../../model/rawPieces';
 import type { WorldCluster } from '../../model/world/clusters';
-import { importBuild, prepareBuild } from '../../store/worldImport';
+import { alignToBuildAtom, importBuild, prepareBuild } from '../../store/worldImport';
 import { useToolContext } from '../../tools/toolContext';
 
 import type { TerrainTask } from './useTerrainTask';
 
 /**
- * Importing the selected build: the "With terrain" and "Include nearby sites" options,
- * progress, Skip terrain.
+ * Importing the selected build: the "With terrain", "Include nearby sites" and "Align
+ * grid to the build" options, progress, Skip terrain.
  */
 export const useBuildImport = (
   world: LoadedWorld,
@@ -20,10 +21,11 @@ export const useBuildImport = (
   const ctx = useToolContext();
   const [withTerrain, setWithTerrain] = useState(true);
   const [nearby, setNearby] = useState(true);
+  const [alignToBuild, setAlignToBuild] = useAtom(alignToBuildAtom);
   const [error, setError] = useState<string | null>(null);
   const build = useMemo(
-    () => cluster && prepareBuild(world, cluster, nearby),
-    [world, cluster, nearby]
+    () => cluster && prepareBuild(world, cluster, nearby, alignToBuild ? 'build' : 'world'),
+    [world, cluster, nearby, alignToBuild]
   );
   const tooBig = !!cluster && cluster.indices.length > MAX_RAW_PIECES;
 
@@ -45,6 +47,10 @@ export const useBuildImport = (
     setWithTerrain,
     nearby,
     setNearby,
+    alignToBuild,
+    setAlignToBuild,
+    /** The selected build's grid direction in the world (degrees, mod 90). */
+    buildYaw: cluster?.yaw ?? 0,
     error,
     setError,
     task,

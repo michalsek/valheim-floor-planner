@@ -22,12 +22,14 @@ import type {
   RoofId,
   SiteTerrain,
   Underlay,
+  Vec3,
   WallId,
   WallRun,
 } from './types';
 import { roofProblem } from './roofs/roofCheck';
 import { siteTerrainProblem } from './terrain/siteCheck';
 import { underlayProblem } from './underlay';
+import { reframeProblem } from './world/reframe';
 
 export type PlanCommand =
   | { type: 'wall.insert'; wall: WallRun }
@@ -60,6 +62,11 @@ export type PlanCommand =
    * the frame's `worldPieces` to the list that includes them.
    */
   | { type: 'site.reveal'; pieces: RawPiece[]; worldPieces: number[] }
+  /**
+   * Turns an imported plan's grid (`model/world/reframe.ts`): the frame's new origin and
+   * yaw, and every raw piece (the same ids) in it. Only for a plan of raw pieces.
+   */
+  | { type: 'site.reframe'; origin: Vec3; yaw: number; pieces: RawPiece[] }
   | { type: 'plan.rename'; name: string }
   | { type: 'plan.replace'; plan: Plan };
 
@@ -90,6 +97,7 @@ export const COMMAND_LABELS: Record<PlanCommand['type'], string> = {
   'underlay.patch': 'Edit underlay',
   'site.setTerrain': 'Set terrain',
   'site.reveal': 'Reveal sites',
+  'site.reframe': 'Turn the grid',
   'plan.rename': 'Rename plan',
   'plan.replace': 'Replace plan',
 };
@@ -327,6 +335,28 @@ export const applyCommand = (draft: Plan, cmd: PlanCommand): Plan | undefined =>
         draft.rawPieces[piece.id] = { ...piece, rotation: normalYaw(piece.rotation) };
       }
       draft.importFrame.worldPieces = cmd.worldPieces;
+      return undefined;
+    }
+    case 'site.reframe': {
+      const problem = reframeProblem(draft);
+      if (problem) throw new PlanCommandError(problem);
+      const ids = Object.keys(draft.rawPieces);
+      if (
+        cmd.pieces.length !== ids.length ||
+        cmd.pieces.some((piece) => !(piece.id in draft.rawPieces))
+      ) {
+        throw new PlanCommandError('A new frame must hold the same pieces');
+      }
+      const yaw = normalizeDeg(cmd.yaw);
+      if (![cmd.origin.x, cmd.origin.y, cmd.origin.z].every(Number.isFinite)) {
+        throw new PlanCommandError('A frame needs a finite origin');
+      }
+      for (const piece of cmd.pieces) {
+        checkRawPiece(piece);
+        draft.rawPieces[piece.id] = { ...piece, rotation: normalYaw(piece.rotation) };
+      }
+      draft.importFrame!.origin = cmd.origin;
+      draft.importFrame!.yaw = yaw;
       return undefined;
     }
     case 'plan.rename': {

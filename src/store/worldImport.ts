@@ -11,6 +11,9 @@
  *
  * The terrain is made in a worker (`generateSiteTerrain`), one request at a time: an
  * import, an Add terrain and an extension exclude each other.
+ *
+ * An import's grid runs along the world's axes unless "Align grid to the build" is on
+ * (`alignToBuildAtom`); `reframeImport` turns it either way later ("Turn the grid").
  */
 import type { WorldCluster } from '../model/world/clusters';
 import { clampElevation, roundElevation } from '../model/elevation';
@@ -19,7 +22,9 @@ import { isPlanEmpty } from '../model/selection';
 import { growRect, type SiteSide } from '../model/terrain/siteExtend';
 import { MAX_SITE_SIDE, type PatchRect } from '../model/terrain/sitePatch';
 import type { Plan, SiteTerrain } from '../model/types';
+import type { FrameGrid } from '../model/world/frameGrid';
 import { importCluster } from '../model/world/importCluster';
+import { reframePlan } from '../model/world/reframe';
 import { revealSites, type Reveal } from '../model/world/revealSites';
 import {
   generateSiteTerrain,
@@ -32,6 +37,7 @@ import {
 } from '../install/siteGeneration';
 import type { TerrainPhase } from '../install/terrainJob';
 
+import { persistedAtom } from './browserStorage';
 import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
 import { hoverAtom, selectionAtom } from './selection';
@@ -40,6 +46,17 @@ import { sitesOf } from './siteWorld';
 import { resetOrbit } from './view3d';
 
 type ImportContext = SessionAccess & { plan: PlanStore };
+
+/**
+ * Whether an import's grid follows its build ("Align grid to the build") rather than the
+ * world's axes, remembered per browser. Off by default.
+ */
+export const alignToBuildAtom = persistedAtom<boolean>(
+  'valheimFloorPlanner.alignToBuild.v1',
+  false,
+  (stored) => (stored === 'true' ? true : stored === 'false' ? false : null),
+  String
+);
 
 /** Sites added to a plan beside its build: their piece counts, and those left out. */
 export type RevealSummary = Pick<Reveal, 'sites' | 'refused'>;
@@ -67,20 +84,28 @@ export interface TerrainOptions {
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const attempt = <T extends object>(run: () => T): T | { error: string } => {
+  try {
+    return run();
+  } catch (error) {
+    return { error: messageOf(error) };
+  }
+};
 const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
 
 /**
- * The build as a plan (or why it can't be one), and its site's availability; with
- * `nearby`, the other sites on its starting patch (the build and its margin) come along
- * in its frame, the patch staying the build's.
+ * The build as a plan on `grid` (or why it can't be one), and its site's availability;
+ * with `nearby`, the other sites on its starting patch (the build and its margin) come
+ * along in its frame, the patch staying the build's.
  */
 export const prepareBuild = (
   world: TerrainSource,
   cluster: WorldCluster,
-  nearby = false
+  nearby = false,
+  grid: FrameGrid = 'world'
 ): PreparedBuild | { error: string } => {
   try {
-    const built = importCluster(world.pieces, cluster, getLibrary(), world.name);
+    const built = importCluster(world.pieces, cluster, getLibrary(), world.name, grid);
     const rect = siteRect(built.plan, getLibrary());
     const terrain: TerrainAvailability = rect
       ? terrainAvailability(world, rect)
@@ -273,4 +298,21 @@ const growPlanSite = async (
   });
   if (!result.ok) return { error: result.error.message };
   return found ? { sites, refused: found.refused } : NO_SITES;
+};
+
+/**
+ * Turns the plan's grid onto `grid` (world axes or its build's), every piece staying put
+ * in the world and the terrain as it is: one undoable "Grid on world axes" / "Grid along
+ * the build", then the view fitted to the turned plan.
+ */
+export const reframeImport = (ctx: ImportContext, grid: FrameGrid): { error: string } | 'done' => {
+  const next = attempt(() => reframePlan(ctx.plan.getPlan(), getLibrary(), grid));
+  if ('error' in next) return next;
+  const label = grid === 'world' ? 'Grid on world axes' : 'Grid along the build';
+  const result = ctx.plan.dispatch({ type: 'site.reframe', ...next }, { label });
+  if (!result.ok) return { error: result.error.message };
+  ctx.set(hoverAtom, null);
+  fitViewTo(ctx, planBounds(ctx.plan.getPlan(), getLibrary()));
+  resetOrbit(ctx);
+  return 'done';
 };

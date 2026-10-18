@@ -2068,3 +2068,79 @@ ad hoc on that world; only aggregates here.
      use 3D to see both.
    - A revealed site lands on the plan's levels, so its floors show as levels such as
      "+16.65 m" when its grid sits off the main build's vertical grid.
+
+## World-axis grid for imports
+
+The user saw a copy of the test world come in with the plan grid turned against the game's
+own grid: the import turned the plan by the build's grid direction (M13's
+`dominantYaw`), so a site off the world's axes got a turned grid, with the M16 terrain
+(stored on the world's 1 m grid) drawn turned under it. That copy's shed is at 67.5°,
+which reads as a slight turn; the old copy's build is at 22.5°.
+
+1. **Imports now default to world axes** (`model/world/frameGrid.ts`): frame yaw 0 (north
+   up, as before) and the origin on a **2 m world lattice**, at the lattice corner below
+   and left of every footprint. Raw pieces keep their own angle relative to the frame,
+   so buildings show at their true angles.
+   - **Why 2 m, not 1 m:** terrain vertices are at every whole metre, so either puts the
+     plan's 0.5 and 1 m lines on them. Zone edges (64 k − 32) are even, so with 2 m the
+     plan's 2 m lines also land on zone edges, the 64 m terrain-edit grain and the
+     site-extension strips, and two imports from one world share their 0.5 / 1 / 2 m
+     lines. The 10 m lines don't follow the world's tens (not a game concept).
+   - **Unchanged by the frame:** the datum (structural rule), levels, landing level,
+     `worldPieces`, revealed sites, terrain heights (above the datum) and support all
+     work from world positions or heights, so they don't depend on the turn. The
+     old copy gives levels [0, 4, 5, 7, 8] and lands on 4 in both frames.
+   - **Terrain:** at yaw 0 the 3D tiles, the 2D relief, contours, the patch outline and
+     the expand handles are axis-aligned with the plan grid, and vertex (x0, z0) is at a
+     whole plan metre (asserted in `realTerrain`). The patch is the world box of the
+     build plus the margin, so it is tighter in the world frame: 180 × 201 on the old
+     copy (199 × 207 aligned to the build).
+2. **"Align grid to the build"** (import row, off by default, `alignToBuildAtom`,
+   `persistedAtom` `valheimFloorPlanner.alignToBuild.v1`) gives the M13 frame: turned by
+   the build's grid, the origin on the 0.5 m grid its pieces sit on. The label says the
+   site's angle, "(build at 22.5°)" or "(build on world axes)". At 0° it still matters a
+   little: the origin goes onto the build's own 0.5 m offset rather than the world
+   lattice. The import note changes with it.
+3. **Turning the grid after the import** (`model/world/reframe.ts`, command
+   `site.reframe`, store `reframeImport`): a **Grid: world / Grid: build 22.5°** button
+   in the status strip, beside Terrain, shown for any imported plan. A click turns the
+   frame to the other grid, as one undo step ("Grid on world axes" / "Grid along the
+   build"), then fits the view.
+   - **How:** every raw piece is mapped to the world through the old frame, then into a
+     frame chosen as an import on that grid would choose it. The build's yaw is
+     `dominantYaw` over the pieces' world yaws (memoised per piece set). The origin is
+     the same corner rule. The datum stays, so terrain and levels need nothing, and ids,
+     selection and `worldPieces` stay. A world import turned to the build equals an
+     aligned import, and back (unit test, 1e-5 m).
+   - **Only for a plan of raw pieces.** Walls, floors, rooms, roofs, props, dimensions
+     and an underlay are laid out along the plan's axes (the underlay has no turn), and
+     turning them by 22.5° would take them off their grids. With any of them the button
+     is `aria-disabled` and its title says how many drawn items block it. The command
+     checks the same (`reframeProblem`) and wants the same piece ids.
+   - **Which grid a plan is on** is worked out, not stored: world when yaw is 0 and the
+     origin is on the 2 m lattice (`frameGridOf`). So older plans keep their frame (no
+     migration), and an old aligned import of an on-axis build whose origin happens to
+     be on the lattice reads as "world", which is true.
+4. **Tests.**
+   - `importCluster.test.ts`: world frame by default (yaw 0, origin on the lattice, true
+     yaws, pivots back on their world points, origin the lattice corner); the turned-shed
+     test passes `'build'`.
+   - `reframe.test.ts`: world → build equals an aligned import, back equals the world
+     import; refused (model and command) with a drawn dimension.
+   - `realWorld.test.ts`: a world-frame import (yaw 0, lattice, 1 090 pieces at 22.5°
+     mod 90, every pivot back on its world pivot, levels, landing 4); the aligned golden
+     passes `'build'`. Snapping goldens and `realTerrain` now run in the world frame and
+     give the same numbers (1 117 / 1 118 snap coincidence; floors, grounding, 10 stone
+     pieces dropping, ghost support).
+5. **Checked in headless Chrome** (port 5253, HMR off, fresh profile, deleted after):
+   - the old copy and the live world's largest site (4 405 pieces at 45°) imported with
+     terrain in both modes;
+   - the button turned each one both ways, and undo restored it; terrain dims unchanged;
+   - the live site extended west in the world frame (243 → 307 columns), strip on the
+     grid;
+   - the new copy's shed (67.5°) now comes in on world axes.
+6. **Seen, not changed:** on the first 3D entry of a fresh session (and of a new site)
+   the ground's own surface can take several seconds to appear in headless Chrome: the
+   draped grid and the sea show first, likely while its pipelines compile. The first 2D
+   relief can come up unshaded for a moment too. It isn't tied to the frame, and later
+   imports draw at once.

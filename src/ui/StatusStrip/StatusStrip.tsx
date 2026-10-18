@@ -11,6 +11,7 @@ import { usePlanSelector } from '../../store/planHooks';
 import { roofsVisibleAtom, showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
 import { useShownSiteTerrain } from '../../store/siteTerrain';
 
+import { GridFrameButton } from './GridFrameButton';
 import { InstallMenu } from './InstallMenu';
 import { ModelToggle } from './ModelToggle';
 import { SnapStepPicker } from './SnapStepPicker';
@@ -26,8 +27,8 @@ const hasRoofs = (plan: Plan) =>
   Object.values(plan.rawPieces).some((piece) => isRawRoofCover(piece, getLibrary()));
 
 /**
- * Show every ring, roofs (when there are any), the underlay (when there is one) and the
- * imported site's terrain.
+ * Show every ring, roofs (when there are any), the underlay (when there is one), the
+ * imported site's terrain, and the import's grid.
  */
 const LayerToggles = () => {
   const [showAll, setShowAll] = useAtom(showAllRadiiAtom);
@@ -63,6 +64,7 @@ const LayerToggles = () => {
         </ToggleButton>
       )}
       <TerrainToggle />
+      <GridFrameButton />
     </>
   );
 };

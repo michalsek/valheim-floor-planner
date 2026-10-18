@@ -4,7 +4,10 @@ import { testLibrary } from '../../catalog/testLibrary';
 import { rotate } from '../geometry/propGeometry';
 import { rawOutline } from '../rawBoxes';
 
+import { planToWorld } from '../terrain/siteTerrain';
+
 import { describeCluster, groupPieces } from './clusters';
+import { frameGridOf, WORLD_LATTICE } from './frameGrid';
 import { importCluster } from './importCluster';
 import { snapAngle, type PieceCloud } from './pieceCloud';
 
@@ -61,10 +64,35 @@ describe('world builds', () => {
     expect(first).toMatchObject({ yaw: 45, aligned: 5, material: 'wood' });
   });
 
-  it('imports a turned shed axis-aligned, cornered at the origin, on its levels', () => {
-    const cloud = cloudOf(shed(45, 100, 100));
+  it('imports on the world axes by default, the origin on the world lattice', () => {
+    const cloud = cloudOf(shed(45, 101.3, 99.1));
     const cluster = describeCluster(cloud, groupPieces(cloud)[0]!, () => null);
     const { plan } = importCluster(cloud, cluster, testLibrary, 'Fixture');
+    const frame = plan.importFrame!;
+    expect(frame.yaw).toBe(0);
+    expect([frame.origin.x % WORLD_LATTICE, frame.origin.z % WORLD_LATTICE]).toEqual([0, 0]);
+    expect(frameGridOf(frame)).toBe('world');
+    // Pieces keep their angle in the world; every pivot maps back onto its world point.
+    const pieces = Object.values(plan.rawPieces);
+    expect(pieces.map((p) => p.rotation.yaw)).toEqual([45, 45, 45, 225, 45]);
+    pieces.forEach((p, k) => {
+      const w = planToWorld(frame, p.position);
+      expect(w.x).toBeCloseTo(cloud.position[k * 3]!, 5);
+      expect(w.z).toBeCloseTo(cloud.position[k * 3 + 2]!, 5);
+    });
+    // The origin is the lattice corner just below and left of every footprint.
+    const corners = pieces.flatMap((p) => rawOutline(p, testLibrary));
+    for (const axis of ['x', 'z'] as const) {
+      const least = Math.min(...corners.map((c) => c[axis]));
+      expect(least).toBeGreaterThanOrEqual(0);
+      expect(least).toBeLessThan(WORLD_LATTICE);
+    }
+  });
+
+  it('aligns to the build when asked: a turned shed comes in axis-aligned, cornered at the origin', () => {
+    const cloud = cloudOf(shed(45, 100, 100));
+    const cluster = describeCluster(cloud, groupPieces(cloud)[0]!, () => null);
+    const { plan } = importCluster(cloud, cluster, testLibrary, 'Fixture', 'build');
     const pieces = Object.values(plan.rawPieces);
     expect(pieces.map((p) => p.rotation.yaw)).toEqual([0, 0, 0, 180, 0]);
     expect(plan.importFrame).toMatchObject({ worldName: 'Fixture', yaw: 45 });

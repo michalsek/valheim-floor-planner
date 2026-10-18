@@ -15,6 +15,8 @@ import { pieceBoxes } from '../../../model/pieceBoxes';
 import { planFileText, readPlanJson } from '../../../model/planFile';
 import type { Plan, RawPiece, Vec3 } from '../../../model/types';
 import { describeCluster, groupPieces } from '../../../model/world/clusters';
+import { planToWorld } from '../../../model/terrain/siteTerrain';
+import { frameGridOf, WORLD_LATTICE } from '../../../model/world/frameGrid';
 import { importCluster } from '../../../model/world/importCluster';
 import { cloudPiece } from '../../../model/world/pieceCloud';
 
@@ -119,10 +121,38 @@ describe.skipIf(!dir)('a real world save', () => {
     expect(build.size.z).toBeCloseTo(60.1, 0);
   });
 
-  it('imports the build axis-aligned, every piece, and the plan loads back', async () => {
+  it('imports on the world axes by default: the grid on the terrain lattice, the build at 22.5°', () => {
     const groups = groupPieces(pieces);
     const build = describeCluster(pieces, groups[0]!, () => null);
     const { plan, level } = importCluster(pieces, build, testLibrary, world.name);
+    const frame = plan.importFrame!;
+    expect(frame.yaw).toBe(0);
+    expect(frameGridOf(frame)).toBe('world');
+    expect([frame.origin.x, frame.origin.z].map((v) => Math.abs(v % WORLD_LATTICE))).toEqual([
+      0, 0,
+    ]);
+    const raw = Object.values(plan.rawPieces);
+    // The build's grid pieces sit at 22.5° (mod 90) on the plan, as in the game.
+    expect(raw.filter((p) => p.rotation.yaw % 90 === 22.5).length).toBe(1_090);
+    // Every pivot maps back onto its world pivot, at the levels of the aligned import.
+    const misplaced = groups[0]!.filter((index, k) => {
+      const at = planToWorld(frame, plan.rawPieces[`raw${k}`]!.position);
+      return (
+        Math.abs(at.x - pieces.position[index * 3]!) > 1e-3 ||
+        Math.abs(at.z - pieces.position[index * 3 + 2]!) > 1e-3
+      );
+    });
+    expect(misplaced).toEqual([]);
+    expect([...new Set(raw.map((p) => p.elevation))].sort((a, b) => a - b)).toEqual([
+      0, 4, 5, 7, 8,
+    ]);
+    expect(level).toBe(4);
+  });
+
+  it('imports the build axis-aligned (aligned to the build), every piece, and the plan loads back', async () => {
+    const groups = groupPieces(pieces);
+    const build = describeCluster(pieces, groups[0]!, () => null);
+    const { plan, level } = importCluster(pieces, build, testLibrary, world.name, 'build');
     const raw = Object.values(plan.rawPieces);
     expect(raw.length).toBe(1_141);
     expect(raw.filter((p) => p.rotation.yaw % 90 === 0).length).toBe(1_090);

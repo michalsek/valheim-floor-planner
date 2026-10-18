@@ -31,6 +31,7 @@ import {
   groundAtWorld,
   groundUnder,
   terrainGrid,
+  worldToPlan,
 } from '../../../model/terrain/siteTerrain';
 import type { Plan } from '../../../model/types';
 import { describeCluster, groupPieces } from '../../../model/world/clusters';
@@ -171,6 +172,10 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
     expect(warm.check.maxError).toBeLessThanOrEqual(0.01);
 
     const frame = bare.importFrame!;
+    // World axes: the terrain's vertices fall on whole plan metres, under the plan grid.
+    const corner = worldToPlan(frame, { x: rect.x0, z: rect.z0 });
+    expect(frame.yaw).toBe(0);
+    expect([corner.x, corner.z].every(Number.isInteger)).toBe(true);
     const terrain = siteTerrainFrom(world, frame, rect, warm);
     expect(terrain.notices.legacyEdits).toBe(0);
     expect(terrain.notices.unreadEdits).toBe(0);
