@@ -992,9 +992,8 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    The QA's Boxes shot was taken from high above, so the gap didn't show. With the roof
    on +2 (base 2), Models and Boxes both sit on the walls. Measured pivots: the eave
    snap line is at 3.5 m, 0.5 m below the 4 m wall top, which is right for a 1 m eave
-   at 26°. Not fixed: when no walls on the work level are under the outline, the roof
-   tool could seat the roof on lower walls whose tops reach the work level (their
-   elevation, base = their height), because `base` must stay above 0.
+   at 26°. Since fixed: the roof tool seats such a roof on the lower walls (see "Roofs
+   drawn at the wall tops below" next).
 2. **Imported roof covers follow the Roofs toggle** (`isRawRoofCover`, `rawBoxes.ts`).
    This covers a roof family's straight, ridge and corner pieces at any tilt. In 3D they
    are dropped with derived roof covers (`roofCover`), so the 3D view and 3D Pick agree
@@ -1265,3 +1264,24 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
      `PieceInstances`, `Terrain3d` and `Terrain2d`. Other dispose-on-cleanup sites
      (lines, slabs, models) showed no errors and were left alone. Production builds
      have no StrictMode double mount.
+
+## Roofs drawn at the wall tops below (M15 QA follow-up)
+
+1. **The roof tool seats a roof on the storey below** (`roofSeat`). When no walls on
+   the work level are under the outline, but walls of a lower level are and their tops
+   reach the work level (within 5 cm), the roof is stored on those walls' level with
+   their height as its base. `base` stays above 0, so the roof can't be stored on the
+   work level with base 0. The draft carries its elevation. The 3D ghost pieces stand at
+   that elevation, and the outline stays on the work plane. The 2D and 3D labels add
+   "On the +2 m walls". Re-fit to room does the same, so it also seats an older roof
+   floating at +4 (37 pieces collapsing → all held up). The order is: walls on the
+   level along the outline; then the nearest lower level's walls along it that reach
+   up; then the level's tallest wall; then 2 m.
+2. **The roof then lives on the lower level.** In 2D on +4 it no longer shows, because it
+   is on +2 with that storey's walls, and the Levels bar counts it there. Drawing the
+   same outline again on +4 selects it instead of adding a second roof. Hidden roofs are
+   still left out, as on the level view.
+3. **Integrity only refreshes while its list is on screen** (`supportSync.ts`). With a
+   roof selected, the Inspector pushes the list below the fold, so after Re-fit it showed
+   "checking…" over the old count until the selection was cleared. That is by design,
+   but it can read like a stale result.

@@ -1,5 +1,6 @@
 import { useAtomValue } from 'jotai';
 
+import { formatLevel } from '../../format';
 import { ringBox } from '../../model/geometry/rings';
 import styles from '../../overlay/Overlay.module.css';
 import { RoofShape } from '../../overlay/RoofLayer';
@@ -11,9 +12,15 @@ import { roofPreviewAtom, roofPreviewLabel, type RoofPreview as Preview } from '
 export const ROOF_LABEL_GAP = 14;
 export const ROOF_LINE_HEIGHT = 16;
 
-/** The label's lines: size, pitch, kind and pieces, then what is wrong (in red). */
+/**
+ * The label's lines: size, pitch, kind and pieces, the lower level it rests on, then what
+ * is wrong (in red).
+ */
 export const roofPreviewLines = (preview: Preview): { text: string; warn: boolean }[] => [
   { text: roofPreviewLabel(preview), warn: preview.problem !== null },
+  ...(preview.seatedOn === null
+    ? []
+    : [{ text: `On the ${formatLevel(preview.seatedOn)} walls`, warn: false }]),
   ...preview.tiling.warnings
     .filter((w) => w.level === 'warning')
     .map((w) => ({ text: w.message, warn: true })),
