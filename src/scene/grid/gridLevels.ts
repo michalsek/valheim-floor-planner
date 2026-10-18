@@ -38,3 +38,22 @@ export const gridLevelAlphas = (zoom: number): GridLevelAlphas => {
   const [l0, l1, l2, l3] = GRID_LEVELS;
   return [levelAlpha(l0, zoom), levelAlpha(l1, zoom), levelAlpha(l2, zoom), levelAlpha(l3, zoom)];
 };
+
+/**
+ * Each level's strength in 3D, relative to 2D: the 10 m lines are toned down, since at
+ * mid distance (where the finer levels have faded) they would otherwise dominate.
+ */
+const LEVEL_SCALE_3D = [1, 1, 1, 0.6] as const;
+
+/**
+ * Each level's full strength in 3D (perspective mode), times `scale`, and times `levels`
+ * per level (all of them by default).
+ */
+export const strength3d = (
+  scale: number,
+  levels: GridLevelAlphas = [1, 1, 1, 1]
+): GridLevelAlphas => {
+  const at = (i: 0 | 1 | 2 | 3) =>
+    Math.min(1, GRID_LEVELS[i].strength * scale * LEVEL_SCALE_3D[i] * levels[i]);
+  return [at(0), at(1), at(2), at(3)];
+};

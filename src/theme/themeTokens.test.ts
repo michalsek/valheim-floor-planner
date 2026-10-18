@@ -21,6 +21,7 @@ describe('readThemeTokens', () => {
         '--selection': '#C2179B',
         '--prop-crafting': '#b8761a',
         '--shadow-alpha': '0.3',
+        '--ghost': '#7D8794',
       })
     );
     expect(tokens.gridLine).toBe('#3b4350');
@@ -35,6 +36,7 @@ describe('readThemeTokens', () => {
     expect(tokens.propGroups.crafting).toBe('#b8761a');
     expect(tokens.propGroups.ships).toBe(DEFAULT_THEME_TOKENS.propGroups.ships);
     expect(tokens.shadowAlpha).toBe(0.3);
+    expect(tokens.ghost).toBe('#7d8794');
   });
 
   it('keeps the defaults for missing or invalid values', () => {
@@ -45,6 +47,7 @@ describe('readThemeTokens', () => {
         '--floor-material-share': '1.5',
         '--mat-wood': 'rgb(1 2 3)',
         '--shadow-alpha': '2',
+        '--ghost': 'grey',
       })
     );
     expect(tokens).toEqual(DEFAULT_THEME_TOKENS);

@@ -87,6 +87,20 @@ export const getPieceBoxes = (plan: Plan): PieceBox[] => {
   return boxes;
 };
 
+const roofless = new WeakMap<readonly PieceBox[], readonly PieceBox[]>();
+
+/**
+ * The plan's boxes the 3D view shows (and Pick hits) before the cut-away: without roof
+ * covers while roofs are hidden; their gable fills and filler courses stay.
+ */
+export const getShownBoxes = (plan: Plan, roofsVisible: boolean): readonly PieceBox[] => {
+  const all = getPieceBoxes(plan);
+  if (roofsVisible) return all;
+  let shown = roofless.get(all);
+  if (!shown) roofless.set(all, (shown = all.filter((b) => !b.roofCover)));
+  return shown;
+};
+
 /** History labels for the history list (see `PlanStore.historyLabels`). */
 export const useHistory = (): HistoryLabels =>
   useSyncExternalStore(subscribe, planStore.historyLabels);

@@ -1,6 +1,6 @@
 /**
- * Importing a world build: its pieces as a new plan (an undoable `plan.replace`), on the
- * level holding most of them, fitted in view.
+ * Importing a world build: its pieces as a new plan (an undoable `plan.replace`), on its
+ * main floor (`ImportedBuild.level`), fitted in view.
  */
 import type { WorldPieces } from '../gameData/valheim/world/worldPieces';
 import { clampElevation, roundElevation } from '../model/elevation';

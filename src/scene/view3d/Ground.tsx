@@ -1,16 +1,16 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useAtomValue } from 'jotai';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { ShadowNodeMaterial, Vector3 } from 'three/webgpu';
 
 import { useThemeTokens } from '../../store/hooks';
 import { workDatumAtom } from '../../store/session';
 import { createGridMaterial } from '../grid/gridMaterial';
-import { GRID_LEVELS, type GridLevelAlphas } from '../grid/gridLevels';
+import { strength3d } from '../grid/gridLevels';
 
 /** The ground planes' size (metres): far beyond any plan. */
 const GROUND_SIZE = 4000;
-/** Just under the floor tops at the work datum, so floors cover the grid. */
+/** Just under the floor tops on the ground, so floors cover the grid. */
 const GRID_DROP = 0.02;
 /** The shadow catcher sits just under the terrain (y = 0), whatever the current level. */
 const CATCHER_DROP = 0.03;
@@ -18,23 +18,11 @@ const CATCHER_DROP = 0.03;
 const FADE_DISTANCES = 3;
 const MIN_FADE_RADIUS = 30;
 /**
- * On a level off the ground the grid is a see-through plane over the levels below it:
- * fainter, and only around the orbit target.
+ * While the current level is off the ground (the level plate is the work grid), the
+ * ground keeps only its 2 m and 10 m lines, at this strength: a coarse reference.
  */
-const RAISED = { strength: 0.4, fadeDistances: 1, minFadeRadius: 8 } as const;
-
-/**
- * Each level's strength in 3D, relative to 2D: the 10 m lines are toned down, since at
- * mid distance (where the finer levels have faded) they would otherwise dominate.
- */
-const LEVEL_SCALE_3D = [1, 1, 1, 0.6] as const;
-
-const fullStrength = (scale: number): GridLevelAlphas => {
-  const [a, b, c, d] = GRID_LEVELS.map((level, i) =>
-    Math.min(1, level.strength * scale * LEVEL_SCALE_3D[i]!)
-  );
-  return [a ?? 0, b ?? 0, c ?? 0, d ?? 0];
-};
+const RAISED_STRENGTH = 0.5;
+const RAISED_LEVELS = [0, 0, 0, 1] as const;
 
 /** A see-through ground that only shows the shadows cast on it. */
 const createCatcher = () => {
@@ -57,10 +45,10 @@ const orbitTarget = (controls: unknown): Vector3 | null =>
     : null;
 
 /**
- * The ground: the plan grid on the work plane (the current level, perspective mode)
- * and a shadow catcher just under the terrain. Neither hides what is below it, so a
- * floor's thickness and the levels under the current one show. The grid fades out
- * around the orbit target.
+ * The ground: the plan grid at the terrain (y = 0, perspective mode) and a shadow
+ * catcher just under it. Neither hides what is below it. The grid fades out around the
+ * orbit target; while the current level is raised (`LevelPlate` draws its grid) it
+ * keeps only its coarse lines, fainter.
  */
 export const Ground = () => {
   const datum = useAtomValue(workDatumAtom);
@@ -79,28 +67,31 @@ export const Ground = () => {
   );
 
   const raised = datum !== 0;
-  const alphaScale = gridAlphaScale * (raised ? RAISED.strength : 1);
+  const levelAlpha = useMemo(
+    () =>
+      raised
+        ? strength3d(gridAlphaScale * RAISED_STRENGTH, RAISED_LEVELS)
+        : strength3d(gridAlphaScale),
+    [raised, gridAlphaScale]
+  );
 
   useLayoutEffect(() => {
-    grid.update({ levelAlpha: fullStrength(alphaScale), dpr, color: gridLine });
+    grid.update({ levelAlpha, dpr, color: gridLine });
     catcher.setAlpha(shadowAlpha);
     invalidate();
-  }, [grid, catcher, alphaScale, dpr, gridLine, shadowAlpha, invalidate]);
+  }, [grid, catcher, levelAlpha, dpr, gridLine, shadowAlpha, invalidate]);
 
   // Uniforms only: follows the camera on every frame drawn, without asking for more.
   useFrame(({ camera, controls }) => {
     const target = orbitTarget(controls);
     if (!target) return;
     const distance = camera.position.distanceTo(target);
-    const fadeRadius = raised
-      ? Math.max(distance * RAISED.fadeDistances, RAISED.minFadeRadius)
-      : Math.max(distance * FADE_DISTANCES, MIN_FADE_RADIUS);
     grid.update({
-      levelAlpha: fullStrength(alphaScale),
+      levelAlpha,
       dpr,
       color: gridLine,
       target: { x: target.x, z: target.z },
-      fadeRadius,
+      fadeRadius: Math.max(distance * FADE_DISTANCES, MIN_FADE_RADIUS),
     });
   });
 
@@ -116,7 +107,7 @@ export const Ground = () => {
         <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
       </mesh>
       <mesh
-        position-y={datum - GRID_DROP}
+        position-y={-GRID_DROP}
         rotation-x={-Math.PI / 2}
         renderOrder={-1}
         material={grid.material}

@@ -1,0 +1,66 @@
+/*
+ * Footprints in the 2D overlay's world layer: props, raw (imported) pieces, the prop
+ * tool's ghost and stair glyphs, and the level below drawn as neutral ghosts. Colours
+ * come in as `--fp` (an inline `fill` would beat the ghost level's).
+ */
+.propFootprint {
+  fill: var(--fp);
+  stroke: var(--fp);
+  fill-opacity: 0.5;
+  stroke-opacity: 0.95;
+  stroke-width: 1px;
+}
+
+.rawFootprint {
+  fill: var(--fp);
+  stroke: var(--fp);
+  fill-opacity: 0.28;
+  stroke-opacity: 0.9;
+  stroke-width: 1px;
+}
+
+.rawRoof {
+  fill: none;
+  stroke: var(--fp);
+  stroke-opacity: 0.85;
+  stroke-width: 1px;
+}
+
+.propApprox {
+  stroke-dasharray: 4 3;
+}
+
+.propGhost {
+  fill-opacity: 0.3;
+  stroke-dasharray: 5 3;
+}
+
+/*
+ * The level below, under the current one: neutral dashed outlines, without labels, so
+ * only the current level is in colour. Props keep a faint fill so their footprint reads.
+ */
+.ghostLevel .propFootprint,
+.ghostLevel .rawFootprint,
+.ghostLevel .rawRoof {
+  fill: none;
+  stroke: var(--ghost);
+  stroke-opacity: 0.6;
+  stroke-dasharray: 4 3;
+}
+
+.ghostLevel .propFootprint {
+  fill: var(--ghost);
+  fill-opacity: 0.08;
+}
+
+.ghostLevel .stairGlyph {
+  stroke: var(--ghost);
+}
+
+.stairGlyph {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-opacity: 0.7;
+  pointer-events: none;
+}

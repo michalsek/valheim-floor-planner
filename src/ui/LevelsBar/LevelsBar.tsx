@@ -1,17 +1,22 @@
 import { useAtom, useAtomValue } from 'jotai';
+import { useEffect } from 'react';
 
 import { Button } from '../../controls/Button';
 import { keepFocus } from '../../controls/keepFocus';
 import { NumberInput } from '../../controls/NumberInput';
 import { SegmentedControl } from '../../controls/SegmentedControl';
 import { ToggleButton } from '../../controls/ToggleButton';
-import { formatCompact } from '../../format';
+import { formatLevel } from '../../format';
 import { sameLevel } from '../../model/elevation';
-import { levelsOf, wallTops, type Level } from '../../model/levels';
+import { levelsOf, selectionLevels, wallTops, type Level } from '../../model/levels';
+import { useViewMode } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { getPieceBoxes, usePlan } from '../../store/planHooks';
+import { selectionAtom } from '../../store/selection';
 import {
+  cutAwayAtom,
   elevationStepAtom,
+  levelHoverAtom,
   levelPickAtom,
   supportViewAtom,
   workDatumAtom,
@@ -27,10 +32,6 @@ const STEPS: readonly { value: ElevationStep; label: string }[] = [
   { value: 0.5, label: '0.5 m' },
 ];
 
-/** "+3 m", "0 m", "−1.5 m". */
-const levelName = (e: number): string =>
-  `${e > 0 ? '+' : e < 0 ? '−' : ''}${formatCompact(Math.abs(e))} m`;
-
 /** The plan's levels, top to bottom, with the current one in even when it is empty. */
 const useLevels = (datum: number): Level[] => {
   const plan = usePlan();
@@ -39,10 +40,67 @@ const useLevels = (datum: number): Level[] => {
   return [...levels, { elevation: datum, count: 0 }].sort((a, b) => b.elevation - a.elevation);
 };
 
+/** Whether any selected item is on the level at `elevation`. */
+const useSelectionOn = (): ((elevation: number) => boolean) => {
+  const levels = selectionLevels(usePlan(), useAtomValue(selectionAtom), getLibrary());
+  return (elevation) => [...levels].some((l) => sameLevel(l, elevation));
+};
+
 /**
- * The levels at the canvas edge: one row per elevation with something on it (click to
- * go there), the current level with ▲ / ▼ and a field, the step, Tops (to the highest
- * wall top here), Pick (the next click picks a piece's top), and the support view.
+ * The level rows: click one to go there; in 3D, hovering one previews it (cleared on
+ * leaving the list, on unmount, on a view switch and when its row goes, e.g. on undo).
+ * A dot marks the selection's levels.
+ */
+const LevelRows = ({ levels, datum }: { levels: Level[]; datum: number }) => {
+  const ctx = useToolContext();
+  const [hover, setHover] = useAtom(levelHoverAtom);
+  const is3d = useViewMode() === '3d';
+  const selectionOn = useSelectionOn();
+  useEffect(() => {
+    setHover(null);
+    return () => setHover(null);
+  }, [is3d, setHover]);
+  const rowGone = hover !== null && !levels.some((l) => sameLevel(l.elevation, hover));
+  useEffect(() => {
+    if (rowGone) setHover(null);
+  }, [rowGone, setHover]);
+
+  return (
+    <ul className={styles.levels} onMouseLeave={() => setHover(null)}>
+      {levels.map(({ elevation, count }) => {
+        const current = sameLevel(elevation, datum);
+        return (
+          <li key={elevation}>
+            <button
+              type="button"
+              className={current ? `${styles.level} ${styles.levelCurrent}` : styles.level}
+              aria-current={current}
+              title="Go to this level (Shift+PageUp / PageDown: the next one)"
+              onMouseDown={keepFocus}
+              onMouseEnter={() => setHover(is3d ? elevation : null)}
+              onClick={() => setWorkElevation(ctx, elevation)}
+            >
+              <span className={styles.levelName}>
+                {selectionOn(elevation) && (
+                  <span className={styles.selectionDot} title="Selection is on this level">
+                    <span className={styles.visuallyHidden}>Selection is on this level: </span>
+                  </span>
+                )}
+                {formatLevel(elevation)}
+              </span>
+              <span className={styles.count}>{count === 0 ? 'empty' : count}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
+/**
+ * The levels at the canvas edge: the level rows, the current level with ▲ / ▼ and a
+ * field, the step, Tops (to the highest wall top here), Pick (the next click picks a
+ * piece's top), the support view and (3D) the cut-away.
  */
 export const LevelsBar = () => {
   const ctx = useToolContext();
@@ -50,6 +108,8 @@ export const LevelsBar = () => {
   const [step, setStep] = useAtom(elevationStepAtom);
   const [picking, setPicking] = useAtom(levelPickAtom);
   const [supportView, setSupportView] = useAtom(supportViewAtom);
+  const [cut, setCut] = useAtom(cutAwayAtom);
+  const is3d = useViewMode() === '3d';
   const levels = useLevels(datum);
   const hasTops = wallTops(usePlan(), datum, getLibrary()).length > 0;
 
@@ -76,26 +136,7 @@ export const LevelsBar = () => {
         value={step}
         onChange={(v) => setStep(v)}
       />
-      <ul className={styles.levels}>
-        {levels.map(({ elevation, count }) => {
-          const current = sameLevel(elevation, datum);
-          return (
-            <li key={elevation}>
-              <button
-                type="button"
-                className={current ? `${styles.level} ${styles.levelCurrent}` : styles.level}
-                aria-current={current}
-                title="Go to this level (Shift+PageUp / PageDown: the next one)"
-                onMouseDown={keepFocus}
-                onClick={() => setWorkElevation(ctx, elevation)}
-              >
-                <span className={styles.levelName}>{levelName(elevation)}</span>
-                <span className={styles.count}>{count === 0 ? 'empty' : count}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <LevelRows levels={levels} datum={datum} />
       <div className={styles.actions}>
         <Button
           title="Up to the highest wall top on this level"
@@ -112,13 +153,20 @@ export const LevelsBar = () => {
           Pick
         </ToggleButton>
       </div>
-      <ToggleButton
-        title="Colour pieces by structural support"
-        pressed={supportView}
-        onChange={setSupportView}
-      >
-        Support
-      </ToggleButton>
+      <div className={styles.actions}>
+        <ToggleButton
+          title="Colour pieces by structural support"
+          pressed={supportView}
+          onChange={setSupportView}
+        >
+          Support
+        </ToggleButton>
+        {is3d && (
+          <ToggleButton title="Hide what is above this level (C)" pressed={cut} onChange={setCut}>
+            Cut
+          </ToggleButton>
+        )}
+      </div>
     </div>
   );
 };

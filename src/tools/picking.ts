@@ -18,16 +18,18 @@ import { hitItem, hitTest, itemsInBox, type Hit, type HitOptions } from '../mode
 import { boxFromCorners } from '../model/geometry/box';
 import { boxCorners } from '../model/geometry/orient';
 import { ITEM_KINDS } from '../model/itemKinds';
-import { ghostPlan, levelPlan } from '../model/levels';
+import { cutAway, ghostPlan, levelPlan } from '../model/levels';
 import type { PieceBox } from '../model/pieceBoxes';
 import { handleWallId, type SelectionItem } from '../model/selection';
 import type { Plan, Vec2, Vec3, WallId } from '../model/types';
 import { wallExtents } from '../model/wallGraph';
 import { getLibrary } from '../store/libraryInstance';
-import { getDerived, getPieceBoxes } from '../store/planHooks';
+import { getDerived, getPieceBoxes, getShownBoxes } from '../store/planHooks';
 import { selectionAtom } from '../store/selection';
 import {
+  cutAwayAtom,
   effectiveSnapStepAtom,
+  levelHoverAtom,
   projection3dAtom,
   roofsVisibleAtom,
   workDatumAtom,
@@ -234,10 +236,18 @@ const itemTop = (plan: Plan, item: SelectionItem): number | null => {
   return tops.length > 0 ? Math.max(...tops) : ITEM_KINDS[item.kind].elevation(plan, item.id);
 };
 
+/** The boxes the 3D view draws: the shown ones, and the cut-away of them when on. */
+const drawnBoxes = (ctx: ToolContext, plan: Plan): readonly PieceBox[] => {
+  const boxes = getShownBoxes(plan, ctx.get(roofsVisibleAtom));
+  if (!ctx.get(cutAwayAtom)) return boxes;
+  const options = { datum: ctx.get(workDatumAtom), hovered: ctx.get(levelHoverAtom) };
+  return cutAway(boxes, plan, getLibrary(), options);
+};
+
 /**
  * The height of the top of the piece under the event, for the Levels bar's Pick: in 3D
- * whatever piece the ray meets first, on any level; in 2D the current level's, else a
- * ghost from the level below. Null over nothing.
+ * whatever drawn piece the ray meets first, on any level; in 2D the current level's,
+ * else a ghost from the level below. Null over nothing.
  */
 export const pickTop = (
   ctx: ToolContext,
@@ -246,8 +256,7 @@ export const pickTop = (
 ): number | null => {
   const plan = ctx.plan.getPlan();
   if (projectionOf(ctx)) {
-    const shown = ctx.get(roofsVisibleAtom) ? plan : withoutRoofs(plan);
-    const surface = surfaceAt(ctx, screen, getPieceBoxes(shown));
+    const surface = surfaceAt(ctx, screen, drawnBoxes(ctx, plan));
     return surface && boxTop(surface.box);
   }
   if (!world) return null;

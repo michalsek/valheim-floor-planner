@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai';
 
-import styles from '../../overlay/Overlay.module.css';
+import styles from '../../overlay/Footprints.module.css';
 import { PropFootprint } from '../../overlay/PropFootprints';
 import { RadiusRing } from '../../overlay/RadiusRings';
 

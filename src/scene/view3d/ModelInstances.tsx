@@ -22,7 +22,9 @@ interface GroupProps {
   resources: ModelResources;
   prefab: string;
   group: ReadyGroup;
+  /** The boxes drawn, and how many the mesh makes room for (at least as many). */
   boxes: readonly PieceBox[];
+  room: number;
   tintOf: PieceTinter;
 }
 
@@ -58,6 +60,10 @@ const writeMatrices = (mesh: Mesh, boxes: readonly PieceBox[]) => {
   });
   buffer.needsUpdate = true;
   (mesh as Mesh & { count: number }).count = boxes.length;
+  // An empty mesh (its boxes cut away) still draws, nothing, wherever the camera is:
+  // its program links with the others on entering 3D, not on the level step that
+  // first shows it.
+  mesh.frustumCulled = boxes.length > 0;
   const bounds = (mesh.geometry.boundingSphere ??= new Sphere());
   centres.getBoundingSphere(bounds);
   bounds.radius += own.radius;
@@ -81,9 +87,9 @@ const writeTints = (mesh: Mesh, boxes: readonly PieceBox[], tintOf: PieceTinter)
 };
 
 /** One model group drawn at every box (one draw call). */
-const GroupInstances = ({ resources, prefab, group, boxes, tintOf }: GroupProps) => {
+const GroupInstances = ({ resources, prefab, group, boxes, room, tintOf }: GroupProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  const capacity = nextPow2(boxes.length);
+  const capacity = nextPow2(room);
   // From the pool: kept across 3D mounts, so its shader program stays linked.
   const mesh = useMemo(
     () => resources.mesh(prefab, group, capacity),
@@ -105,9 +111,27 @@ const GroupInstances = ({ resources, prefab, group, boxes, tintOf }: GroupProps)
   return <primitive object={mesh} dispose={null} />;
 };
 
+const NONE: readonly PieceBox[] = [];
+
+const byPrefab = (boxes: readonly PieceBox[]): Map<string, PieceBox[]> => {
+  const groups = new Map<string, PieceBox[]>();
+  for (const box of boxes) {
+    if (box.prefab === null) continue;
+    let list = groups.get(box.prefab);
+    if (!list) groups.set(box.prefab, (list = []));
+    list.push(box);
+  }
+  return groups;
+};
+
 export interface ModelInstancesProps {
   /** Boxes whose prefab has a ready model. */
   boxes: readonly PieceBox[];
+  /**
+   * The boxes the meshes make room for, a superset of `boxes`: a prefab none of whose
+   * boxes are drawn keeps its mesh mounted, empty.
+   */
+  retainBoxes: readonly PieceBox[];
   models: ReadonlyMap<string, ReadyModel>;
   resources: ModelResources;
   tintOf: PieceTinter;
@@ -117,19 +141,17 @@ export interface ModelInstancesProps {
  * Real models at their boxes' pivots and turns: one instanced draw per prefab and
  * material group. Door and gate panels are drawn solid (only boxes are see-through).
  */
-export const ModelInstances = ({ boxes, models, resources, tintOf }: ModelInstancesProps) => {
-  const byPrefab = useMemo(() => {
-    const groups = new Map<string, PieceBox[]>();
-    for (const box of boxes) {
-      if (box.prefab === null) continue;
-      let list = groups.get(box.prefab);
-      if (!list) groups.set(box.prefab, (list = []));
-      list.push(box);
-    }
-    return groups;
-  }, [boxes]);
+export const ModelInstances = ({
+  boxes,
+  retainBoxes,
+  models,
+  resources,
+  tintOf,
+}: ModelInstancesProps) => {
+  const room = useMemo(() => byPrefab(retainBoxes), [retainBoxes]);
+  const drawn = useMemo(() => byPrefab(boxes), [boxes]);
 
-  return [...byPrefab].flatMap(([prefab, list]) => {
+  return [...room].flatMap(([prefab, list]) => {
     const model = models.get(prefab);
     if (!model) return [];
     return model.groups.map((group) => (
@@ -138,7 +160,8 @@ export const ModelInstances = ({ boxes, models, resources, tintOf }: ModelInstan
         resources={resources}
         prefab={prefab}
         group={group}
-        boxes={list}
+        boxes={drawn.get(prefab) ?? NONE}
+        room={list.length}
         tintOf={tintOf}
       />
     ));

@@ -21,6 +21,11 @@ import type { PieceColorer } from './pieceColors';
 
 export interface PieceInstancesProps {
   boxes: readonly PieceBox[];
+  /**
+   * The boxes the meshes make room for (default `boxes`), a superset of `boxes`: while
+   * it stays the same, showing fewer or more of them remounts nothing.
+   */
+  retain?: readonly PieceBox[] | undefined;
   colorOf: PieceColorer;
   /** For boxes (it may darken their edges). */
   material: Material;
@@ -64,7 +69,9 @@ const writeMatrices = (mesh: InstancedMesh, boxes: readonly PieceBox[]) => {
     mesh.setMatrixAt(i, matrix.compose(position, turn, scale));
   });
   mesh.count = boxes.length;
-  mesh.visible = boxes.length > 0;
+  // An empty mesh (its boxes cut away) still draws, nothing, wherever the camera is: its
+  // program links when the view opens, not on the level step that first shows it.
+  mesh.frustumCulled = boxes.length > 0;
   mesh.instanceMatrix.needsUpdate = true;
   // Culling uses the bounds; they'd be stale otherwise.
   mesh.computeBoundingSphere();
@@ -112,36 +119,43 @@ const Instances = ({ shape, capacity, boxes, colorOf, material, castShadow }: In
   return <primitive object={mesh} castShadow={castShadow} receiveShadow dispose={null} />;
 };
 
+const byShape = (boxes: readonly PieceBox[]): Map<PieceShape, PieceBox[]> => {
+  const groups = new Map<PieceShape, PieceBox[]>([['box', []]]);
+  for (const box of boxes) {
+    const shape = box.shape ?? 'box';
+    let list = groups.get(shape);
+    if (!list) groups.set(shape, (list = []));
+    list.push(box);
+  }
+  return groups;
+};
+
+const NONE: readonly PieceBox[] = [];
+
 /**
  * Boxes as instanced meshes, one per shape (one draw call each), coloured per instance
  * and turned (and tilted) as each box is. A mesh's capacity is a power of two at least
- * its count (and, for boxes, `capacity`); a change remounts it with new buffers.
+ * its shape's count in `retain` (and, for boxes, `capacity`); a change remounts it with
+ * new buffers. A mesh stays mounted, empty, while none of its boxes are drawn.
  */
 export const PieceInstances = ({
   capacity: min = 0,
   boxes,
+  retain = boxes,
   material,
   shapeMaterial,
   ...props
 }: PieceInstancesProps) => {
-  const byShape = useMemo(() => {
-    const groups = new Map<PieceShape, PieceBox[]>([['box', []]]);
-    for (const box of boxes) {
-      const shape = box.shape ?? 'box';
-      let list = groups.get(shape);
-      if (!list) groups.set(shape, (list = []));
-      list.push(box);
-    }
-    return groups;
-  }, [boxes]);
-  return [...byShape].map(([shape, list]) => {
+  const room = useMemo(() => byShape(retain), [retain]);
+  const drawn = useMemo(() => (retain === boxes ? room : byShape(boxes)), [retain, boxes, room]);
+  return [...room].map(([shape, list]) => {
     const capacity = nextPow2(Math.max(list.length, shape === 'box' ? min : 0));
     return (
       <Instances
         key={`${shape}:${capacity}`}
         shape={shape}
         capacity={capacity}
-        boxes={list}
+        boxes={drawn.get(shape) ?? NONE}
         material={shape === 'box' ? material : (shapeMaterial ?? material)}
         {...props}
       />

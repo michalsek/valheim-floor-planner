@@ -6,6 +6,7 @@ import { openPlanFile, saveCurrentPlan } from '../store/fileActions';
 import { getLibrary } from '../store/libraryInstance';
 import {
   activeToolIdAtom,
+  cutAwayAtom,
   fitViewTo,
   levelPickAtom,
   resetModifiers,
@@ -99,6 +100,13 @@ const KEYMAP: readonly KeyBinding[] = [
   // character unshifted (AZERTY).
   { test: (e) => isPlainDigit(e, 'Digit3'), run: toggleViewMode },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
+  // C: the 3D cut-away above the current level (nothing in 2D).
+  {
+    keys: ['c'],
+    run: (s) => {
+      if (in3d(s)) s.set(cutAwayAtom, (on) => !on);
+    },
+  },
   ...levelBindings('PageUp', 1),
   ...levelBindings('PageDown', -1),
   { test: isUndoKey, repeat: true, run: (s) => s.plan.undo() },

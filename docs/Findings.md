@@ -903,3 +903,81 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    up; the Integrity list notes the raw pieces it left out.
 6. **Diagonal raw beams** are thin boxes rolled up their rise; raw roof pieces with
    pitch or roll keep their collider box.
+
+## From M15 implementation
+
+1. **Tuned constants** (screenshots of the 1,140-piece import, WebGPU and `?webgl`,
+   light and dark):
+   - `CUT_ABOVE = 1` m and `PLATE_FROST = 0.4`, as planned. In the light theme a floor
+     1 m under the plate reads pale but clearly there; in the dark one the frost is
+     hardly visible, which is what the plan wanted (no murky models).
+   - The plate's grid is the ground grid at **0.35** of its full 3D strength
+     (`PLATE_GRID_STRENGTH`), not 1: at full strength, unfaded over the whole plate, it
+     was the loudest thing in the dark theme.
+   - **Deviation:** with the plate up, the ground grid keeps only its **10 m** lines at
+     0.5 (the plan said 2 m and 10 m). Its 2 m lines, seen through the frost 1–8 m
+     below, doubled the plate's grid with parallax.
+   - Ghosts: slabs `--ghost` at 0.3; footprints no fill (props 0.08), dashed `4 3`,
+     stroke opacity 0.6 (fix round: at 0.35 / 0.8 the dark theme's ghosts read close to
+     the current level's grey stone).
+2. **The previewed level is tinted in the selection colour** (neutral in the support
+   view), at `HOVER_MIX`, as §3.1 says; §4 said accent. Accent over wood was hard to see
+   in the light theme, and accent is already the current level's colour.
+3. **The two corner tags** (the plate's and a previewed level's) sit at the lowest
+   *visible* point of their outline (the plate corner nearest the viewer, or where an
+   edge leaves the canvas, 72 px above its bottom for the 3D view bar): the nearest
+   corner alone was often off-screen or under the bar. The plate's tag goes below that
+   point and the preview's above it, since the two outlines' lowest points are close.
+4. **Perf (the plan's §7.3, measured with a longtask observer and counting
+   `linkProgram` / `createRenderPipeline*`):** the first cut made level steps cost
+   70–150 ms in Boxes and create two WebGPU pipelines each time. Two causes:
+   - The instanced box meshes of a shape (roof corners, gables) unmounted when the cut
+     emptied them, and a new mesh is a new pipeline (`RenderObject` keys an
+     `InstancedMesh` by its uuid). `PieceInstances` and `ModelInstances` now take the
+     uncut boxes (`retain` / `retainBoxes`) for which meshes exist and how big they are,
+     and draw the cut ones; an emptied mesh stays mounted.
+   - Meshes only on hidden levels linked their program on the first step that showed
+     them (87–97 ms on `?webgl` for models; 609 ms for box shapes when 3D opened at 0 and
+     stepped to +3, found in the fix round). An empty instanced or model mesh now isn't
+     frustum-culled, so it draws zero instances and links with the rest on entry. The
+     plate, the preview outline and the drop line are collapsed to scale 0 rather than
+     hidden (`Collapsed`), for the same reason.
+
+   After: on the import, PageUp ×5 + PageDown ×5, C ×4 and two sweeps over all six rows,
+   in Boxes and Models, on WebGPU and `?webgl`, and the first steps up from 0 after
+   opening 3D: **no long task** (none over 50 ms), and **no new programs or pipelines**
+   (switching Boxes ↔ Models still relinks, as before M15). Headless Chrome 155, M4 Pro.
+5. **Where things landed:** the pure plate rectangle is `scene/view3d/plateRect.ts`, not
+   `levelPlate.ts`: on a case-insensitive disk it clashed with `LevelPlate.tsx`. The 3D
+   grid strengths (`strength3d`) moved to `scene/grid/gridLevels.ts`, so `Ground.tsx`
+   exports only its component (Fast Refresh). Likewise the line objects shared by
+   `PlaneLines` and `DropLine3d` are `lineObjects.ts`, the cursor marks
+   `cursorShapes.ts` and `footprintStyle` its own module. Footprint and ghost styles
+   moved to `overlay/Footprints.module.css` (their `.ghostLevel` descendant rules need
+   one module); `Overlay.module.css` is still 422 lines (436 before M15) with no other
+   natural seam. The 3D view and Pick share `getShownBoxes` (`planHooks.ts`): with
+   roofs hidden, Pick now hits gable fills and filler courses, as drawn.
+6. **Import landing level (fix round).** An import used to start on the level holding
+   the most pieces (+8 here, a loft). With the cut on, that hid the main floor, and
+   level 0 holds only 19 stray poles and beams (the import's datum is its lowest piece;
+   the floor and walls start about 4 m up). It now starts on the **lowest level holding
+   at least 10 % of the build's pieces besides roofs** (`LANDING_SHARE`,
+   `importCluster.ts`): +4 on the import, its main floor, with the roof (level +3,
+   from 3.8 m) cut down to its eaves below 5 m. A reload still starts at 0, as before.
+7. **A hand-built two-storey plan** (stone walls at 0, a wood floor and wood walls at +2,
+   a gable roof on them): at 0 the floor and roof are hidden; at +2 the stone walls are
+   frosted under the plate and the roof, on the current level, is whole. A roof can't
+   be stored at +4 with nothing under it (`base` must be above 0), so "a roof at +4"
+   wasn't tried.
+8. **Pick in 3D** uses the drawn boxes: at +4 on the import, Pick over the house goes to
+   4 with the cut on (the floor) and to 15 with it off (the roof).
+9. **Levels bar (fix round):** a previewed row is also cleared when it disappears (an
+   undo while the pointer rests on it); the selection dot has screen-reader text.
+10. **Not exercised:** 2D slab ghosts (`GhostMeshes`) on a hand-built plan in the
+   screenshots (the import is all raw pieces, whose ghosts are SVG), Safari, Firefox, a
+   headed window. In headless Chrome, opening a *remembered* world (World panel →
+   Open), or dropping a world again in a profile that remembers one, hangs the page
+   (likely the folder permission prompt); a fresh profile works. Not an M15 change.
+11. From the plan's out-of-scope list, still open: a 2D preview of the hovered level, an
+    adjustable cut height and a clip-plane cut with caps, hiding whole lower-level items,
+    level names, a "y" readout, a camera-following walls cut-away.

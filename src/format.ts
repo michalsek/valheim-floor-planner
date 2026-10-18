@@ -28,3 +28,7 @@ export const formatSize = (w: number, d: number, digits?: number): string => {
   const f = (n: number) => (digits === undefined ? formatCompact(n) : formatNumber(n, digits));
   return `${f(w)} × ${f(d)}`;
 };
+
+/** A level by its height: `3` → `"+3 m"`, `0` → `"0 m"`, `-1.5` → `"−1.5 m"`. */
+export const formatLevel = (e: number): string =>
+  `${e > 0 ? '+' : e < 0 ? MINUS : ''}${formatCompact(Math.abs(e))} m`;

@@ -101,4 +101,21 @@ describe('world builds', () => {
     expect(chest!.position.x).toBeCloseTo(south!.position.x + 3);
     expect(chest!.rotation.yaw).toBe(22.5);
   });
+
+  it('starts on the main floor, not on a few stray pieces below it', () => {
+    // Two 8 × 2 m decks, 4 m and 8 m up, with walls on them (more on the upper one), and
+    // one beam on the ground under them.
+    const deck = (y: number, rows: number[]): Spec[] =>
+      [0, 2, 4, 6].flatMap((x): Spec[] => [
+        ['wood_floor', x + 1, y, 1, 0],
+        ...rows.map((z): Spec => ['woodwall', x + 1, y + 1, z, 0]),
+      ]);
+    const specs = [...deck(34, [0, 2]), ...deck(38, [0, 1, 2]), ['wood_beam', 3, 30, 1, 0] as Spec];
+    const cloud = cloudOf(specs);
+    const cluster = describeCluster(cloud, [...specs.keys()], () => null);
+    const { plan, level } = importCluster(cloud, cluster, testLibrary, 'Fixture');
+    const floors = Object.values(plan.rawPieces).filter((p) => p.prefab === 'wood_floor');
+    expect(level).toBeGreaterThan(0);
+    expect(level).toBe(Math.min(...floors.map((p) => p.elevation)));
+  });
 });

@@ -15,6 +15,7 @@ import { isLevelConnector } from '../catalog/propDefs';
 import type { PlanCommand } from './commands';
 import { roundElevation, sameLevel } from './elevation';
 import { ITEM_KINDS, LEVELLED_KINDS, type LevelledRecord } from './itemKinds';
+import { boxCorners } from './geometry/orient';
 import { propSpan, type PieceBox } from './pieceBoxes';
 import { allItems, type Selection, type SelectionItem } from './selection';
 import type { Plan, Prop } from './types';
@@ -30,6 +31,12 @@ export interface Level {
 
 /** A ghost reaches within this of the current level from below (stilts, tall walls). */
 const GHOST_REACH = 0.5;
+
+/**
+ * The 3D cut-away keeps a lower level's boxes that start less than this above the
+ * current level (metres): the courses of a wall that rise through it, not the roof.
+ */
+export const CUT_ABOVE = 1;
 
 const isConnector = (prop: Prop, lib: Lib): boolean =>
   isLevelConnector(lib.propDefs.get(prop.prefab)?.group);
@@ -254,3 +261,42 @@ export const itemsFrom = (plan: Plan, elevation: number): Selection =>
 /** Commands raising (or lowering) `items` by `dy` metres; openings ride on their wall. */
 export const shiftElevation = (plan: Plan, items: Selection, dy: number): PlanCommand[] =>
   dy === 0 ? [] : items.flatMap((item) => ITEM_KINDS[item.kind].raise(plan, item.id, dy));
+
+/** The level a box is drawn with (a stair piece's is its flight's). */
+const boxLevel = (index: LevelIndex, box: PieceBox): number =>
+  index.levelOf(box.elevation, isLevelConnector(box.group));
+
+/** The height of a box's lowest corner (a tilted roof slab's too). */
+const boxBottom = (box: PieceBox): number => Math.min(...boxCorners(box).map((c) => c.y));
+
+export interface CutOptions {
+  /** The current level. */
+  datum: number;
+  /** A level shown whole as well (the Levels bar's hovered row); null for none. */
+  hovered: number | null;
+}
+
+/**
+ * The boxes the 3D cut-away draws: the current level whole, lower levels' boxes that
+ * start below `datum + CUT_ABOVE`, and the hovered level whole; nothing higher.
+ * `boxes` itself when nothing is cut.
+ */
+export const cutAway = (
+  boxes: readonly PieceBox[],
+  plan: Plan,
+  lib: Lib,
+  { datum, hovered }: CutOptions
+): readonly PieceBox[] => {
+  const index = levelIndex(plan, lib);
+  const shown = (box: PieceBox): boolean => {
+    const level = boxLevel(index, box);
+    if (sameLevel(level, datum) || (hovered !== null && sameLevel(level, hovered))) return true;
+    return level < datum && boxBottom(box) < datum + CUT_ABOVE - 1e-6;
+  };
+  const kept = boxes.filter(shown);
+  return kept.length === boxes.length ? boxes : kept;
+};
+
+/** The levels the selected items are on. */
+export const selectionLevels = (plan: Plan, selection: Selection, lib: Lib): Set<number> =>
+  new Set(selection.flatMap((item) => levelOfItem(plan, item, lib) ?? []));

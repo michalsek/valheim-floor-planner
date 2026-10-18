@@ -1,6 +1,7 @@
 /**
  * How 3D boxes are coloured: a base colourer (materials, or support), pieces off the
- * current level faded, and the selection / hover tint over it. Models are tinted the
+ * current level faded, the level the Levels bar previews tinted, and the selection /
+ * hover tint over it. Models are tinted the
  * same way, over their textures.
  */
 import { floorColor, materialColor, mixHex } from '../../catalog/materialColors';
@@ -49,9 +50,14 @@ type Shader<S> = (box: PieceBox) => S;
 
 const levelled =
   <S>(mix: Mixer<S>) =>
-  (shade: Shader<S>, onLevel: (box: PieceBox) => boolean, tokens: ThemeTokens): Shader<S> =>
+  (shade: Shader<S>, faded: (box: PieceBox) => boolean, tokens: ThemeTokens): Shader<S> =>
   (box) =>
-    onLevel(box) ? shade(box) : mix(shade(box), tokens.canvas, OFF_LEVEL_MIX);
+    faded(box) ? mix(shade(box), tokens.canvas, OFF_LEVEL_MIX) : shade(box);
+
+const levelHovered =
+  <S>(mix: Mixer<S>) =>
+  (shade: Shader<S>, hovered: ((box: PieceBox) => boolean) | null, tint: string): Shader<S> =>
+    hovered ? (box) => (hovered(box) ? mix(shade(box), tint, HOVER_MIX) : shade(box)) : shade;
 
 const itemKey = (item: SelectionItem): string => `${item.kind}:${item.id}`;
 
@@ -69,12 +75,22 @@ const highlighted =
     };
   };
 
-/** `colorer`, with pieces not on the current level faded towards the canvas. */
+/** `colorer`, with the pieces `faded` says faded towards the canvas (off the current level). */
 export const withLevel: (
   colorer: PieceColorer,
-  onLevel: (box: PieceBox) => boolean,
+  faded: (box: PieceBox) => boolean,
   tokens: ThemeTokens
 ) => PieceColorer = levelled(mixHex);
+
+/**
+ * `colorer`, with the level the Levels bar previews (`hovered`, if any) tinted towards
+ * `tint` as a hovered piece is (the selection colour; neutral in the support view).
+ */
+export const withLevelHover: (
+  colorer: PieceColorer,
+  hovered: ((box: PieceBox) => boolean) | null,
+  tint: string
+) => PieceColorer = levelHovered(mixHex);
 
 /**
  * `colorer`, with selected items and the hovered one tinted towards `tint` (the selection
@@ -128,5 +144,7 @@ export const supportTinter =
 
 /** `withLevel` for model tints. */
 export const tintWithLevel = levelled(mixTint);
+/** `withLevelHover` for model tints. */
+export const tintWithLevelHover = levelHovered(mixTint);
 /** `withHighlight` for model tints. */
 export const tintWithHighlight = highlighted(mixTint);

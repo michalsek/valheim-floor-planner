@@ -7,6 +7,7 @@ import { dropWorldOnPlanner } from './install/loadWorld';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
 import { FloorOutlines } from './overlay/FloorOutlines';
 import { LevelGhosts } from './overlay/LevelGhosts';
+import { LevelTags3d } from './overlay/LevelTags3d';
 import { OpeningSymbols } from './overlay/OpeningSymbols';
 import { Overlay } from './overlay/Overlay';
 import { Overlay3d } from './overlay/Overlay3d';
@@ -67,9 +68,10 @@ const PlanOverlay = () => (
   </Overlay>
 );
 
-/** The 3D overlay: dimension lengths and the tool's labels and handles. */
+/** The 3D overlay: level heights, dimension lengths and the tool's labels and handles. */
 const ViewOverlay3d = () => (
   <Overlay3d>
+    <LevelTags3d />
     <PinnedDimensionLabels3d />
     <ToolOverlay3d />
   </Overlay3d>

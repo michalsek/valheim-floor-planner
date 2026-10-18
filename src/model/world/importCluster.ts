@@ -32,6 +32,11 @@ const LEVEL_ROUNDING = 0.05;
 const OVERHANG = 0.05;
 /** A piece within this of a level's height (above or below) stands on it. */
 const LEVEL_TOLERANCE = 0.1;
+/**
+ * The import starts on the lowest level holding at least this share of the build's
+ * pieces that aren't roofs: its main floor, not a few stray poles at the bottom.
+ */
+const LANDING_SHARE = 0.1;
 
 const round6 = (n: number): number => Math.round(n * 1e6) / 1e6 + 0;
 
@@ -97,9 +102,17 @@ const floorLevels = (tops: readonly number[]): number[] => {
 
 export interface ImportedBuild {
   plan: Plan;
-  /** The level holding the most pieces: where to start looking. */
+  /** Where to start: the lowest level with `LANDING_SHARE` of the pieces besides roofs. */
   level: number;
 }
+
+/** The lowest level with a fair share of `counts` (pieces per level); else the fullest. */
+const landingLevel = (counts: ReadonlyMap<number, number>): number => {
+  const entries = [...counts].sort((a, b) => a[0] - b[0]);
+  const total = entries.reduce((sum, [, n]) => sum + n, 0);
+  const landing = entries.find(([, n]) => n >= total * LANDING_SHARE);
+  return landing?.[0] ?? entries.reduce((best, e) => (e[1] > best[1] ? e : best), [0, 0])[0];
+};
 
 /** Throws when a piece can't be stored (a build far taller than any level reaches). */
 export const importCluster = (
@@ -150,10 +163,11 @@ export const importCluster = (
       : levels.reduce((best, l) => (l <= standsAt(p) + LEVEL_TOLERANCE ? l : best), 0);
 
   const rawPieces: Record<string, RawPiece> = {};
+  // Pieces per level, roofs left out.
   const perLevel = new Map<number, number>();
   placed.forEach((p, k) => {
     const elevation = levelOf(p);
-    perLevel.set(elevation, (perLevel.get(elevation) ?? 0) + 1);
+    if (!isRoof(p)) perLevel.set(elevation, (perLevel.get(elevation) ?? 0) + 1);
     const id = `raw${k}`;
     const piece: RawPiece = {
       id,
@@ -178,9 +192,8 @@ export const importCluster = (
     origin: { x: round6(planOrigin.x), y: round6(datum), z: round6(-planOrigin.z) },
     yaw: frameYaw,
   };
-  const level = [...perLevel].reduce((best, entry) => (entry[1] > best[1] ? entry : best), [0, 0]);
   return {
     plan: { ...emptyPlan(), name: `${worldName} build`, rawPieces, importFrame },
-    level: level[0],
+    level: landingLevel(perLevel),
   };
 };

@@ -39,6 +39,8 @@ export interface ThemeTokens {
   shadowAlpha: number;
   /** The canvas background: pieces off the current level fade towards it in 3D. */
   canvas: string;
+  /** The level below in 2D (its slabs; the overlay reads the same `--ghost`). */
+  ghost: string;
   support: SupportColors;
   /** The 3D view's tool drawing: lines, the cursor, valid and invalid ghosts. */
   ink: ToolInk;
@@ -78,6 +80,7 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   propGroups: Object.fromEntries(PROP_KEYS.map((g) => [g, '#9aa3ad'])) as PropGroupColors,
   shadowAlpha: 0.4,
   canvas: '#2a2c30',
+  ghost: '#8a929c',
   support: {
     grounded: '#5d9bd8',
     high: '#6cc46a',
@@ -139,6 +142,7 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
     ) as PropGroupColors,
     shadowAlpha: number('--shadow-alpha', def.shadowAlpha, 1),
     canvas: color('--canvas', def.canvas),
+    ghost: color('--ghost', def.ghost),
     support: {
       grounded: color('--support-grounded', def.support.grounded),
       high: color('--support-high', def.support.high),

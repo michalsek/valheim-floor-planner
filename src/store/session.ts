@@ -107,6 +107,15 @@ export const elevationStepAtom = atom<ElevationStep>(1);
 /** Colour pieces by structural support instead of material (both views). */
 export const supportViewAtom = atom<boolean>(false);
 
+/**
+ * 3D: hide what is above the current level (higher levels, and lower levels' pieces
+ * that start more than `CUT_ABOVE` over it). Session only.
+ */
+export const cutAwayAtom = atom<boolean>(true);
+
+/** The level whose Levels bar row the pointer is over (3D previews it); null for none. */
+export const levelHoverAtom = atom<number | null>(null);
+
 /** The next click on the canvas picks a piece, and the level moves to its top. */
 export const levelPickAtom = atom<boolean>(false);
 

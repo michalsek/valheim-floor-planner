@@ -23,15 +23,25 @@ const createMaterials = () => ({
 });
 
 interface BoxPiecesProps {
+  /** The boxes drawn. */
   boxes: readonly PieceBox[];
+  /**
+   * Every box that may be drawn, a superset of `boxes` (default `boxes`): what the
+   * instanced meshes (and models) are kept for, so the cut-away and level changes
+   * remount and relink nothing.
+   */
+  retainBoxes?: readonly PieceBox[];
   colorOf: PieceColorer;
 }
+
+const isPanel = (b: PieceBox) => b.kind === 'opening';
+const isSolid = (b: PieceBox) => b.kind !== 'opening';
 
 /**
  * Boxes in plan colours: one instanced draw for walls, floors, props and roof slabs, one
  * per roof shape, one for panels.
  */
-export const BoxPieces = ({ boxes, colorOf }: BoxPiecesProps) => {
+export const BoxPieces = ({ boxes, retainBoxes = boxes, colorOf }: BoxPiecesProps) => {
   const [materials] = useState(createMaterials);
   useEffect(
     () => () => {
@@ -41,12 +51,15 @@ export const BoxPieces = ({ boxes, colorOf }: BoxPiecesProps) => {
     },
     [materials]
   );
-  const solid = useMemo(() => boxes.filter((b) => b.kind !== 'opening'), [boxes]);
-  const panels = useMemo(() => boxes.filter((b) => b.kind === 'opening'), [boxes]);
+  const solid = useMemo(() => boxes.filter(isSolid), [boxes]);
+  const panels = useMemo(() => boxes.filter(isPanel), [boxes]);
+  const retainSolid = useMemo(() => retainBoxes.filter(isSolid), [retainBoxes]);
+  const retainPanels = useMemo(() => retainBoxes.filter(isPanel), [retainBoxes]);
   return (
     <>
       <PieceInstances
         boxes={solid}
+        retain={retainSolid}
         colorOf={colorOf}
         material={materials.solid}
         shapeMaterial={materials.shaped}
@@ -54,6 +67,7 @@ export const BoxPieces = ({ boxes, colorOf }: BoxPiecesProps) => {
       />
       <PieceInstances
         boxes={panels}
+        retain={retainPanels}
         colorOf={colorOf}
         material={materials.panel}
         castShadow={false}
@@ -69,29 +83,46 @@ const BoxWireframes = ({ boxes, colorOf }: BoxPiecesProps) => {
   return <PieceInstances boxes={boxes} colorOf={colorOf} material={material} castShadow={false} />;
 };
 
+interface ModelPiecesProps extends BoxPiecesProps {
+  /**
+   * Every box whose model stays loaded: a prefab only on a cut-away level keeps its
+   * resources, so stepping levels relinks nothing.
+   */
+  retainBoxes: readonly PieceBox[];
+  tintOf: PieceTinter;
+}
+
 /**
  * The real game models, tinted like the boxes are coloured; pieces whose model isn't
  * loaded (or that draw nothing) stay boxes. Door and gate models are drawn solid: at
  * the boxes' panel opacity they looked like ghosts.
  */
-export const ModelPieces = ({
-  boxes,
-  colorOf,
-  tintOf,
-}: BoxPiecesProps & { tintOf: PieceTinter }) => {
+export const ModelPieces = ({ boxes, retainBoxes, colorOf, tintOf }: ModelPiecesProps) => {
   const prefabs = useMemo(
-    () => [...new Set(boxes.flatMap((b) => (b.prefab === null ? [] : [b.prefab])))].sort(),
-    [boxes]
+    () => [...new Set(retainBoxes.flatMap((b) => (b.prefab === null ? [] : [b.prefab])))].sort(),
+    [retainBoxes]
   );
   const { resources, ready } = useModels(prefabs);
-  const [modelled, rest] = useMemo(() => {
+  const split = useMemo(() => {
     const has = (b: PieceBox) => b.prefab !== null && ready.has(b.prefab);
-    return [boxes.filter(has), boxes.filter((b) => !has(b))];
-  }, [boxes, ready]);
+    const [modelled, rest] = [boxes.filter(has), boxes.filter((b) => !has(b))];
+    return {
+      modelled,
+      rest,
+      retainModelled: retainBoxes.filter(has),
+      retainRest: retainBoxes.filter((b) => !has(b)),
+    };
+  }, [boxes, retainBoxes, ready]);
   return (
     <>
-      <ModelInstances boxes={modelled} models={ready} resources={resources} tintOf={tintOf} />
-      <BoxPieces boxes={rest} colorOf={colorOf} />
+      <ModelInstances
+        boxes={split.modelled}
+        retainBoxes={split.retainModelled}
+        models={ready}
+        resources={resources}
+        tintOf={tintOf}
+      />
+      <BoxPieces boxes={split.rest} retainBoxes={split.retainRest} colorOf={colorOf} />
       {SHOW_MODEL_BOXES && <BoxWireframes boxes={boxes} colorOf={colorOf} />}
     </>
   );

@@ -12,7 +12,8 @@ import { useLevelPlan } from '../store/planHooks';
 import { supportViewAtom } from '../store/session';
 import { useSupport } from '../store/supportSync';
 
-import styles from './Overlay.module.css';
+import { footprintStyle } from './footprintStyle';
+import styles from './Footprints.module.css';
 import { toSvgPoints } from './svgPoints';
 
 interface PropFootprintProps {
@@ -78,7 +79,7 @@ export const PropFootprint = ({ prop, className, color: override }: PropFootprin
       <polygon
         className={`${styles.propFootprint}${approx} ${className ?? ''}`}
         points={toSvgPoints(corners)}
-        style={{ fill: color, stroke: color }}
+        style={footprintStyle(color)}
         vectorEffect="non-scaling-stroke"
       />
       {def?.flight && <StairGlyph prop={prop} rect={rect} towards={def.flight.towards} />}
