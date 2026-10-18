@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
 
 import { nextSnapStep } from '../model/geometry/snap';
+import { nextLevelViewMode } from '../model/levels';
 import { planBounds } from '../model/planBounds';
 import { openPlanFile, saveCurrentPlan } from '../store/fileActions';
 import { getLibrary } from '../store/libraryInstance';
 import {
   activeToolIdAtom,
-  cutAwayAtom,
   fitViewTo,
   levelPickAtom,
+  levelViewModeAtom,
   resetModifiers,
   setModifier,
   snapStepAtom,
@@ -100,11 +101,11 @@ const KEYMAP: readonly KeyBinding[] = [
   // character unshifted (AZERTY).
   { test: (e) => isPlainDigit(e, 'Digit3'), run: toggleViewMode },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
-  // C: the 3D cut-away above the current level (nothing in 2D).
+  // C: the next 3D level view mode (nothing in 2D).
   {
     keys: ['c'],
     run: (s) => {
-      if (in3d(s)) s.set(cutAwayAtom, (on) => !on);
+      if (in3d(s)) s.set(levelViewModeAtom, nextLevelViewMode(s.get(levelViewModeAtom)));
     },
   },
   ...levelBindings('PageUp', 1),

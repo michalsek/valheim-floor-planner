@@ -100,3 +100,16 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* The level view modes: four equal segments across the bar. */
+.modes > button {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 0;
+}
+
+.frost {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}

@@ -269,7 +269,27 @@ const boxLevel = (index: LevelIndex, box: PieceBox): number =>
 /** The height of a box's lowest corner (a tilted roof slab's too). */
 const boxBottom = (box: PieceBox): number => Math.min(...boxCorners(box).map((c) => c.y));
 
-export interface CutOptions {
+/**
+ * Which levels the 3D view draws (`levelViewModeAtom`): only the current one; the cut
+ * (it and what is below it, less anything lower and any roof cover of its own that
+ * starts `CUT_ABOVE` over it); it and everything above it; or everything.
+ */
+export type LevelViewMode = 'only' | 'cut' | 'above' | 'all';
+
+export const LEVEL_VIEW_MODES: readonly LevelViewMode[] = ['only', 'cut', 'above', 'all'];
+
+const NEXT_MODE: Readonly<Record<LevelViewMode, LevelViewMode>> = {
+  only: 'cut',
+  cut: 'above',
+  above: 'all',
+  all: 'only',
+};
+
+/** The mode after `mode` (C), wrapping round. */
+export const nextLevelViewMode = (mode: LevelViewMode): LevelViewMode => NEXT_MODE[mode];
+
+export interface LevelViewOptions {
+  mode: LevelViewMode;
   /** The current level. */
   datum: number;
   /** A level shown whole as well (the Levels bar's hovered row); null for none. */
@@ -277,21 +297,28 @@ export interface CutOptions {
 }
 
 /**
- * The boxes the 3D cut-away draws: the current level whole, lower levels' boxes that
- * start below `datum + CUT_ABOVE`, and the hovered level whole; nothing higher.
- * `boxes` itself when nothing is cut.
+ * The boxes the 3D view draws in `mode`. The current level and the hovered one are
+ * drawn whole, `above` adds the higher levels and `all` is everything. `cut` hides what
+ * is over the work height: it adds lower levels' boxes that start below
+ * `datum + CUT_ABOVE`, and holds the current level's roof covers (a top storey's roof,
+ * derived or imported) to the same rule; its gable walls and fills stay. `boxes` itself
+ * when nothing is left out.
  */
-export const cutAway = (
+export const boxesInView = (
   boxes: readonly PieceBox[],
   plan: Plan,
   lib: Lib,
-  { datum, hovered }: CutOptions
+  { mode, datum, hovered }: LevelViewOptions
 ): readonly PieceBox[] => {
+  if (mode === 'all') return boxes;
   const index = levelIndex(plan, lib);
   const shown = (box: PieceBox): boolean => {
     const level = boxLevel(index, box);
-    if (sameLevel(level, datum) || (hovered !== null && sameLevel(level, hovered))) return true;
-    return level < datum && boxBottom(box) < datum + CUT_ABOVE - 1e-6;
+    const underCut = () => boxBottom(box) < datum + CUT_ABOVE - 1e-6;
+    if (sameLevel(level, datum)) return mode !== 'cut' || !box.roofCover || underCut();
+    if (hovered !== null && sameLevel(level, hovered)) return true;
+    if (mode === 'above') return level > datum;
+    return mode === 'cut' && level < datum && underCut();
   };
   const kept = boxes.filter(shown);
   return kept.length === boxes.length ? boxes : kept;

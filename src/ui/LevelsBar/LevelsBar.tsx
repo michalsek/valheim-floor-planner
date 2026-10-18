@@ -14,7 +14,6 @@ import { getLibrary } from '../../store/libraryInstance';
 import { getPieceBoxes, usePlan } from '../../store/planHooks';
 import { selectionAtom } from '../../store/selection';
 import {
-  cutAwayAtom,
   elevationStepAtom,
   levelHoverAtom,
   levelPickAtom,
@@ -25,6 +24,7 @@ import {
 import { jumpToTops, setWorkElevation, stepLevel } from '../../tools/levelActions';
 import { useToolContext } from '../../tools/toolContext';
 
+import { LevelViewControls } from './LevelViewControls';
 import styles from './LevelsBar.module.css';
 
 const STEPS: readonly { value: ElevationStep; label: string }[] = [
@@ -100,7 +100,7 @@ const LevelRows = ({ levels, datum }: { levels: Level[]; datum: number }) => {
 /**
  * The levels at the canvas edge: the level rows, the current level with ▲ / ▼ and a
  * field, the step, Tops (to the highest wall top here), Pick (the next click picks a
- * piece's top), the support view and (3D) the cut-away.
+ * piece's top), the support view and (3D) which levels are drawn and the plate's frost.
  */
 export const LevelsBar = () => {
   const ctx = useToolContext();
@@ -108,7 +108,6 @@ export const LevelsBar = () => {
   const [step, setStep] = useAtom(elevationStepAtom);
   const [picking, setPicking] = useAtom(levelPickAtom);
   const [supportView, setSupportView] = useAtom(supportViewAtom);
-  const [cut, setCut] = useAtom(cutAwayAtom);
   const is3d = useViewMode() === '3d';
   const levels = useLevels(datum);
   const hasTops = wallTops(usePlan(), datum, getLibrary()).length > 0;
@@ -161,12 +160,8 @@ export const LevelsBar = () => {
         >
           Support
         </ToggleButton>
-        {is3d && (
-          <ToggleButton title="Hide what is above this level (C)" pressed={cut} onChange={setCut}>
-            Cut
-          </ToggleButton>
-        )}
       </div>
+      {is3d && <LevelViewControls />}
     </div>
   );
 };

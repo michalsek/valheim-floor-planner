@@ -24,12 +24,13 @@ import { useViewCamera } from './useViewCamera';
 
 /**
  * The 3D view of the plan: a perspective camera with orbit controls, lights and ground
- * shadows, the flat ground or a site's terrain (`Terrain3d`), every piece and prop as a box at its real size and its own elevation, or as
- * its real game model (in material or support colours, shaded by level and cut away
- * above the current one: `useLevelShading`), the level plate at the current level,
- * pinned dimensions at their own levels, and the snap cursor, its drop line and the
- * active tool's previews on the work plane. Picking always uses the boxes. Pointer
- * input goes through `ToolHost`, as in 2D.
+ * shadows, the flat ground or a site's terrain (`Terrain3d`), every piece and prop as a
+ * box at its real size and its own elevation, or as its real game model (in material or
+ * support colours, shaded by level, on the levels the view mode draws:
+ * `useLevelShading`), the level plate at the current level, pinned dimensions at their
+ * own levels, and the snap cursor, its drop line and the active tool's previews on the
+ * work plane. Picking always uses the boxes. Pointer input goes through `ToolHost`, as
+ * in 2D.
  */
 export const View3d = () => {
   const camera = useViewCamera();

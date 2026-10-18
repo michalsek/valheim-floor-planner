@@ -18,7 +18,7 @@ import { hitItem, hitTest, itemsInBox, type Hit, type HitOptions } from '../mode
 import { boxFromCorners } from '../model/geometry/box';
 import { boxCorners } from '../model/geometry/orient';
 import { ITEM_KINDS } from '../model/itemKinds';
-import { cutAway, ghostPlan, levelPlan } from '../model/levels';
+import { boxesInView, ghostPlan, levelPlan } from '../model/levels';
 import type { PieceBox } from '../model/pieceBoxes';
 import { isRawRoofCover } from '../model/rawBoxes';
 import { handleWallId, type SelectionItem } from '../model/selection';
@@ -28,9 +28,9 @@ import { getLibrary } from '../store/libraryInstance';
 import { getDerived, getPieceBoxes, getShownBoxes } from '../store/planHooks';
 import { selectionAtom } from '../store/selection';
 import {
-  cutAwayAtom,
   effectiveSnapStepAtom,
   levelHoverAtom,
+  levelViewModeAtom,
   projection3dAtom,
   roofsVisibleAtom,
   workDatumAtom,
@@ -247,13 +247,13 @@ const itemTop = (plan: Plan, item: SelectionItem): number | null => {
   return tops.length > 0 ? Math.max(...tops) : ITEM_KINDS[item.kind].elevation(plan, item.id);
 };
 
-/** The boxes the 3D view draws: the shown ones, and the cut-away of them when on. */
-const drawnBoxes = (ctx: ToolContext, plan: Plan): readonly PieceBox[] => {
-  const boxes = getShownBoxes(plan, ctx.get(roofsVisibleAtom));
-  if (!ctx.get(cutAwayAtom)) return boxes;
-  const options = { datum: ctx.get(workDatumAtom), hovered: ctx.get(levelHoverAtom) };
-  return cutAway(boxes, plan, getLibrary(), options);
-};
+/** The boxes the 3D view draws: the shown ones on the view mode's levels. */
+const drawnBoxes = (ctx: ToolContext, plan: Plan): readonly PieceBox[] =>
+  boxesInView(getShownBoxes(plan, ctx.get(roofsVisibleAtom)), plan, getLibrary(), {
+    mode: ctx.get(levelViewModeAtom),
+    datum: ctx.get(workDatumAtom),
+    hovered: ctx.get(levelHoverAtom),
+  });
 
 /**
  * The height of the top of the piece under the event, for the Levels bar's Pick: in 3D

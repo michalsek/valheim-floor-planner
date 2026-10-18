@@ -2,8 +2,8 @@
  * A world build as a new plan of raw pieces. The build is turned by its grid direction
  * so its walls run along the plan's axes, its corner goes to the origin (on the 0.5 m
  * grid its pieces sit on) and its lowest piece's bottom to height 0. Each piece goes on
- * the level of the floor it stands on; roof pieces and gable walls on a roof level of
- * their own.
+ * the level of the floor it stands on, roof pieces and gable walls included: a roof
+ * course goes with the storey whose floor is under its lowest edge, as a wall does.
  *
  * Planner space is the game's mirrored in z (see `catalog/pieceDefs.ts`): a world point
  * (x, z) is plan point (x, −z), so north (+z) is up on screen. A game yaw turns
@@ -152,15 +152,8 @@ export const importCluster = (
     p.piece.y - datum + (isTile(p) ? heightSpan(p.def).high : heightSpan(p.def).low);
   const levels = floorLevels(placed.filter(isTile).map(standsAt));
   const isRoof = (p: Placed) => rawRoofDef(lib, p.piece.prefab) !== undefined;
-  const roofBottoms = placed.filter(isRoof).map(standsAt);
-  const roofLevel = Math.min(
-    MAX_ELEVATION,
-    Math.round(roofBottoms.reduce((m, b) => Math.min(m, b), Infinity) / GRID) * GRID
-  );
   const levelOf = (p: Placed): number =>
-    isRoof(p)
-      ? roofLevel
-      : levels.reduce((best, l) => (l <= standsAt(p) + LEVEL_TOLERANCE ? l : best), 0);
+    levels.reduce((best, l) => (l <= standsAt(p) + LEVEL_TOLERANCE ? l : best), 0);
 
   const rawPieces: Record<string, RawPiece> = {};
   // Pieces per level, roofs left out.

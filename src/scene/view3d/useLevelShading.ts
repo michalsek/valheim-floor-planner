@@ -1,7 +1,7 @@
 /**
  * Which boxes the 3D view draws and how it shades them by level: hidden roofs left
- * out, the cut-away above the current level, pieces faded off it, the level the
- * Levels bar previews tinted, and the selection and hover over that.
+ * out, the levels of the view mode (`boxesInView`), pieces faded off the current level,
+ * the level the Levels bar previews tinted, and the selection and hover over that.
  */
 import { useAtomValue } from 'jotai';
 import { useMemo } from 'react';
@@ -9,7 +9,7 @@ import { useMemo } from 'react';
 import { isLevelConnector } from '../../catalog/propDefs';
 import { sameLevel } from '../../model/elevation';
 import type { Bounds3 } from '../../model/geometry/bounds3';
-import { cutAway, levelIndex } from '../../model/levels';
+import { boxesInView, levelIndex } from '../../model/levels';
 import { boxesBounds, type PieceBox } from '../../model/pieceBoxes';
 import type { Plan } from '../../model/types';
 import { useThemeTokens } from '../../store/hooks';
@@ -18,8 +18,8 @@ import { getShownBoxes } from '../../store/planHooks';
 import { useShownSiteTerrain } from '../../store/siteTerrain';
 import { hoverAtom, selectionAtom } from '../../store/selection';
 import {
-  cutAwayAtom,
   levelHoverAtom,
+  levelViewModeAtom,
   roofsVisibleAtom,
   supportViewAtom,
   workDatumAtom,
@@ -42,9 +42,9 @@ import {
 } from './pieceColors';
 
 export interface LevelShading {
-  /** What is drawn: the shown boxes after the cut. */
+  /** What is drawn: the shown boxes of the view mode's levels. */
   boxes: readonly PieceBox[];
-  /** Every shown box, cut or not: the models to keep loaded. */
+  /** Every shown box, on any level: the models to keep loaded. */
   retainBoxes: readonly PieceBox[];
   /** The bounds of `retainBoxes`, so the camera and shadows don't move with the level. */
   bounds: Bounds3 | null;
@@ -78,7 +78,7 @@ const boundsOf = (boxes: readonly PieceBox[]): Bounds3 | null => {
 };
 
 /**
- * `plan`'s boxes the 3D view shows before the cut (`getShownBoxes`), and their bounds:
+ * `plan`'s boxes the 3D view shows on any level (`getShownBoxes`), and their bounds:
  * what the camera, the shadows and the level plate fit.
  */
 export const useShownBoxes = (
@@ -98,7 +98,7 @@ const useLevelOf = (plan: Plan): ((box: PieceBox) => number) =>
 /** `plan`'s boxes as the 3D view draws and shades them. */
 export const useLevelShading = (plan: Plan): LevelShading => {
   const datum = useAtomValue(workDatumAtom);
-  const cut = useAtomValue(cutAwayAtom);
+  const mode = useAtomValue(levelViewModeAtom);
   const preview = usePreviewLevel();
   const plate = usePlateShown();
   const tokens = useThemeTokens();
@@ -110,13 +110,13 @@ export const useLevelShading = (plan: Plan): LevelShading => {
 
   const { boxes: retainBoxes, bounds } = useShownBoxes(plan);
   const boxes = useMemo(
-    () =>
-      cut ? cutAway(retainBoxes, plan, getLibrary(), { datum, hovered: preview }) : retainBoxes,
-    [cut, retainBoxes, plan, datum, preview]
+    () => boxesInView(retainBoxes, plan, getLibrary(), { mode, datum, hovered: preview }),
+    [mode, retainBoxes, plan, datum, preview]
   );
 
-  // Above the level is faded (shown with the cut off); below it too while there is no
-  // plate (at datum 0), else the plate's frosting fades it. The previewed level isn't.
+  // One rule for every mode: above the level is faded (drawn in `above` and `all`), so
+  // the current level stands out; below it too while there is no plate (at datum 0),
+  // else the plate's frosting fades it. The previewed level isn't.
   const faded = useMemo(
     () => (box: PieceBox) => {
       const level = levelOf(box);

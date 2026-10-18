@@ -6,6 +6,7 @@ import { DoubleSide, MeshBasicNodeMaterial } from 'three/webgpu';
 import { boxOutline, boxSize, type WorldBox } from '../../model/geometry/box';
 import type { Bounds3 } from '../../model/geometry/bounds3';
 import { useThemeTokens } from '../../store/hooks';
+import { DEFAULT_PLATE_FROST, plateFrostAtom } from '../../store/plateFrost';
 import { workDatumAtom } from '../../store/session';
 import { createGridMaterial } from '../grid/gridMaterial';
 import { strength3d } from '../grid/gridLevels';
@@ -15,12 +16,15 @@ import { Collapsed } from './Collapsed';
 import { PlaneLines } from './PlaneLines';
 import { usePlateShown, usePreviewLevel } from './useLevelShading';
 
-/** How much of the canvas colour the plate lays over what is below it. */
-const PLATE_FROST = 0.4;
 /** Just under the current level's floor tops, as the ground grid is under the ground's. */
 const PLATE_DROP = 0.02;
-/** The plate's grid, relative to the ground grid's full 3D strength. */
+/**
+ * The plate's grid, relative to the ground grid's full 3D strength, from a frost of
+ * `GRID_FULL_FROST` up (M15's tuning); below that it fades with the frost's square
+ * root (linear left it too faint at the default 0.2), to nothing at 0.
+ */
 const PLATE_GRID_STRENGTH = 0.35;
+const GRID_FULL_FROST = 0.4;
 /** The plate's grid doesn't fade with distance: the plate itself bounds it. */
 const NO_FADE_RADIUS = 1e6;
 /** Dash and gap (metres) of a previewed level's outline. */
@@ -32,16 +36,31 @@ const GRID_RENDER_ORDER = 2;
 const createFill = () =>
   new MeshBasicNodeMaterial({
     transparent: true,
-    opacity: PLATE_FROST,
+    opacity: DEFAULT_PLATE_FROST,
     depthWrite: false,
     side: DoubleSide,
   });
 
-/** The grid, frosted fill and edge of the plate at the current level. */
+/** The fill's colour and opacity (uniforms: no new pipeline). */
+const styleFill = (fill: MeshBasicNodeMaterial, color: string, opacity: number) => {
+  fill.color.set(color);
+  fill.opacity = opacity;
+};
+
+/** The plate grid's strength at `frost` (the fill's opacity). */
+const gridStrength = (frost: number): number =>
+  PLATE_GRID_STRENGTH * Math.sqrt(Math.min(frost / GRID_FULL_FROST, 1));
+
+/**
+ * The grid, frosted fill and edge of the plate at the current level. The frost (the
+ * Levels bar's slider) sets the fill's opacity and the grid's strength as uniforms,
+ * live, without a new material.
+ */
 const Plate = ({ rect }: { rect: WorldBox }) => {
   const dpr = useThree((s) => s.viewport.dpr);
   const invalidate = useThree((s) => s.invalidate);
   const { gridLine, gridAlphaScale, canvas, ink } = useThemeTokens();
+  const frost = useAtomValue(plateFrostAtom);
   const [grid] = useState(() => {
     const handle = createGridMaterial({ perspective: true });
     handle.material.side = DoubleSide;
@@ -62,15 +81,15 @@ const Plate = ({ rect }: { rect: WorldBox }) => {
   }, [rect]);
   useLayoutEffect(() => {
     grid.update({
-      levelAlpha: strength3d(gridAlphaScale * PLATE_GRID_STRENGTH),
+      levelAlpha: strength3d(gridAlphaScale * gridStrength(frost)),
       dpr,
       color: gridLine,
       target: centre,
       fadeRadius: NO_FADE_RADIUS,
     });
-    fill.color.set(canvas);
+    styleFill(fill, canvas, frost);
     invalidate();
-  }, [grid, fill, gridAlphaScale, dpr, gridLine, canvas, centre, invalidate]);
+  }, [grid, fill, gridAlphaScale, dpr, gridLine, canvas, centre, frost, invalidate]);
 
   const edge = useMemo(() => [boxOutline(rect)], [rect]);
   return (
@@ -90,9 +109,9 @@ const Plate = ({ rect }: { rect: WorldBox }) => {
 
 /**
  * The work plane made visible in 3D: off the ground (and at every level over shown
- * terrain, `usePlateShown`), a frosted plate at the current level over the plan (its grid, a canvas-coloured fill that what is below shows
- * through, an accent edge); and a dashed outline at the level the Levels bar
- * previews. Their tags are `LevelTags3d`.
+ * terrain, `usePlateShown`), a frosted plate at the current level over the plan (its
+ * grid, a canvas-coloured fill that what is below shows through, an accent edge); and
+ * a dashed outline at the level the Levels bar previews. Their tags are `LevelTags3d`.
  */
 export const LevelPlate = ({ bounds }: { bounds: Bounds3 | null }) => {
   const datum = useAtomValue(workDatumAtom);

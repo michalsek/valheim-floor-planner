@@ -138,7 +138,9 @@ describe.skipIf(!dir)('a real world save', () => {
     expect(misplaced).toEqual([]);
     const levels = [...countBy(raw.map((p) => p.elevation))].sort((a, b) => a[0] - b[0]);
     console.info('Levels (elevation, pieces):', JSON.stringify(levels), 'start at', level);
-    expect(levels[0]![0]).toBe(0);
+    // The floor levels only: roofs go with the storeys under them, not on a level of
+    // their own.
+    expect(levels.map(([elevation]) => elevation)).toEqual([0, 4, 5, 7, 8]);
     // Handedness: neighbouring pieces continue along their own x axis as the plan turns
     // them. Only pieces off the build's grid tell a flipped yaw apart (at 45° it turns
     // the axis by 90°): here two roof pieces side by side along their eave.

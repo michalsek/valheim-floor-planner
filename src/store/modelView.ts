@@ -4,35 +4,14 @@
  */
 import { atom } from 'jotai';
 
-import { getLocalStorage } from './browserStorage';
-
-const REAL_LOOK_KEY = 'valheimFloorPlanner.realLook.v1';
-
-const readRealLook = (): boolean => {
-  try {
-    return getLocalStorage()?.getItem(REAL_LOOK_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
-
-const writeRealLook = (on: boolean): void => {
-  try {
-    getLocalStorage()?.setItem(REAL_LOOK_KEY, on ? '1' : '0');
-  } catch {
-    // Blocked or full storage: the choice lasts for this session only.
-  }
-};
-
-const realLookBaseAtom = atom<boolean>(readRealLook());
+import { persistedAtom } from './browserStorage';
 
 /** Draw the real models (true) or boxes (false) in 3D. */
-export const realLookAtom = atom(
-  (get) => get(realLookBaseAtom),
-  (_get, set, on: boolean) => {
-    set(realLookBaseAtom, on);
-    writeRealLook(on);
-  }
+export const realLookAtom = persistedAtom<boolean>(
+  'valheimFloorPlanner.realLook.v1',
+  false,
+  (stored) => stored === '1',
+  (on) => (on ? '1' : '0')
 );
 
 export interface ModelLoad {

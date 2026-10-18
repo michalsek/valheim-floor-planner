@@ -7,6 +7,7 @@ import { atom, createStore, type Getter } from 'jotai';
 
 import { DEFAULT_FLOOR_FAMILY_ID, DEFAULT_WALL_FAMILY_ID } from '../catalog';
 import { snapToGrid, type SnapStep } from '../model/geometry/snap';
+import type { LevelViewMode } from '../model/levels';
 import type { Vec2, WallSide } from '../model/types';
 import type { ToolId } from '../tools/toolIds';
 import {
@@ -108,10 +109,11 @@ export const elevationStepAtom = atom<ElevationStep>(1);
 export const supportViewAtom = atom<boolean>(false);
 
 /**
- * 3D: hide what is above the current level (higher levels, and lower levels' pieces
- * that start more than `CUT_ABOVE` over it). Session only.
+ * 3D: which levels are drawn (`LevelViewMode`): the cut by default (the current level
+ * and what is below it, less lower pieces that start more than `CUT_ABOVE` over it).
+ * C cycles it. Session only.
  */
-export const cutAwayAtom = atom<boolean>(true);
+export const levelViewModeAtom = atom<LevelViewMode>('cut');
 
 /** The level whose Levels bar row the pointer is over (3D previews it); null for none. */
 export const levelHoverAtom = atom<number | null>(null);

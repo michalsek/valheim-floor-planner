@@ -4,13 +4,14 @@ import { testLibrary } from '../catalog/testLibrary';
 
 import { applyCommands } from './commands';
 import {
-  cutAway,
+  boxesInView,
   ghostPlan,
   itemsFrom,
   levelIndex,
   levelPlan,
   selectionLevels,
   shiftElevation,
+  type LevelViewMode,
 } from './levels';
 import type { PieceBox } from './pieceBoxes';
 import { emptyPlan, type Floor, type Plan, type WallRun } from './types';
@@ -99,20 +100,30 @@ describe('levels', () => {
     expect(Object.keys(levelPlan(moved, 3, testLibrary).openings)).toEqual(['d']);
   });
 
-  it('cuts away what is above the current level, keeping it and the hovered one whole', () => {
-    const keys = (boxes: readonly PieceBox[]) => boxes.map((b) => b.key);
+  it('draws the levels of each view mode, the current and hovered ones always whole', () => {
+    const keys = (mode: LevelViewMode, datum: number, hovered: number | null = null) =>
+      boxesInView(boxes, plan, testLibrary, { mode, datum, hovered }).map((b) => b.key);
     const boxes = [
       box('above', 4),
       box('pole', 2, 2, 4),
       box('course', 0, 3),
       box('low', 0, 2.9),
       box('stair', 3.5),
+      // The current level's roof: its eave course under the cut, a course over it.
+      { ...box('eave', 2, 2.5), roofCover: true as const },
+      { ...box('cover', 2, 3), roofCover: true as const },
     ];
-    const at2 = cutAway(boxes, plan, testLibrary, { datum: 2, hovered: null });
-    expect(keys(at2)).toEqual(['pole', 'low', 'stair']);
-    const hovered = cutAway(boxes, plan, testLibrary, { datum: 2, hovered: 4 });
-    expect(keys(hovered)).toEqual(['above', 'pole', 'low', 'stair']);
-    expect(cutAway(boxes, plan, testLibrary, { datum: 4, hovered: null })).toBe(boxes);
+    expect(keys('cut', 2)).toEqual(['pole', 'low', 'stair', 'eave']);
+    expect(keys('cut', 2, 4)).toEqual(['above', 'pole', 'low', 'stair', 'eave']);
+    expect(keys('only', 2)).toEqual(['pole', 'stair', 'eave', 'cover']);
+    expect(keys('only', 2, 0)).toEqual(['pole', 'course', 'low', 'stair', 'eave', 'cover']);
+    expect(keys('above', 2)).toEqual(['above', 'pole', 'stair', 'eave', 'cover']);
+    expect(boxesInView(boxes, plan, testLibrary, { mode: 'all', datum: 2, hovered: null })).toBe(
+      boxes
+    );
+    expect(boxesInView(boxes, plan, testLibrary, { mode: 'cut', datum: 4, hovered: null })).toBe(
+      boxes
+    );
   });
 
   it('reports the levels of the selection: an opening’s wall’s, a stair piece’s flight’s', () => {

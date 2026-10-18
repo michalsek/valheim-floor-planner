@@ -1285,3 +1285,44 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    roof selected, the Inspector pushes the list below the fold, so after Re-fit it showed
    "checking…" over the old count until the selection was cleared. That is by design,
    but it can read like a stale result.
+
+## From M15.1 (roofs on their storeys, level view modes, plate slider)
+
+1. **Roof levels on import.** Raw roof pieces and gable walls now take the wall rule
+   (the highest floor level at or below their lowest edge, `importCluster.ts`). The
+   import's levels are 0 / +4 / +5 / +7 / +8; the +3 roof level is gone (asserted in
+   `test:world`). Two steep 67° thatch pieces with their bottom 2.8 m up, beside the
+   chests on the ground, land on level 0 with the stray poles, as a wall there would.
+   Plans imported before M15.1 keep their stored elevations: import the build again to
+   get the new levels (no plan migration).
+2. **Level view modes** (One / Cut / Up / All, `boxesInView`) replace `cutAwayAtom`; C
+   cycles them in 3D. One fade rule for all modes: above the current level faded, below
+   it faded only without a plate. Pick follows the view: at +4 on the import, Pick over
+   the house goes to 15 in Up and All (the roof) and to 4 in Cut and One (the floor).
+   `SegmentedControl` options take an optional `title`, and the control an optional
+   `className` (the Levels bar's tighter four-way row).
+3. **Plate frost:** default 0.2 (was 0.4), slider 0–0.6 remembered per browser; the
+   plate grid scales with the square root of frost / 0.4 below 0.4 (linear left it
+   almost invisible at 0.2 in the light theme; at a fixed 0.35 it read loud in the dark
+   theme over the thinner fill). In the dark theme the fill at 0.2 is barely visible over
+   terrain, as the M15 tuning intended. The slider drops focus on pointer up, so C and
+   PageUp go back to the canvas after a drag.
+4. **Perf** (headless Chrome 155, the import with terrain, longtask observer plus
+   counting `linkProgram` / `createRenderPipeline*`): the first pass through all four
+   modes after loading, PageUp/PageDown ×6, C ×8, a sweep over the rows and two level
+   steps in each mode, and a slider sweep over 0–0.6, in Boxes and Models, on WebGPU and
+   `?webgl`: **no long task and no new programs or pipelines.** The retained instanced
+   meshes (M15) already cover every mode, since each draws a subset of the same boxes.
+5. **Fix round: Cut cuts the top storey's roof.** With roofs on their storeys, the
+   import's main roof (233 pieces) is on +8, the current level there, so Cut drew it
+   whole over the storey and Pick hit it. In Cut only, the current level's roof covers
+   (`roofCover`: derived roofs and imported covers) now follow the lower levels'
+   `datum + CUT_ABOVE` bottom rule; gable walls, Roof Crosses and fills stay. One still
+   draws the whole level, and Up and All show the roof. Checked: +8 Cut shows the storey
+   under its gable crosses and Pick goes to 8 (Up: 15); +4 Cut as before; a hand-drawn
+   gable roof seated on +2 viewed at +2 in Cut shows the walls and gable ends, its covers
+   cut (Up: the whole roof).
+6. **`persistedAtom`** (`store/browserStorage.ts`): one helper for per-browser atoms
+   (read once, written on set, all in try/catch), used by `realLookAtom` and
+   `plateFrostAtom`.
+7. **Not exercised:** Safari and Firefox.
