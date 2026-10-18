@@ -574,7 +574,134 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
    identical, but are untested.
 7. Portals and the `00_01__0_V` portal chunk: none in the validated world.
 
-## 8. Implications for the planner's data model
+## 8. Terrain generation and TerrainComp (1.0, worldGenVersion 2)
+
+Source: IL of `WorldGenerator`, `HeightmapBuilder`, `Heightmap`, `TerrainComp` and `DUtils`
+in the installed 1.0.20 assemblies, read with `extract/world/ilDump.py` (M16 a0). Only
+paraphrased behaviour and constants are kept here. The Python prototype is
+`extract/world/worldGen.py` (our own code); `extract/world/validateTerrain.py` checks it
+against a save. **Validated** on the user's real world (see "Validation" below).
+
+### Units and grid
+- Generator heights are normalised; **metres = value × 200**. Sea level is **30 m** (0.15).
+- Terrain is built per **zone** (64 m). A zone's heightmap has **65 × 65 vertices at 1 m
+  spacing**, at integer world coordinates `zone × 64 − 32 + i`. Edge vertices are shared.
+- The terrain collider splits each 1 m quad along the **(x+1, z)–(x, z+1) diagonal**. Using
+  that triangulation, vegetation `y` matched to < 1 mm (bilinear: ~4 mm median, 5 cm p90).
+
+### Unity natives (the only non-IL parts)
+- **`Mathf.PerlinNoise(x, y)`:** Ken Perlin's improved noise with the 2002 reference
+  permutation, at z = 0, sampled on `|x|`, `|y|`, output `(n + 0.69) / 1.483`. Arguments are
+  float32 (the game's `DUtils.PerlinNoise(double, double)` casts them). Constants from the
+  MIT-licensed C++ server [ricosolana/Valhalla](https://github.com/ricosolana/Valhalla)
+  (`VUtilsMath.cpp`); **validated here to < 1.2 mm in metres over 9 402 locations.**
+- **`UnityEngine.Random`:** xorshift128. `InitState(seed)` sets `s0 = seed`, then
+  `s[i+1] = s[i] × 1812433253 + 1`. Int `Range(a, b)` = `a + next % (b − a)` (unsigned);
+  float `value` = `(next & 0x7FFFFF) × 1.192093e-7` (float32); float `Range(a, b)` =
+  `(1 − r) × b + r × a`. Same source; validated indirectly (offsets, rivers, streams all match).
+- Everything else (`Mathf.Sin`, `Atan2`, `Sqrt`) is double maths rounded to float32.
+  Float32 rounding at the IL's `conv.r4` points is enough; no bit tricks were needed.
+
+### Seeding (`WorldGenerator` constructor)
+- `Random.InitState(world seed)`, then in this order: `offset0..3 = Range(−10000, 10000)`,
+  `riverSeed = Range(int.Min, int.Max)`, `streamSeed` likewise, `offset4 = Range(−10000, 10000)`.
+- `VersionSetup(worldGenVersion)`: v2 uses max swamp distance 6000, min dark-land noise 0.4,
+  min mountain distance 1000. v ≤ 1: 8000 / 0.5; v ≤ 0: mountain distance 1500. Only v2 is
+  validated.
+- Alt-biomes (`AltBiomeWorldData`, 2048² sector map) feed vegetation and colour only:
+  `GetBiomeHeight` reads the sector and discards it. Heights match without them.
+
+### Base height (`GetBaseHeight`, non-menu branch)
+- Coordinates are shifted by `100000 + offset0` (x) and `100000 + offset1` (z), in double.
+- Three products of two Perlin octaves each, accumulated into a float32 `h`:
+  (0.001, 0.0015) × 1; (0.002, 0.003) × h × 0.9; (0.005, 0.01) × 0.5 × h; then `h −= 0.07`.
+  (Frequencies are the float32 constants 0.002 × 0.5 etc. as stored.)
+- **Valleys:** two Perlin samples at frequency 0.0005 with small phase offsets; their
+  absolute difference through `1 − LerpStep(0.02, 0.12, d)`, faded in by
+  `SmoothStep(744, 1000, distance from the centre)`, scales `h` down.
+- **World edge:** beyond 10 000 m `h` blends to −0.2 (to 10 500), then −2 past 10 490.
+- **Start area:** within 1000 m, heights above 0.28 are squashed towards 0.28–0.38.
+
+### Biome (`GetBiome`, first rule that matches)
+Ashlands (`|(x, z − 4000)| > 12000 + 100·wobble`) → Ocean (base ≤ 0.02) → Deep North
+(`|(x, z + 4000)| > 12000 + wobble`) → Mountain (base > 0.4) → Swamp (noise(offset0) > 0.6,
+2000 < r < 6000, 0.05 < base < 0.25) → Mistlands (noise(offset4) > 0.4, 6000+wobble < r < 10000)
+→ Plains (noise(offset1) > 0.4, 3000+wobble < r < 8000) → Black Forest (noise(offset2) > 0.4,
+600+wobble < r < 6000) → Black Forest (r > 5000+wobble) → Meadows. The noises are Perlin at
+0.001 on `offset + x`; `wobble = 100 × sin(20 × atan2(x, z))`.
+
+### Per-biome height (`GetBiomeHeight` × 200 × Ashlands gap × Deep North gap)
+| Biome | Height (normalised) |
+|---|---|
+| Meadows, Plains | base + 0.1·detail, peaks above 0.15 flattened by `(1 − clamp(base/0.4))·0.75`, rivers, + fine noise |
+| Black Forest | base + 0.1·detail, rivers, + fine noise |
+| Swamp | 0.137 + 0.03·(Perlin 0.04 × Perlin 0.08), rivers, + fine noise (no base height) |
+| Mountain | 2·base − 0.4 + 0.2·detail, rivers, fine noise, + 2·tilt·Perlin(0.2) (tilt = central difference of base) |
+| Ocean | base |
+| Mistlands | base + 0.4·detail^1.5, rivers, fine noise, blended towards 0.5 m terraces by `clamp(7·detail)` |
+| Ashlands, Deep North | larger functions (FastNoise cellular/simplex for Ashlands); **not ported** |
+
+`detail` = Perlin(0.01)·Perlin(0.02) + 0.5·detail·Perlin(0.05)·Perlin(0.1) on `x + 100000 + offset3`;
+fine noise = 0.01·Perlin(0.1) + 0.003·Perlin(0.4). Beyond 10 500 m the height is −400 m.
+The gaps are smooth 0→1 bands ±400 m around the Ashlands and Deep North borders.
+
+### Rivers and streams (`Pregenerate`, once per world)
+1. **Lakes:** every 128 m grid point within 10 km whose base height is < 0.05, merged
+   greedily (pairs within 800 m averaged).
+2. **Rivers** (`InitState(riverSeed)`): for each lake, a random other lake within 2000 m
+   (else 5000 m if the lake has no river yet) whose straight line stays ≤ 0.4 and is not all
+   water (sampled every 128 m). Widths `Range(60, 100)` / `Range(60, max)`; the path is the
+   straight line plus a product-of-sines meander (amplitude dist/15, wavelength dist/20).
+3. **Streams** (`InitState(streamSeed)`): 3000 attempts. A random start in ±10 km with
+   pregeneration height 26–31 m (100 tries), an end 80–200 m away at 36–44 m (100 tries),
+   and a midpoint at 26–44 m. Width 20. A second pass adds Deep-North-only streams.
+4. **Rendering** samples each path every `widthMin/8` m with a random width and stores the
+   points in a 64 m grid. **Carving:** weight = max(1 − d/width) over nearby points; the
+   biome height is pulled to 0.12–0.14 (by width) with that weight, then towards 0.128–0.139.
+- Rivers matter: without them 10 % of validation points were off by > 0.1 m (max 35 m).
+- The stream pass evaluates full heights at up to 600 k points; a single threshold flip
+  would reshuffle all later streams, so the port must keep the float32 rounding.
+
+### Heightmap build (`HeightmapBuilder.Build`)
+- Biomes at the zone's four corners. If equal, each vertex gets that biome's height.
+  Otherwise each vertex blends the four corner biomes' heights bilinearly with
+  `SmoothStep(0, 1, i/64)` weights.
+- Then `Heightmap.ApplyModifiers`: all `TerrainModifier` instances (location prefabs and
+  legacy player pieces), then the zone's `TerrainComp`.
+
+### TerrainComp (`_TerrainCompiler` ZDO, one per edited zone)
+- ZDO at the zone centre (SmallPosition, y = 0). Byte array key `TCData`, **gzip ZPackage**:
+
+  | Field | Type |
+  |---|---|
+  | version | int32 (1) |
+  | operations | int32 (count of edits) |
+  | last op point, radius | vec3, float |
+  | n | int32 = 65 × 65 = 4225 |
+  | n × | bool modified; if set: float levelDelta, float smoothDelta |
+  | m | int32 (4225; 64² in old saves is re-indexed) |
+  | m × | bool modified; if set: float r, g, b, a paint |
+
+- Index = `row × 65 + col`, **row = z**, col = x (a transposed layout puts 44 floors underground).
+- Final vertex = `clamp(h + level + smooth, h − 8, h + 8)` where `h` is the height after
+  the modifiers. Smooth deltas stay within ±1 m.
+- Paint (r ≈ cleared dirt; g, b presumably cultivated / paved; **inf**) only colours the ground.
+- **Not in the save:** location prefabs' own `TerrainModifier`s (flattening around ruins,
+  dolmens, etc.); they explain every validation outlier, all within 25 m of a location centre.
+  Pre-1.0 player `TerrainModifier` piece ZDOs (raise, path, …) are upgraded into TerrainComp
+  in-game; none in the validated world.
+
+### Validation (pokemanz, 1.0.20, worldGenVersion 2; aggregates only)
+- Pregeneration: 119 lakes, 157 rivers, 2 037 streams (Python, ~90 s).
+- **9 402 location instances** (all biomes except Ashlands / Deep North): stored `y` vs
+  `GetHeight`, **max error 1.2 mm**.
+- **Vegetation** (25 k objects in 200 random zones): p50 0, p99 0.18 m, max 4.7 m overall;
+  **> 30 m from a location centre: 15 758 objects, max 7.7 cm, 100 % < 0.1 m**.
+- **TerrainComp under the build:** 83 of 221 floors sit 0.10–0.15 m above the composed
+  terrain and none below it; against base terrain alone 115 floors would be underground.
+  Chests, fire pit and bed sit within 2 cm of the ground.
+
+## 9. Implications for the planner's data model
 
 - Work in **metres**, with a **0.5 m base grid** and 1 m / 2 m snap levels.
 - Each piece type carries:
@@ -596,7 +723,7 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
   - a check that roof spans are whole-piece friendly.
 - Overlays: furniture/station footprints, workbench/ward radii, stair run per storey.
 
-## 9. Web research (wiki, patch notes, mods)
+## 10. Web research (wiki, patch notes, mods)
 
 These points come from the Fandom wiki API, the Jotunn docs, Iron Gate's Steam news
 and Thunderstore. They're cross-checked against the game data where possible.
@@ -650,7 +777,7 @@ Sources: valheim.fandom.com (Building, Building stability, Cover, Smoke, Hearth,
 Workbench, Portal, Player base), valheim-modding.github.io/Jotunn piece list, Steam
 news for app 892970, Thunderstore pages for the mods above.
 
-## 10. Tech stack options (superseded: see docs/Roadmap.md)
+## 11. Tech stack options (superseded: see docs/Roadmap.md)
 
 | Option | Pros | Cons |
 |---|---|---|
