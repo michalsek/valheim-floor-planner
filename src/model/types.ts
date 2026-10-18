@@ -129,8 +129,8 @@ export interface Roof {
 export type RawPieceId = string;
 
 /**
- * A game piece the planner can't express as a run, floor, opening, roof or prop (an
- * imported world build): shown, counted, moved and turned, but not reshaped.
+ * A single game piece placed freely (imported, built or exploded): shown, counted,
+ * moved and turned, but not reshaped.
  */
 export interface RawPiece {
   id: RawPieceId;

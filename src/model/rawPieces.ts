@@ -1,5 +1,6 @@
 /**
- * Raw pieces (imported game pieces kept as they are): the rules a stored one meets
+ * Raw pieces: single game pieces placed freely, imported from a world, built with the
+ * Build tool or exploded from a wall, floor, roof or item. The rules a stored one meets
  * (commands and file parsing share them), and the prefab's collider from the catalogue
  * (`rawBoxes.ts` places it). Pure.
  */

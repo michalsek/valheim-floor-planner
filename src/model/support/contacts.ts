@@ -3,7 +3,8 @@
  * (`Physics.OverlapBox` in `WearNTear.UpdateSupport`), not by snap points, so this
  * does too: two shapes touch when they come within ε of each other over a face, not
  * just along an edge or at a corner (see `SupportShape.touches`). A spatial hash on the
- * plan keeps it near linear.
+ * plan keeps it near linear; it is exposed (`contactIndex`, `touching`) so a ghost piece
+ * can find its neighbours among a committed plan's without a recompute.
  */
 import type { Vec3 } from '../types';
 
@@ -26,6 +27,17 @@ export interface Contact {
   point: Vec3;
 }
 
+/** Shapes hashed by the plan cells their bounds cover. */
+export interface ContactIndex {
+  shapes: readonly SupportShape[];
+  /** The hash's growth: shapes are found within this of a query (metres). */
+  eps: number;
+  grid: ReadonlyMap<number, readonly number[]>;
+  /** Which query last visited each shape, so one sharing several cells is visited once. */
+  stamp: Int32Array;
+  queries: number;
+}
+
 /** The plan cells a shape's bounds (grown by `eps`) cover. */
 const cellsOf = ({ aabb }: SupportShape, eps: number): number[] => {
   const cell = (n: number) => Math.floor(n / CELL);
@@ -45,6 +57,56 @@ const nearby = (a: Aabb, b: Aabb, eps: number): boolean =>
   a.min.z - eps <= b.max.z + eps &&
   b.min.z - eps <= a.max.z + eps;
 
+/** The shapes hashed for `touching` (built once per shape list). */
+export const contactIndex = (shapes: readonly SupportShape[], eps = CONTACT_EPS): ContactIndex => {
+  const grid = new Map<number, number[]>();
+  shapes.forEach((shape, i) => {
+    for (const key of cellsOf(shape, eps)) {
+      const bucket = grid.get(key);
+      if (bucket) bucket.push(i);
+      else grid.set(key, [i]);
+    }
+  });
+  return { shapes, eps, grid, stamp: new Int32Array(shapes.length).fill(-1), queries: 0 };
+};
+
+/**
+ * Calls `visit` once for each indexed shape whose bounds come near `shape`'s and that
+ * `skip` doesn't rule out, until `visit` has seen them all.
+ */
+const forEachNear = (
+  index: ContactIndex,
+  shape: SupportShape,
+  skip: (i: number) => boolean,
+  visit: (i: number) => void
+): void => {
+  const query = index.queries++;
+  for (const key of cellsOf(shape, index.eps)) {
+    for (const i of index.grid.get(key) ?? []) {
+      if (index.stamp[i] === query || skip(i)) continue;
+      index.stamp[i] = query;
+      if (nearby(shape.aabb, index.shapes[i]!.aabb, index.eps)) visit(i);
+    }
+  }
+};
+
+const touches = (index: ContactIndex, a: SupportShape, i: number): boolean =>
+  a.touches(index.shapes[i]!, index.eps, MIN_CONTACT_FACE);
+
+/** The indexed shapes `shape` touches (it needn't be indexed itself). */
+export const touching = (index: ContactIndex, shape: SupportShape): number[] => {
+  const found: number[] = [];
+  forEachNear(
+    index,
+    shape,
+    (i) => index.shapes[i] === shape,
+    (i) => {
+      if (touches(index, shape, i)) found.push(i);
+    }
+  );
+  return found;
+};
+
 const bothWays = (shapes: readonly SupportShape[], a: number, b: number): Contact[] => [
   { body: a, on: b, point: shapes[b]!.closestPoint(shapes[a]!.com) },
   { body: b, on: a, point: shapes[a]!.closestPoint(shapes[b]!.com) },
@@ -52,41 +114,29 @@ const bothWays = (shapes: readonly SupportShape[], a: number, b: number): Contac
 
 /**
  * Every touching pair, both ways. `extra` adds pairs (by index) a generator knows rest
- * on each other whatever their shapes say (M12: a roof piece on a wall's top edge).
+ * on each other whatever their shapes say (M12: a roof piece on a wall's top edge; M17:
+ * pieces joined at a snap point).
  */
 export const findContacts = (
   shapes: readonly SupportShape[],
   eps = CONTACT_EPS,
-  extra: readonly (readonly [number, number])[] = []
+  extra: readonly (readonly [number, number])[] = [],
+  index: ContactIndex = contactIndex(shapes, eps)
 ): Contact[] => {
-  const grid = new Map<number, number[]>();
-  const cells = shapes.map((shape, i) => {
-    const keys = cellsOf(shape, eps);
-    for (const key of keys) {
-      const bucket = grid.get(key);
-      if (bucket) bucket.push(i);
-      else grid.set(key, [i]);
-    }
-    return keys;
-  });
-
   const contacts: Contact[] = [];
   const paired = new Set<number>();
   const pairKey = (a: number, b: number) => a * shapes.length + b;
-  // Which shape last tested each one, so a pair sharing several cells is tested once.
-  const testedBy = new Int32Array(shapes.length).fill(-1);
   shapes.forEach((shape, a) => {
-    for (const key of cells[a]!) {
-      for (const b of grid.get(key)!) {
-        if (b <= a || testedBy[b] === a) continue;
-        testedBy[b] = a;
-        const other = shapes[b]!;
-        if (nearby(shape.aabb, other.aabb, eps) && shape.touches(other, eps, MIN_CONTACT_FACE)) {
-          contacts.push(...bothWays(shapes, a, b));
-          paired.add(pairKey(a, b));
-        }
+    forEachNear(
+      index,
+      shape,
+      (b) => b <= a,
+      (b) => {
+        if (!touches(index, shape, b)) return;
+        contacts.push(...bothWays(shapes, a, b));
+        paired.add(pairKey(a, b));
       }
-    }
+    );
   });
   for (const [x, y] of extra) {
     const [a, b] = x < y ? [x, y] : [y, x];

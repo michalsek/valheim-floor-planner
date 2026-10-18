@@ -53,9 +53,9 @@ export interface SupportBody {
   /** Whether other bodies can rest on it: walls, floors, poles, stairs; not doors or furniture. */
   gives: boolean;
   /**
-   * Held up whatever is under it, and not checked (an imported raw piece): it gives its
-   * material's maximum, like a grounded body. Its state only says whether it touches the
-   * ground ('grounded') or not ('none').
+   * Held up whatever is under it, and not checked: it gives its material's maximum, like
+   * a grounded body. Its state only says whether it touches the ground ('grounded') or
+   * not ('none'). Plans no longer use it (raw pieces are checked since M17).
    */
   fixed?: boolean;
 }
@@ -192,6 +192,38 @@ const supportFrom = (
   return Math.min(material.maxSupport, best);
 };
 
+/** A body's state from its support, as `propagateSupport` gives it (not for fixed bodies). */
+const stateOf = (material: MaterialSupport, value: number, grounded: boolean): SupportState => {
+  if (grounded) return 'grounded';
+  return value > material.minSupport ? 'supported' : 'collapsing';
+};
+
+/** A neighbour a body may rest on, with what it publishes (0 when it breaks). */
+export interface Giver {
+  body: SupportBody;
+  published: number;
+  /** The point of its shape closest to the body's centre of mass. */
+  point: Vec3;
+}
+
+/**
+ * One body's support from its neighbours' published values: one relaxation step of
+ * `propagateSupport`, by the same rule. A body on the ground gets its maximum.
+ */
+export const supportOfBody = (
+  body: SupportBody,
+  givers: readonly Giver[]
+): { value: number; state: SupportState } => {
+  const { material } = body;
+  if (!material) return { value: 0, state: 'none' };
+  if (onGround(body)) return { value: material.maxSupport, state: 'grounded' };
+  const usable = givers.filter((g) => g.body.gives && g.body.material);
+  const neighbours = usable.map((g, i) => neighbourOf(body, material, g.body, i, g.point));
+  const published = Float64Array.from(usable, (g) => g.published);
+  const value = supportFrom(material, { neighbours, pairs: pairsOf(neighbours) }, published);
+  return { value, state: stateOf(material, value, false) };
+};
+
 export const propagateSupport = (
   bodies: readonly SupportBody[],
   contacts: readonly Contact[]
@@ -242,8 +274,7 @@ export const propagateSupport = (
   const state = bodies.map((body, i): SupportState => {
     if (!body.material) return 'none';
     if (body.fixed) return onGround(body) ? 'grounded' : 'none';
-    if (grounded[i]) return 'grounded';
-    return published[i]! > 0 ? 'supported' : 'collapsing';
+    return stateOf(body.material, value[i]!, grounded[i]!);
   });
   return { value: Float32Array.from(value), state };
 };

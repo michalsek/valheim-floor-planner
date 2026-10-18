@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { findContacts } from './contacts';
+import { contactIndex, findContacts, touching } from './contacts';
 import { boxShape } from './shape';
 
 const box = (x: number, z: number, sx: number, sz: number, rotationY = 0, y = 1, sy = 2) =>
@@ -54,5 +54,14 @@ describe('findContacts', () => {
     const wall = box(0, 0, 0.3, 2);
     expect(pairs([wall, slab(0)])).toHaveLength(2);
     expect(pairs([wall, slab(0.2)])).toEqual([]);
+  });
+
+  it('finds what a shape outside the index touches, as findContacts would', () => {
+    const row = [box(0, 0, 2, 2), box(2.08, 0, 2, 2), box(6, 0, 2, 2)];
+    const index = contactIndex(row);
+    expect(touching(index, box(4, 0, 2, 2)).sort()).toEqual([1, 2]);
+    expect(touching(index, box(4, 0, 2, 2, 0, 9))).toEqual([]);
+    // An indexed shape doesn't touch itself.
+    expect(touching(index, row[0]!)).toEqual([1]);
   });
 });

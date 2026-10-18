@@ -17,8 +17,15 @@ import {
 import { derivePlan } from '../../../model/derivePlan';
 import { pieceBoxes } from '../../../model/pieceBoxes';
 import { parsePlan, serializePlan } from '../../../model/serialize';
-import { planSupport } from '../../../model/support/planSupport';
+import { ghostSupport } from '../../../model/support/ghostSupport';
+import {
+  modelSupport,
+  planSupport,
+  supportModel,
+  type PlanSupport,
+} from '../../../model/support/planSupport';
 import { boxShape } from '../../../model/support/shape';
+import { snapJoints } from '../../../model/support/snapJoints';
 import {
   groundAt,
   groundAtWorld,
@@ -191,5 +198,43 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
     expect(floors.filter((b) => b.prefab === 'wood_floor').length).toBe(221);
     expect(Math.max(...under)).toBeLessThanOrEqual(0.02);
     expect(grounded).toBeGreaterThanOrEqual(80);
-  });
+
+    // Raw pieces checked (M17): with snap joints only stone on core wood should drop.
+    started = performance.now();
+    const model = supportModel(boxes, testLibrary.catalog.materialSupport, ground);
+    const joints = snapJoints(boxes, testLibrary);
+    const modelMs = ms(started);
+    started = performance.now();
+    const jointed = modelSupport(model, joints.pairs);
+    const solveMs = ms(started);
+    const dropping = (support: PlanSupport) =>
+      boxes.filter((b) => support.byKey.get(b.key)?.state === 'collapsing');
+    const loose = dropping(modelSupport(model));
+    const held = dropping(jointed);
+    console.info(
+      `Raw pieces checked: ${loose.length} would collapse, ${held.length} with ${joints.pairs.length} snap joints (${held.filter((b) => b.material === 'stone').length} stone); model ${modelMs} ms, solve ${solveMs} ms`
+    );
+    expect(loose.length).toBeGreaterThan(held.length);
+    expect(held.length).toBeLessThanOrEqual(10);
+    expect(held.every((b) => b.material === 'stone')).toBe(true);
+
+    // A ghost's support, as Build asks it per pointer move: each raw piece once, as if
+    // placed again where it is (itself left out), against the committed result.
+    const committed = { model, joints };
+    const sample = boxes.filter((_, i) => i % 5 === 0);
+    started = performance.now();
+    const ghosts = sample.map(
+      (box) => ghostSupport([box], committed, jointed, new Set([box.key]))[0]!
+    );
+    const perGhost = (performance.now() - started) / sample.length;
+    const same = sample.filter((box, i) => {
+      const full = jointed.byKey.get(box.key)!;
+      return ghosts[i]!.state === full.state && Math.abs(ghosts[i]!.value - full.value) < 0.5;
+    }).length;
+    console.info(
+      `Ghost support: ${perGhost.toFixed(3)} ms per piece over ${sample.length}; ${same} agree with the full solve`
+    );
+    expect(perGhost).toBeLessThan(0.3);
+    expect(same / sample.length).toBeGreaterThan(0.9);
+  }, 30_000); // the cold river job alone takes seconds on a busy machine
 });

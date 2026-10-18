@@ -3,8 +3,11 @@
  * Turned by yaw, tilted by pitch and rolled by roll (the game's Euler angles, mirrored
  * into planner space: three.js 'YXZ' of (−pitch, −yaw, roll); yaw is stored clockwise,
  * so `rotationY` is −yaw). Roof pieces take their roof shape, diagonal beams a beam,
- * anything else its collider box. Pure.
+ * anything else its collider box. Floor tiles' boxes are lifted 1 mm, as derived
+ * floors' are; their pivot (the model, snap points) stays. Pure.
  */
+import { FLOOR_FAMILY_SPECS } from '../catalog/floorFamilies';
+
 import type { Hit } from './hitTest';
 import { convexHull, polygonArea } from './geometry/convex';
 import { normalizeDeg, rotate } from './geometry/propGeometry';
@@ -17,6 +20,15 @@ import { roofBox } from './roofBoxes';
 import type { RawPiece, Vec2, Vec3 } from './types';
 
 const DEG = Math.PI / 180;
+
+/**
+ * How far floor boxes are lifted (metres): 1 mm, so a floor level with the wall top under
+ * it doesn't flicker against it (M11 finding 13). Derived floors lift their model too.
+ */
+export const FLOOR_LIFT = 0.001;
+
+/** The floor families' tiles: lifted as derived floors are. */
+const FLOOR_TILES: ReadonlySet<string> = new Set(FLOOR_FAMILY_SPECS.flatMap((spec) => spec.tiles));
 
 const pivotOf = (piece: RawPiece): Vec3 => ({
   x: piece.position.x,
@@ -134,6 +146,8 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
   const item = { kind: 'raw', id: piece.id } as const;
   const hit = { ...item, area: rawOutlineArea(piece, lib) };
   const frame = frameOf(piece);
+  const body = withoutZeros(bodyOf(piece, lib, item, hit));
+  const lift = FLOOR_TILES.has(piece.prefab) ? FLOOR_LIFT : 0;
   return {
     key: `raw:${piece.id}`,
     item,
@@ -143,7 +157,8 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
     group: null,
     odd: false,
     elevation: piece.elevation,
-    ...withoutZeros(bodyOf(piece, lib, item, hit)),
+    ...body,
+    center: { ...body.center, y: body.center.y + lift },
     prefab: piece.prefab,
     ...(level(piece) ? {} : { modelTurn: { x: frame.tiltX, y: frame.rotationY, z: frame.rollZ } }),
     ...(isRawRoofCover(piece, lib) ? { roofCover: true as const } : {}),

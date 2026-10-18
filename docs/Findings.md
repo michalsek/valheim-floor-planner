@@ -1360,3 +1360,61 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 6. **`rayTerrain`** marches only the part of the ray over the patch's plan bounds and
    within its height range (± 1 cm), so a near-horizontal ray stays cheap; crossings from
    below don't count (the ground is drawn from above only).
+
+## From M17 pass 1B (support with raw pieces, Explode, Mirror, Repeat, palette data)
+
+1. **Raw pieces are checked.** `planSupport` no longer marks them `fixed` (the field
+   stays in `propagate.ts` for its test). All raw pieces still give support, stations and
+   chests included (the catalogue doesn't carry `m_supports`); an exploded prop that gave
+   none as a prop now gives some. The Integrity note about unchecked raw pieces is gone.
+2. **Snap joints** (`support/snapJoints.ts`, `SNAP_JOINT = 0.03` m): two boxes with snap
+   points that close touch, declared to `findContacts` like `roofContacts`. They apply to
+   **every** box, derived pieces too, so Explode keeps the Integrity count. Cached per box
+   list. On the import with terrain (`test:world`): **34 would collapse without joints,
+   10 with them** (3,800 joints), all stone on core wood, as the plan's experiment found;
+   the COM-to-pivot distance form (M16 1B note 11) is the likely fix, out of scope.
+3. **What joints change on drawn plans:**
+   - Derived 45° and 67° ridge pieces (`*_top_45/67`) used to collapse on longer roofs
+     (8 on an 8 × 26 m wood house at 45°): their colliders meet the slopes along edges
+     only. They now stand, as in the game.
+   - **M11 finding 2's stone tile beside a 2 m stone wall** (edge-touching the lower
+     course) is now held at ~142 through its corner joints, as the game's 0.15 m grown
+     overlap (M16 1B note 1) would likely hold it too. The `planSupport` unit test still
+     asserts the old drop because it passes no joints. Check in the game.
+4. **Exploded roofs stand without `rawRoofRests`.** The M12 test houses (6 × 8 m, gable
+   walls, 26°, 45°, 67°) keep 0 collapsing pieces after Explode, even with joints left out:
+   raw roof covers take the same slab shapes, which overlap the wall tops. Not built.
+5. **Support numbers.** A raw wood-floor cantilever off a raw wall top (Build's case)
+   reads **71.4, 41.4, 24.0, 13.9, then breaks at 8.1**, not M11's 70.6 / 40.9 / 23.7 /
+   13.8: a raw tile's collider sits on its snap plane (its COM 3 cm above the wall top),
+   while a Floor-tool tile hangs below the datum. The §11 acceptance values need that
+   adjustment. The raw wood wall column still breaks at the 9th.
+6. **Ghost support** (`ghostSupport`): one relaxation step against the committed result,
+   with the committed model (shapes, contact hash, bodies, ground) and snap-joint index
+   built once per committed plan (`committedSupportIndex`, WeakMap). On the import:
+   **0.025 ms per piece** (Node, M4 Pro), and for 228 sampled pieces re-placed where they
+   stand (themselves excluded) the ghost's state and value match the full solve in all
+   228. A full `computeSupport` on the import: model 13 ms (shapes, ground, hash, joints),
+   solve 11 ms.
+7. **Support is wanted while a listed tool is active** (`SUPPORT_TOOLS` in
+   `supportSync.ts`, holding `'build'` before that id exists). `latestSupportAtom` gives
+   `{plan, support}` to derived atoms; fresh when `plan` is the committed one.
+8. **Raw floor lift.** Floor-family tiles (`FLOOR_FAMILY_SPECS`, no library needed) get
+   their box lifted 1 mm (`FLOOR_LIFT`, moved to `rawBoxes.ts`); unlike derived floors,
+   the pivot (model, snap points) is not lifted, so snapping onto a raw floor never adds
+   1 mm per storey. Explode subtracts a derived floor's 1 mm from the stored position.
+9. **Explode** (`pieceOps/explode.ts`) turns every derived box of a wall (its door
+   panels included), floor, roof or prop into a raw piece at the box's pivot and model
+   turn. An opening alone and raw pieces are not explodable; boxes without a prefab are
+   counted in `skipped` (none occur in practice). The bill of materials is unchanged.
+10. **Mirror** reflects each piece's snap-point centre (the collider centre without snap
+    points), not the collider's: colliders sit up to 2 cm off the lattice (a wood floor's
+    x is −1.01…0.99), which would shift mirrored floors off it. Symmetry is tested on the
+    snap points only (1 cm), so walls, floors and beams keep x and stairs keep z.
+11. **Repeat**: `count` is the row's total (2–50, the selection included). The default
+    step is the snap extent along the way; with none that way (a floor going up) the box
+    extent.
+12. **Palette data** (`catalog/buildPalette.ts`): categories and materials with labels in
+    the plan's order; `Other` takes the unmapped category and `ice` / no material.
+    Placeable = a cost or a collider, which leaves out only the repair tool. Exports are
+    named `Build*` so they don't clash with `materialColors`' palette.

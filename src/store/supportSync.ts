@@ -1,26 +1,44 @@
 /**
  * Structural support of the committed plan, worked out lazily and off the commit path:
- * only while something shows it (the support view, or the Integrity list open on
- * screen), and only once the browser is idle after a change. Until then the last result
- * stays up (support colours of a moved piece lag a moment), marked as not fresh.
+ * only while something shows or uses it (the support view, the Integrity list open on
+ * screen, a tool with a live support preview), and only once the browser is idle after
+ * a change. Until then the last result stays up (support colours of a moved piece lag a
+ * moment), marked as not fresh.
  */
 import { atom, useAtomValue } from 'jotai';
 
 import { roofContacts } from '../model/roofs/roofContacts';
-import { planSupport, type GroundUnder, type PlanSupport } from '../model/support/planSupport';
+import type { CommittedIndex } from '../model/support/ghostSupport';
+import {
+  modelSupport,
+  supportModel,
+  type GroundUnder,
+  type PlanSupport,
+} from '../model/support/planSupport';
+import { snapJoints } from '../model/support/snapJoints';
 import { groundUnderOrEdge } from '../model/terrain/siteTerrain';
 import type { Plan } from '../model/types';
 
 import { getLibrary } from './libraryInstance';
 import { getDerived, getPieceBoxes, usePlan } from './planHooks';
 import type { PlanStore } from './planStore';
-import { supportViewAtom, type SessionStore } from './session';
+import { activeToolIdAtom, supportViewAtom, type SessionStore } from './session';
 import { getSiteGround } from './siteTerrain';
 
 /** The Integrity list is open and on screen. */
 export const integrityShownAtom = atom<boolean>(false);
 
-const supportWantedAtom = atom((get) => get(supportViewAtom) || get(integrityShownAtom));
+/**
+ * Tools that preview support live (the ghost's value), so the committed result must
+ * follow each commit while they are active. Strings, not `ToolId`s, so an id can be
+ * listed before its tool exists.
+ */
+const SUPPORT_TOOLS: ReadonlySet<string> = new Set(['build']);
+
+const supportWantedAtom = atom(
+  (get) =>
+    get(supportViewAtom) || get(integrityShownAtom) || SUPPORT_TOOLS.has(get(activeToolIdAtom))
+);
 
 /** The last support worked out, and the plan it is for. */
 const supportAtom = atom<{ plan: Plan; support: PlanSupport } | null>(null);
@@ -48,14 +66,33 @@ const siteGroundUnder = (plan: Plan): GroundUnder | null => {
   return site && ((footprint) => groundUnderOrEdge(site.grid, site.frame, footprint));
 };
 
-/** Raw pieces hold up what rests on them but aren't checked themselves (an info note says so). */
-export const computeSupport = (plan: Plan): PlanSupport =>
-  planSupport(
-    getPieceBoxes(plan),
-    getLibrary().catalog.materialSupport,
-    roofContacts(plan, getDerived(plan), getLibrary()),
-    siteGroundUnder(plan)
-  );
+const indexCache = new WeakMap<Plan, CommittedIndex>();
+
+/**
+ * A committed plan's support bodies, contact hash and snap joints (memoised per plan
+ * object): what `computeSupport` solves, and what a ghost's support is found against
+ * (`ghostSupport`), so both see the same bodies.
+ */
+export const committedSupportIndex = (plan: Plan): CommittedIndex => {
+  let index = indexCache.get(plan);
+  if (!index) {
+    const boxes = getPieceBoxes(plan);
+    const lib = getLibrary();
+    index = {
+      model: supportModel(boxes, lib.catalog.materialSupport, siteGroundUnder(plan)),
+      joints: snapJoints(boxes, lib),
+    };
+    indexCache.set(plan, index);
+  }
+  return index;
+};
+
+/** Every box checked, raw pieces included, with roof rests and snap joints declared. */
+export const computeSupport = (plan: Plan): PlanSupport => {
+  const { model, joints } = committedSupportIndex(plan);
+  const roofs = roofContacts(plan, getDerived(plan), getLibrary());
+  return modelSupport(model, [...roofs, ...joints.pairs]);
+};
 
 /** Keeps `supportAtom` following the committed plan while support is wanted. */
 export const startSupportSync = (plans: PlanStore, session: SessionStore): (() => void) => {
@@ -79,6 +116,12 @@ export const startSupportSync = (plans: PlanStore, session: SessionStore): (() =
     stopWanted();
   };
 };
+
+/**
+ * The latest support and the plan it is for (null before the first), for code outside
+ * React (a ghost's derived atom): fresh when `plan` is the committed plan.
+ */
+export const latestSupportAtom = atom((get) => get(supportAtom));
 
 /** The latest support (null before the first), and whether it is for the current plan. */
 export const useSupport = (): { support: PlanSupport | null; fresh: boolean } => {

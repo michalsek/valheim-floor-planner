@@ -9,7 +9,7 @@ import type { PieceBox } from '../pieceBoxes';
 import type { SelectionItem } from '../selection';
 import type { Vec2 } from '../types';
 
-import { findContacts } from './contacts';
+import { contactIndex, findContacts, type ContactIndex } from './contacts';
 import { propagateSupport, type SupportBody, type SupportState } from './propagate';
 import { boxShape, type SupportShape } from './shape';
 
@@ -40,7 +40,7 @@ export interface PlanSupport {
 
 /**
  * Walls, floors, roofs, stairs and poles carry weight; doors, furniture and stations
- * don't. Imported raw pieces all do, unchecked (see `SupportBody.fixed`).
+ * don't. Raw pieces all do (the catalogue doesn't say which can't, `m_supports`).
  */
 const gives = (box: PieceBox): boolean =>
   box.kind === 'raw' ||
@@ -52,10 +52,13 @@ const gives = (box: PieceBox): boolean =>
 /** The highest ground (plan height) under a plan footprint. */
 export type GroundUnder = (footprint: readonly Vec2[]) => number;
 
-const bodyOf = (
+type Materials = Record<string, MaterialSupport>;
+
+/** A box as a support body (raw pieces included: they are checked since M17). */
+export const bodyOf = (
   box: PieceBox,
   shape: SupportShape,
-  materials: Record<string, MaterialSupport>,
+  materials: Materials,
   groundUnder: GroundUnder | null
 ): SupportBody => ({
   com: shape.com,
@@ -63,38 +66,70 @@ const bodyOf = (
   ground: groundUnder ? groundUnder(shape.footprint) : 0,
   material: (box.material !== null && materials[box.material]) || null,
   gives: gives(box),
-  fixed: box.kind === 'raw',
 });
 
-/**
- * Support of every box. `extra` pairs boxes (by `PieceBox.key`) that rest on each other
- * whatever their shapes say (`roofContacts`: a roof piece on a wall's top edge).
- * `groundUnder` is the site's terrain; without it the ground is flat at 0.
- */
-export const planSupport = (
+/** A box list's support bodies and their contact hash: what a commit's support is built on. */
+export interface SupportModel {
+  boxes: readonly PieceBox[];
+  shapes: readonly SupportShape[];
+  bodies: readonly SupportBody[];
+  index: ContactIndex;
+  indexOf: ReadonlyMap<string, number>;
+  materials: Materials;
+  groundUnder: GroundUnder | null;
+}
+
+/** `groundUnder` is the site's terrain; without it the ground is flat at 0. */
+export const supportModel = (
   boxes: readonly PieceBox[],
-  materials: Record<string, MaterialSupport>,
-  extra: readonly (readonly [string, string])[] = [],
+  materials: Materials,
   groundUnder: GroundUnder | null = null
-): PlanSupport => {
+): SupportModel => {
   const shapes = boxes.map(boxShape);
-  const bodies = boxes.map((box, i) => bodyOf(box, shapes[i]!, materials, groundUnder));
-  const indexOf = new Map(boxes.map((box, i) => [box.key, i]));
+  return {
+    boxes,
+    shapes,
+    bodies: boxes.map((box, i) => bodyOf(box, shapes[i]!, materials, groundUnder)),
+    index: contactIndex(shapes),
+    indexOf: new Map(boxes.map((box, i) => [box.key, i])),
+    materials,
+    groundUnder,
+  };
+};
+
+/** How a body's support reads: its colour ratio and whether it is at its maximum. */
+export const boxSupportOf = (
+  material: MaterialSupport | null,
+  value: number,
+  state: SupportState
+): BoxSupport => {
+  const span = material ? material.maxSupport / 2 - material.minSupport : 1;
+  const ratio = material ? Math.min(1, Math.max(0, (value - material.minSupport) / span)) : 0;
+  const full = material !== null && value >= material.maxSupport - 1e-3;
+  return { state, value, full, ratio };
+};
+
+/**
+ * Support of every box of a model. `extra` pairs boxes (by `PieceBox.key`) that rest on
+ * each other whatever their shapes say (`roofContacts`: a roof piece on a wall's top
+ * edge; `snapJoints`: pieces joined at a snap point).
+ */
+export const modelSupport = (
+  model: SupportModel,
+  extra: readonly (readonly [string, string])[] = []
+): PlanSupport => {
+  const { boxes, shapes, bodies, indexOf } = model;
   const pairs = extra.flatMap(([a, b]) => {
     const [i, j] = [indexOf.get(a), indexOf.get(b)];
     return i === undefined || j === undefined ? [] : [[i, j] as const];
   });
-  const { value, state } = propagateSupport(bodies, findContacts(shapes, undefined, pairs));
+  const contacts = findContacts(shapes, model.index.eps, pairs, model.index);
+  const { value, state } = propagateSupport(bodies, contacts);
 
   const byKey = new Map<string, BoxSupport>();
   const collapsing = new Map<string, CollapseLine>();
   boxes.forEach((box, i) => {
-    const material = bodies[i]!.material;
-    const v = value[i]!;
-    const span = material ? material.maxSupport / 2 - material.minSupport : 1;
-    const ratio = material ? Math.min(1, Math.max(0, (v - material.minSupport) / span)) : 0;
-    const full = material !== null && v >= material.maxSupport - 1e-3;
-    byKey.set(box.key, { state: state[i]!, value: v, full, ratio });
+    byKey.set(box.key, boxSupportOf(bodies[i]!.material, value[i]!, state[i]!));
     if (state[i] !== 'collapsing') return;
     const key = `${box.item.kind}:${box.item.id}`;
     const line = collapsing.get(key);
@@ -103,3 +138,11 @@ export const planSupport = (
   });
   return { byKey, collapsing: [...collapsing.values()] };
 };
+
+/** Support of every box (see `modelSupport`, `supportModel`). */
+export const planSupport = (
+  boxes: readonly PieceBox[],
+  materials: Materials,
+  extra: readonly (readonly [string, string])[] = [],
+  groundUnder: GroundUnder | null = null
+): PlanSupport => modelSupport(supportModel(boxes, materials, groundUnder), extra);
