@@ -16,7 +16,7 @@ import {
 } from '../../../install/siteGeneration';
 import { derivePlan } from '../../../model/derivePlan';
 import { pieceBoxes } from '../../../model/pieceBoxes';
-import { parsePlan, serializePlan } from '../../../model/serialize';
+import { planFileText, readPlanJson } from '../../../model/planFile';
 import { ghostSupport } from '../../../model/support/ghostSupport';
 import {
   modelSupport,
@@ -175,7 +175,11 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
     expect(terrain.notices.legacyEdits).toBe(0);
     expect(terrain.notices.unreadEdits).toBe(0);
     const plan: Plan = { ...bare, importFrame: { ...frame, terrain } };
-    expect(parsePlan(JSON.parse(serializePlan(plan)))).toEqual(plan);
+    const file = await planFileText(plan);
+    expect(await readPlanJson(JSON.parse(file))).toEqual(plan);
+    console.info(
+      `Plan file: ${file.length} chars, heights ${terrain.heights.byteLength} bytes packed to ${JSON.parse(file).importFrame.terrain.heights.data.length} base64 chars`
+    );
 
     const grid = terrainGrid(terrain);
     const ground = (footprint: Parameters<typeof groundUnder>[2]) =>

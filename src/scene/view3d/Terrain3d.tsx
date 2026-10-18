@@ -10,8 +10,9 @@ import { terrainOpacityAtom } from '../../store/terrainOpacity';
 import { usePrewarm } from '../usePrewarm';
 import { useRelease } from '../useRelease';
 
-import { lowestGround, surfaceGeometry, skirtGeometry, waterGeometry } from './terrainGeometry';
+import { lowestGround, skirtGeometry, waterGeometry } from './terrainGeometry';
 import { useGroundGrid } from './useGroundGrid';
+import { useTerrainTiles } from './useTerrainTiles';
 
 /** How much of the ground shows through the sea. */
 const WATER_OPACITY = 0.55;
@@ -27,14 +28,13 @@ const WATER_RENDER_ORDER = 0;
 
 type TerrainGeometry = ReturnType<typeof createGeometry>;
 
+/** The skirts and the sea (the surface is in tiles: `useTerrainTiles`). */
 const createGeometry = (ground: SiteGround) => ({
-  surface: surfaceGeometry(ground),
   skirt: skirtGeometry(ground),
   water: waterGeometry(ground),
 });
 
 const disposeGeometry = (geometry: TerrainGeometry) => {
-  geometry.surface.dispose();
   geometry.skirt.dispose();
   geometry.water?.dispose();
 };
@@ -117,8 +117,8 @@ const GroundPart = ({
 };
 
 /**
- * A site's ground in 3D, in place of the flat ground: the surface (biome tints, rock on
- * steep slopes; casting and taking shadows), earth skirts down its edges, the sea where
+ * A site's ground in 3D, in place of the flat ground: the surface in tiles (biome tints,
+ * rock on steep slopes; casting and taking shadows), earth skirts down its edges, the sea where
  * the ground dips under it, and the plan grid draped over the surface. The grid is
  * always the coarse reference: with terrain, the level plate is the work plane at every
  * level, the ground included.
@@ -138,11 +138,13 @@ export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
   const grid = useGroundGrid({ coarse: true, draped: true, opacity });
   const geometry = useMemo(() => createGeometry(ground), [ground]);
   useRelease(geometry, disposeGeometry);
+  const tiles = useTerrainTiles(ground);
   const lowest = useMemo(() => lowestGround(ground), [ground]);
   const surface = useRef<Group>(null);
   const root = useRef<Group>(null);
-  // The see-through ground's pipelines, ready before the slider first leaves 1.
-  usePrewarm(root, geometry);
+  // The see-through ground's pipelines, ready before the slider first leaves 1 (one tile
+  // is enough: they all share them).
+  usePrewarm(root, tiles.length > 0 ? geometry : null);
 
   // Before every frame drawn: hide the surface while the camera is under the ground
   // (under its lowest point off the patch). Visibility only: no new pipelines.
@@ -163,18 +165,22 @@ export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
   return (
     <group ref={root}>
       <group ref={surface}>
-        <GroundPart
-          geometry={geometry.surface}
-          materials={materials}
-          opacity={opacity}
-          castShadow
-        />
-        <mesh
-          geometry={geometry.surface}
-          material={grid.material}
-          visible={opacity > 0}
-          renderOrder={GRID_RENDER_ORDER}
-        />
+        {tiles.map((tile) => (
+          <group key={tile.id}>
+            <GroundPart
+              geometry={tile.geometry}
+              materials={materials}
+              opacity={opacity}
+              castShadow
+            />
+            <mesh
+              geometry={tile.geometry}
+              material={grid.material}
+              visible={opacity > 0}
+              renderOrder={GRID_RENDER_ORDER}
+            />
+          </group>
+        ))}
       </group>
       <GroundPart geometry={geometry.skirt} materials={materials} opacity={opacity} />
       {geometry.water && (

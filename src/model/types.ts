@@ -175,10 +175,11 @@ export interface SiteTerrain {
   cols: number;
   rows: number;
   /**
-   * Base64 of int16 little-endian centimetres above `ImportFrame.origin.y`, row-major
-   * (row = z). Kept as a string so the plan stays plain JSON (`terrainGrid` decodes it).
+   * Centimetres above `ImportFrame.origin.y`, row-major (row = z); `terrainGrid` gives
+   * metres. Never written in place: a new site is a new array. The autosave keeps it as
+   * it is; a file packs it (`heightPacking.ts`); version 5 plans held base64.
    */
-  heights: string;
+  heights: Int16Array;
   /**
    * Biome codes (the game's bitmask) at the zone corners over the patch, row-major,
    * corner (0, 0) at world (zx0 · 64 − 32, zz0 · 64 − 32).
@@ -224,7 +225,7 @@ export interface Underlay {
  * Levels aren't stored: they are the distinct elevations of its objects (`levels.ts`).
  */
 export interface Plan {
-  version: 5;
+  version: 6;
   /** Shown in the plan header and used for the file name. */
   name: string;
   walls: Record<WallId, WallRun>;
@@ -242,7 +243,7 @@ export interface Plan {
 export const DEFAULT_PLAN_NAME = 'Untitled';
 
 export const emptyPlan = (): Plan => ({
-  version: 5,
+  version: 6,
   name: DEFAULT_PLAN_NAME,
   walls: {},
   dimensions: {},

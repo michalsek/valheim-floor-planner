@@ -6,7 +6,13 @@
 import { pointOnRay, type Ray3 } from '../geometry/ray';
 import type { Vec3 } from '../types';
 
-import { groundAt, worldToPlan, type SiteFrame, type TerrainGrid } from './siteTerrain';
+import {
+  groundAt,
+  heightRange,
+  worldToPlan,
+  type SiteFrame,
+  type TerrainGrid,
+} from './siteTerrain';
 
 /** March step along the ray (metres). */
 const STEP = 0.5;
@@ -14,23 +20,6 @@ const STEP = 0.5;
 const MARGIN = 0.01;
 /** The crossing is bisected to this (metres along the ray). */
 const TOLERANCE = 0.001;
-
-const ranges = new WeakMap<TerrainGrid, { min: number; max: number }>();
-
-/** The patch's lowest and highest ground (plan heights), once per grid. */
-const heightRange = (grid: TerrainGrid): { min: number; max: number } => {
-  let range = ranges.get(grid);
-  if (!range) {
-    let min = Infinity;
-    let max = -Infinity;
-    for (const h of grid.heights) {
-      min = Math.min(min, h);
-      max = Math.max(max, h);
-    }
-    ranges.set(grid, (range = { min, max }));
-  }
-  return range;
-};
 
 /** The span of t in [from, to] over which `o + t·d` lies within [min, max] (one axis). */
 const clip = (

@@ -5,7 +5,7 @@
  * Heights are plan heights (world y − `origin.y`), so the ground and the plan's boxes
  * share one frame. Between vertices the ground is the terrain collider's: each 1 m quad
  * split along its (x + 1, z)–(x, z + 1) diagonal in world terms (research §8), so pieces
- * meet the drawn ground where support says they do. Pure: base64 via `atob` / `btoa`.
+ * meet the drawn ground where support says they do. Pure.
  */
 import { rotate } from '../geometry/propGeometry';
 import type { ImportFrame, SiteTerrain, Vec2 } from '../types';
@@ -26,78 +26,77 @@ export type SiteFrame = Pick<ImportFrame, 'origin' | 'yaw'>;
 /** int16 centimetres: ±327.67 m about `origin.y`. */
 const CM_LIMIT = 32767;
 
-const toBase64 = (bytes: Uint8Array): string => {
-  let text = '';
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    text += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(text);
-};
-
-const fromBase64 = (text: string): Uint8Array => {
-  const binary = atob(text);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-};
-
 /**
- * Plan heights (metres) as int16 little-endian centimetres (the bytes `SiteTerrain.heights`
- * holds in base64). `clamped` counts values beyond ±327.67 m, which are clamped.
+ * Plan heights (metres) as `SiteTerrain.heights`: int16 centimetres. `clamped` counts
+ * values beyond ±327.67 m, which are clamped.
  */
-export const heightBytes = (metres: ArrayLike<number>): { bytes: Uint8Array; clamped: number } => {
-  const view = new DataView(new ArrayBuffer(metres.length * 2));
+export const encodeHeights = (
+  metres: ArrayLike<number>
+): { heights: Int16Array; clamped: number } => {
+  const heights = new Int16Array(metres.length);
   let clamped = 0;
   for (let i = 0; i < metres.length; i++) {
     const cm = Math.round(metres[i]! * 100);
     if (Math.abs(cm) > CM_LIMIT) clamped++;
-    view.setInt16(2 * i, Math.max(-CM_LIMIT, Math.min(CM_LIMIT, cm)), true);
+    heights[i] = Math.max(-CM_LIMIT, Math.min(CM_LIMIT, cm));
   }
-  return { bytes: new Uint8Array(view.buffer), clamped };
+  return { heights, clamped };
 };
 
-/** int16 little-endian centimetres as `SiteTerrain.heights` (base64). */
-export const encodeHeightBytes = (bytes: Uint8Array): string => toBase64(bytes);
-
-/** Plan heights (metres) as `SiteTerrain.heights`; `clamped` as `heightBytes`. */
-export const encodeHeights = (metres: ArrayLike<number>): { heights: string; clamped: number } => {
-  const { bytes, clamped } = heightBytes(metres);
-  return { heights: toBase64(bytes), clamped };
-};
-
-/** `SiteTerrain.heights` back as its int16 bytes; null when it isn't base64 of whole values. */
-export const decodeHeightBytes = (heights: string): Uint8Array | null => {
-  let bytes: Uint8Array;
-  try {
-    bytes = fromBase64(heights);
-  } catch {
-    return null;
-  }
-  return bytes.length % 2 === 0 ? bytes : null;
-};
-
-/** `SiteTerrain.heights` back as metres; null when it isn't base64. */
-export const decodeHeights = (heights: string): Float32Array | null => {
-  const bytes = decodeHeightBytes(heights);
-  if (!bytes) return null;
-  const view = new DataView(bytes.buffer);
-  const metres = new Float32Array(bytes.length / 2);
-  for (let i = 0; i < metres.length; i++) metres[i] = view.getInt16(2 * i, true) / 100;
+/** `SiteTerrain.heights` as metres. */
+export const decodeHeights = (heights: Int16Array): Float32Array => {
+  const metres = new Float32Array(heights.length);
+  for (let i = 0; i < heights.length; i++) metres[i] = heights[i]! / 100;
   return metres;
 };
 
-const grids = new WeakMap<SiteTerrain, TerrainGrid>();
-
-/** The decoded patch (once per terrain object; the plan's undo history shares them). */
-export const terrainGrid = (terrain: SiteTerrain): TerrainGrid => {
-  let grid = grids.get(terrain);
-  if (!grid) {
-    const { x0, z0, cols, rows } = terrain;
-    const heights = decodeHeights(terrain.heights) ?? new Float32Array(cols * rows);
-    grids.set(terrain, (grid = { x0, z0, cols, rows, heights }));
+/** Version 5 plans' heights: base64 of int16 little-endian centimetres. */
+export const heightsFromBase64 = (text: string): Int16Array | null => {
+  let binary: string;
+  try {
+    binary = atob(text);
+  } catch {
+    return null;
   }
+  if (binary.length % 2 !== 0) return null;
+  const heights = new Int16Array(binary.length / 2);
+  for (let i = 0; i < heights.length; i++) {
+    heights[i] = binary.charCodeAt(2 * i) | (binary.charCodeAt(2 * i + 1) << 8);
+  }
+  return heights;
+};
+
+const grids = new WeakMap<Int16Array, TerrainGrid>();
+
+/**
+ * The decoded patch, once per heights array: an undo or redo clones the terrain object
+ * but keeps its array, so the plan's history shares the decoded grids.
+ */
+export const terrainGrid = (terrain: SiteTerrain): TerrainGrid => {
+  const { x0, z0, cols, rows } = terrain;
+  const cached = grids.get(terrain.heights);
+  if (cached?.x0 === x0 && cached.z0 === z0 && cached.cols === cols) return cached;
+  const grid = { x0, z0, cols, rows, heights: decodeHeights(terrain.heights) };
+  grids.set(terrain.heights, grid);
   return grid;
+};
+
+const ranges = new WeakMap<TerrainGrid, { min: number; max: number }>();
+
+/** The patch's lowest and highest ground (plan heights), once per grid. */
+export const heightRange = (grid: TerrainGrid): { min: number; max: number } => {
+  let range = ranges.get(grid);
+  if (!range) {
+    let min = Infinity;
+    let max = -Infinity;
+    const { heights } = grid;
+    for (let k = 0; k < heights.length; k++) {
+      if (heights[k]! < min) min = heights[k]!;
+      if (heights[k]! > max) max = heights[k]!;
+    }
+    ranges.set(grid, (range = { min, max }));
+  }
+  return range;
 };
 
 /** The world point (game axes) of a plan point: turn by `yaw`, then mirror z. */

@@ -12,7 +12,7 @@ import { snapPose } from '../../../model/build/placement';
 import { boxSnapPoints, snapIndex, snapsNear } from '../../../model/build/snapPoints';
 import { rotate } from '../../../model/geometry/propGeometry';
 import { pieceBoxes } from '../../../model/pieceBoxes';
-import { parsePlan, serializePlan } from '../../../model/serialize';
+import { planFileText, readPlanJson } from '../../../model/planFile';
 import type { Plan, RawPiece, Vec3 } from '../../../model/types';
 import { describeCluster, groupPieces } from '../../../model/world/clusters';
 import { importCluster } from '../../../model/world/importCluster';
@@ -116,14 +116,14 @@ describe.skipIf(!dir)('a real world save', () => {
     expect(build.size.z).toBeCloseTo(57.8, 0);
   });
 
-  it('imports the build axis-aligned, every piece, and the plan loads back', () => {
+  it('imports the build axis-aligned, every piece, and the plan loads back', async () => {
     const groups = groupPieces(pieces);
     const build = describeCluster(pieces, groups[0]!, () => null);
     const { plan, level } = importCluster(pieces, build, testLibrary, world.name);
     const raw = Object.values(plan.rawPieces);
     expect(raw.length).toBe(1_140);
     expect(raw.filter((p) => p.rotation.yaw % 90 === 0).length).toBe(1_090);
-    expect(parsePlan(JSON.parse(serializePlan(plan)))).toEqual(plan);
+    expect(await readPlanJson(JSON.parse(await planFileText(plan)))).toEqual(plan);
     // Wall and floor pivots sit on the 0.5 m grid from the origin (the game drifts ±3 cm).
     const onGrid = (v: number) => Math.abs(v * 2 - Math.round(v * 2)) < 0.06;
     const square = raw.filter((p) => p.rotation.yaw % 90 === 0 && /wall|floor/.test(p.prefab));

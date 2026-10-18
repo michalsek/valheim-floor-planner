@@ -10,6 +10,7 @@ import {
   groundRange,
   groundUnder,
   groundUnderOrEdge,
+  heightsFromBase64,
   planToWorld,
   terrainGrid,
   worldToPlan,
@@ -36,15 +37,19 @@ const gridOf = (
 const flat = { origin: { x: 0, y: 30, z: 0 }, yaw: 0 };
 
 describe('site terrain', () => {
-  it('round-trips heights as base64 int16 centimetres, clamping the out-of-range', () => {
+  it('keeps heights as int16 centimetres, clamping the out-of-range', () => {
     const { heights, clamped } = encodeHeights([0, 1.234, -2.5, 327.67, 400]);
     expect(clamped).toBe(1);
-    expect([...decodeHeights(heights)!].map((v) => +v.toFixed(2))).toEqual([
+    expect([...decodeHeights(heights)].map((v) => +v.toFixed(2))).toEqual([
       0, 1.23, -2.5, 327.67, 327.67,
     ]);
-    expect(decodeHeights('*')).toBeNull();
-    const terrain = { x0: 0, z0: 0, cols: 2, rows: 1, heights } as SiteTerrain;
-    expect(terrainGrid(terrain)).toBe(terrainGrid(terrain));
+    expect([...heightsFromBase64(Buffer.from(heights.buffer).toString('base64'))!]).toEqual([
+      ...heights,
+    ]);
+    expect(heightsFromBase64('*')).toBeNull();
+    // Undo clones the terrain object but keeps its array: the grid is shared.
+    const terrain = { x0: 0, z0: 0, cols: 5, rows: 1, heights } as SiteTerrain;
+    expect(terrainGrid({ ...terrain })).toBe(terrainGrid(terrain));
   });
 
   it('maps plan to world and back at 22.5°, mirroring z', () => {
