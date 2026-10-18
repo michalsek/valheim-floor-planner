@@ -1,7 +1,7 @@
 /**
- * The building-piece catalogue, from raw game data in the shape of
- * `research/valheim-pieces.json` (the install parser's output, or that fixture in
- * tests). The data is treated as `unknown` and its shape validated.
+ * The building-piece catalogue, from raw game data in the shape of `RawPieces`
+ * (`gameData/valheim/extractCatalogue.ts`: the install parser's output, or the game-data
+ * fixture in tests). The data is treated as `unknown` and its shape validated.
  *
  * Axes are the prefab's local space in metres (x = length, y = height, z = thickness),
  * **mirrored in z**: the game's Unity space is left-handed and the planner's (three.js)

@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import rawPieces from '../../research/valheim-pieces.json';
-
 import { itemLabel, parseItems } from './items';
 import { parseCatalog } from './pieceDefs';
+import { readGameData } from './testGameData';
 import { testLibrary } from './testLibrary';
 
 describe('parseCatalog', () => {
-  const catalog = parseCatalog(rawPieces);
+  const catalog = parseCatalog(readGameData('valheim-pieces.json'));
 
   it('loads every hammer piece once', () => {
     expect(catalog.pieces.size).toBe(398);

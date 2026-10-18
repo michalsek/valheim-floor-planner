@@ -1,7 +1,7 @@
 # Valheim Floor Planner: v1 roadmap
 
-Game knowledge lives in [`research/README.md`](../research/README.md) and
-[`research/valheim-pieces.json`](../research/valheim-pieces.json).
+Game knowledge lives in [`research/README.md`](../research/README.md) and in the
+extracted `valheim-pieces.json` (now in the private satellite repo, `private/research/`).
 
 ## Stack and principles
 
@@ -112,7 +112,7 @@ largest-first, around openings.
    - System / Light / Dark picker in the status strip, remembered in localStorage,
      applied before the first paint.
    - Grid, slab meshes and SVG fills follow the theme live (`themeTokensAtom`).
-   - Plan: `docs/plans/M7.md`.
+   - Plan: `private/plans/M7.md`.
 
 ## Reuse map
 

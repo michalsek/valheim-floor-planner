@@ -1,7 +1,8 @@
 /**
  * Builds the catalogue the editor uses from raw game data: the pieces and item names
- * in the shape of `research/valheim-pieces.json` / `valheim-items.json`, whether they
- * come from the install parser, its cache or (in tests) the research fixture.
+ * in the shape of `RawPieces` / `RawItems` (`gameData/valheim/extractCatalogue.ts`),
+ * whether they come from the install parser, its cache or (in tests) the game-data
+ * fixtures (`testGameData.ts`).
  */
 import { deriveFloorFamilies, FLOOR_FAMILY_SPECS } from './floorFamilies';
 import { parseItems } from './items';

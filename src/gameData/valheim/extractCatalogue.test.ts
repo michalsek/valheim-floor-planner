@@ -1,14 +1,14 @@
 /**
  * Golden test against the real game: parses the local install and compares with the
- * research fixture (extracted with UnityPy). Runs only with VALHEIM_INSTALL_TEST=1
- * (`pnpm test:install`); VALHEIM_DIR overrides the Steam install path.
+ * game-data fixture (extracted with UnityPy, `testGameData.ts`). Runs only with
+ * VALHEIM_INSTALL_TEST=1 (`pnpm test:install`); VALHEIM_DIR overrides the Steam install
+ * path.
  */
 import { afterAll, describe, expect, it } from 'vitest';
 
-import rawItems from '../../../research/valheim-items.json';
-import rawPieces from '../../../research/valheim-pieces.json';
+import { readGameData } from '../../catalog/testGameData';
 
-import { extractCatalogue, type RawPiece } from './extractCatalogue';
+import { extractCatalogue, type RawPieces } from './extractCatalogue';
 import { closeInstall, installSources } from './testInstall';
 
 const sortedPoints = (points: readonly (readonly number[])[]) =>
@@ -31,7 +31,8 @@ describe.skipIf(!process.env.VALHEIM_INSTALL_TEST)('extractCatalogue on the loca
 
   it('matches the research fixture', { timeout: 120_000 }, () => {
     const { pieces, items } = extractCatalogue(installSources());
-    const fixture = rawPieces.pieces as unknown as RawPiece[];
+    const rawPieces = readGameData('valheim-pieces.json') as RawPieces;
+    const fixture = rawPieces.pieces;
 
     expect(pieces.pieces.map((p) => p.prefab)).toEqual(fixture.map((p) => p.prefab));
     pieces.pieces.forEach((piece, i) => {
@@ -54,7 +55,7 @@ describe.skipIf(!process.env.VALHEIM_INSTALL_TEST)('extractCatalogue on the loca
       expectClose(colliderSize, wantSize, `${piece.prefab}.colliderSize`);
     });
 
-    expect(items).toEqual(rawItems);
+    expect(items).toEqual(readGameData('valheim-items.json'));
     expect(pieces.meta.stationBuildRange).toMatchObject(rawPieces.meta.stationBuildRange);
     expect(pieces.meta.wardRadius_m).toBe(rawPieces.meta.wardRadius_m);
   });

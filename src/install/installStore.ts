@@ -14,7 +14,7 @@ export interface InstallInfo {
 
 export interface CachedCatalogue {
   key: string;
-  /** Raw data in the shape of `research/valheim-pieces.json` / `valheim-items.json`. */
+  /** Raw data in the shape of `RawPieces` / `RawItems` (`extractCatalogue.ts`). */
   pieces: unknown;
   items: unknown;
   info: InstallInfo;

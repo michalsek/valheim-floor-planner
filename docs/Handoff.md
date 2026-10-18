@@ -8,14 +8,14 @@ This is where to start a new session on the Valheim Floor Planner. It covers the
 
 | Milestone | What it added | Plan |
 |---|---|---|
-| M16 Stage 1 | Real terrain under imported builds: a TS port of the 1.0 world generator (bit-identical to `research/extract/world/worldGen.py`, incl. rivers and streams), the save's TerrainComp edits, a worker with an OPFS river cache, import "With terrain" / Add terrain, a 3D terrain block and 2D hillshade and contours, terrain ground contact for integrity. Plans store the finished ground (plan v5), never the seed. | `docs/plans/M16.md` (§1–§7 the a0 spike, §8 Stage 1) |
-| M15 | Level clarity: 3D cut-away above the work level (C), the frosted level plate with height tags and drop line, Levels-row hover preview and selection dot, neutral 2D ghosts | `docs/plans/M15.md` |
-| M13 Stage 1 | World-save import: the chunked 1.0 format plus legacy `.db`, cluster overview, raw-piece import. Game data is unmirrored with a z flip at the catalogue, model and import boundaries. | `docs/plans/M13.md` (§6 has the format validation) |
-| M14 | Real game meshes and textures, extracted into OPFS and rendered with instancing and a Boxes/Models toggle | `docs/plans/M14.md` |
-| M12 | Parametric roofs: gable, hip and shed; overhangs; valleys; gable fill; odd-span filler courses | `docs/plans/M12.md` |
-| M11 / M11.1 | Per-piece elevation, the Levels bar, stair flights, structural integrity, game-style pole snapping | `docs/plans/M11.md` |
-| M9 / M10 | 3D viewer, then editing in 3D | `docs/plans/M9.md`, `docs/plans/M10.md` |
-| M8 | Parses the game files in the browser from the user's own install, then gates the editor on it. On macOS, drag-and-drop is the primary path, because Chrome blocks `~/Library`. | `docs/plans/M8.md` |
+| M16 Stage 1 | Real terrain under imported builds: a TS port of the 1.0 world generator (bit-identical to `private/research/extract/world/worldGen.py`, incl. rivers and streams), the save's TerrainComp edits, a worker with an OPFS river cache, import "With terrain" / Add terrain, a 3D terrain block and 2D hillshade and contours, terrain ground contact for integrity. Plans store the finished ground (plan v5), never the seed. | `private/plans/M16.md` (§1–§7 the a0 spike, §8 Stage 1) |
+| M15 | Level clarity: 3D cut-away above the work level (C), the frosted level plate with height tags and drop line, Levels-row hover preview and selection dot, neutral 2D ghosts | `private/plans/M15.md` |
+| M13 Stage 1 | World-save import: the chunked 1.0 format plus legacy `.db`, cluster overview, raw-piece import. Game data is unmirrored with a z flip at the catalogue, model and import boundaries. | `private/plans/M13.md` (§6 has the format validation) |
+| M14 | Real game meshes and textures, extracted into OPFS and rendered with instancing and a Boxes/Models toggle | `private/plans/M14.md` |
+| M12 | Parametric roofs: gable, hip and shed; overhangs; valleys; gable fill; odd-span filler courses | `private/plans/M12.md` |
+| M11 / M11.1 | Per-piece elevation, the Levels bar, stair flights, structural integrity, game-style pole snapping | `private/plans/M11.md` |
+| M9 / M10 | 3D viewer, then editing in 3D | `private/plans/M9.md`, `private/plans/M10.md` |
+| M8 | Parses the game files in the browser from the user's own install, then gates the editor on it. On macOS, drag-and-drop is the primary path, because Chrome blocks `~/Library`. | `private/plans/M8.md` |
 | M1–M7 | v1 2D planner and themes | `docs/Roadmap.md` |
 
 Other reference documents:
@@ -23,10 +23,12 @@ Other reference documents:
 - `docs/Findings.md`: every known issue, deferred item and decision, by milestone. **Read the relevant section before changing an area.**
 - `research/README.md`: game knowledge. Covers piece sizes, support formula and constants (§4), the world-save format (§7), and terrain generation and TerrainComp (§8).
 
+**The `private/` satellite repo.** Milestone plans, the Python research tooling and the data extracted from the game (`valheim-*.json`, the unit-test fixtures) live in a separate private git repository nested at `private/` and git-ignored by this public one. How it is obtained or cloned is up to the owner. Without it, `pnpm verify` still passes: the tests that need the fixtures are left out with one note (`src/catalog/testGameData.ts`, `vite.config.ts`). Commit plans and tooling changes inside it (`git -C private commit`).
+
 ## 2. How we work (the user's preferences)
 
 - **Workflow per milestone:**
-  1. A detail planner agent writes the plan, saved to `docs/plans/Mx.md`.
+  1. A detail planner agent writes the plan, saved to `private/plans/Mx.md` (in the private repo).
   2. An implementation agent builds it.
   3. One combined QA and code-review agent checks it.
   4. The same implementer runs the fix round.
@@ -49,7 +51,7 @@ Other reference documents:
 
 ## 3. Testing recipe (no hands needed)
 
-- **Gates:** `pnpm verify` (typecheck, lint, tests, build), `pnpm test:install`, `pnpm test:assets`, and `VALHEIM_WORLD_TEST=<world folder> pnpm test:world`.
+- **Gates:** `pnpm verify` (typecheck, lint, tests, build), `pnpm test:install`, `pnpm test:assets`, and `VALHEIM_WORLD_TEST=<world folder> pnpm test:world`. The last three need the fixtures in `private/research/`, as do 35 of the unit-test files.
 - **Game install:** `~/Library/Application Support/Steam/steamapps/common/Valheim`, at v1.0.20 on Unity 6000.0.75f1.
 - **Browser checks:**
   - Use headless Chrome (Chrome 155) over CDP. WebGPU uses the Metal adapter; also check `?webgl`.
@@ -62,18 +64,18 @@ Other reference documents:
   - It has 1,142 player pieces and one 1,140-piece build at a 22.5° yaw.
   - Steam Cloud worlds live in `~/Library/Application Support/Steam/userdata/<id>/892970/remote/worlds/`.
 - **Research tooling:**
-  - Recreate the Python venv in the scratchpad: `uv venv .venv --python 3.12`, then `uv pip install UnityPy numpy lz4 dnfile dncil`.
-  - Scripts in `research/extract/`:
-    - `extract_*.py`: catalogue, items and model goldens.
+  - Recreate the Python venv in the scratchpad (not inside `private/`, which has no ignore rules): `uv venv .venv --python 3.12`, then `uv pip install UnityPy numpy lz4 dnfile dncil`.
+  - Scripts in `private/research/extract/`:
+    - `extract_*.py`: catalogue, items and model goldens (`private/research/valheim-*.json`).
     - `world/ilDump.py`: dumps IL from `assembly_valheim.dll`, used to read game code for interoperability notes. Keep only paraphrased notes; never commit decompiled code.
     - `world/readWorld.py`, `world/stableHash.py`: the Python reference reader and prefab hash.
-    - `world/worldGen.py`, `world/validateTerrain.py`, `world/terrainGoldens.py`: the terrain reference port, its validation against a world, and the synthetic-seed goldens (`research/terrainGoldens.json`).
+    - `world/worldGen.py`, `world/validateTerrain.py`, `world/terrainGoldens.py`: the terrain reference port, its validation against a world, and the synthetic-seed goldens (written to the public `research/terrainGoldens.json`).
 - **Terrain privacy:** never write a world's seed, name, player names/IDs or build coordinates into the repo; `test:world` asserts aggregates only.
 
 ## 4. Next goals
 
 Goals A (terrain, M16 Stage 1) and B (level clarity, M15) from the previous handoff are done and reviewed by the user. Options for next:
-- **M16 Stage 2** (`docs/plans/M16.md` §5): terrain flattening built into location prefabs (ruins, dolmens; the only remaining height outliers, within 25 m of a location), Ashlands and Deep North height functions, seed-only sites (pick a spot on a world map without a build).
+- **M16 Stage 2** (`private/plans/M16.md` §5): terrain flattening built into location prefabs (ruins, dolmens; the only remaining height outliers, within 25 m of a location), Ashlands and Deep North height functions, seed-only sites (pick a spot on a world map without a build).
 - ~~The roof-tool seating fix~~: merged into main (roofs drawn at a lower storey's wall tops rest on those walls).
 - **M13 Stage 2:** orthogonal reconstruction of imported builds, and the PlanBuild `.blueprint` export idea.
 - **The `docs/Findings.md` backlog**, including the M16 out-of-scope list (§8.10) and the open items in the M16 pass sections.

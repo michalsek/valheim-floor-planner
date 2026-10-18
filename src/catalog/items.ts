@@ -1,5 +1,5 @@
 /**
- * Display names for resource item ids, in the shape of `research/valheim-items.json`
+ * Display names for resource item ids, in the shape of `RawItems` (`extractCatalogue.ts`)
  * (treated as `unknown` and validated). Unknown ids are shown as they are.
  */
 import type { Library } from './library';

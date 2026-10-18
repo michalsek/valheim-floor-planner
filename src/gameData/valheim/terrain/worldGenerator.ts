@@ -1,8 +1,8 @@
 /**
  * Valheim 1.0's `WorldGenerator`: seeding, base height, biomes and `GetHeight`. This is our
- * own TypeScript port of `research/extract/world/worldGen.py` (validated against a real
- * save, research/README.md §8), line by line and scalar: float32 rounding (`f`) sits exactly
- * where the Python rounds and nowhere else. Coordinates are world x and z (the Python's y).
+ * own TypeScript port of `private/research/extract/world/worldGen.py` (validated against a
+ * real save, research/README.md §8), line by line and scalar: float32 rounding (`f`) sits
+ * exactly where the Python rounds and nowhere else. Coordinates are world x and z (the Python's y).
  *
  * Heights depend on the rendered rivers in `rivers`: empty until `pregenerate` (or
  * `restoreRivers`) fills it.

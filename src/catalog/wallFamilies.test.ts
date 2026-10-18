@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import rawPieces from '../../research/valheim-pieces.json';
-
 import { parseCatalog } from './pieceDefs';
+import { readGameData } from './testGameData';
 import { deriveWallFamilies, WALL_FAMILY_SPECS } from './wallFamilies';
 
-const families = deriveWallFamilies(parseCatalog(rawPieces), WALL_FAMILY_SPECS);
+const families = deriveWallFamilies(
+  parseCatalog(readGameData('valheim-pieces.json')),
+  WALL_FAMILY_SPECS
+);
 const family = (id: string) => families.find((f) => f.id === id);
 
 describe('deriveWallFamilies', () => {

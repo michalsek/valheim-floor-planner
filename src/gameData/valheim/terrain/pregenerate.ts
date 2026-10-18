@@ -2,7 +2,7 @@
  * `WorldGenerator.Pregenerate`: lakes, rivers between them and streams, rendered into the
  * generator's river points. Our port of `worldGen.py`, as the game's sequential loops (the
  * Python batches only emulate them): one float32 slip in the stream pass would reshuffle
- * every later stream (docs/plans/M16.md §6, §8.6).
+ * every later stream (private/plans/M16.md §6, §8.6).
  *
  * The result keeps the **definitions** plus the random state at the start of each render
  * pass, so `restoreRivers` can re-render them (or only the cells a patch needs) later.

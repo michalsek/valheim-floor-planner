@@ -1,15 +1,16 @@
 # Valheim building reference (for the floor planner)
 
 Source of truth: the installed game, **Valheim 1.0.20** (network v41, macOS build),
-extracted from the Hammer's piece table with UnityPy (`extract/extract_pieces.py`).
-Full machine-readable catalogue: [`valheim-pieces.json`](valheim-pieces.json)
-(398 hammer pieces: names EN/PL, category, crafting station, material, HP, cost,
-snap points, collider bounds).
+extracted from the Hammer's piece table with UnityPy
+(`private/research/extract/extract_pieces.py`). Full machine-readable catalogue:
+`valheim-pieces.json` (398 hammer pieces: names EN/PL, category, crafting station,
+material, HP, cost, snap points, collider bounds).
 
 Since M8 the app no longer ships this JSON: it parses the same data from the user's
-install in the browser (`src/gameData/`, a TypeScript port of `extract/*.py`). The
-JSON files stay as the fixture for tests, and `pnpm test:install` checks the parser
-against them on a real install.
+install in the browser (`src/gameData/`, a TypeScript port of the extract scripts). The
+JSON files and the Python scripts live in the private satellite repo (`private/research/`,
+git-ignored here); the JSON stays as the fixture for tests, which skip without it, and
+`pnpm test:install` checks the parser against it on a real install.
 
 Axes in the data are Unity local space, metres: `x` = length along the piece,
 `y` = up, `z` = thickness/depth. In a top-down plan we use `x` and `z`.
@@ -651,10 +652,10 @@ Legacy `.db` (v31–39) **uses the same `ZDO.Load`**, with the `version < 40` br
 ## 8. Terrain generation and TerrainComp (1.0, worldGenVersion 2)
 
 Source: IL of `WorldGenerator`, `HeightmapBuilder`, `Heightmap`, `TerrainComp` and `DUtils`
-in the installed 1.0.20 assemblies, read with `extract/world/ilDump.py` (M16 a0). Only
-paraphrased behaviour and constants are kept here. The Python prototype is
-`extract/world/worldGen.py` (our own code); `extract/world/validateTerrain.py` checks it
-against a save. **Validated** on the user's real world (see "Validation" below).
+in the installed 1.0.20 assemblies, read with `private/research/extract/world/ilDump.py`
+(M16 a0). Only paraphrased behaviour and constants are kept here. The Python prototype is
+`private/research/extract/world/worldGen.py` (our own code); `validateTerrain.py` there
+checks it against a save. **Validated** on the user's real world (see "Validation" below).
 
 ### Units and grid
 - Generator heights are normalised; **metres = value × 200**. Sea level is **30 m** (0.15).

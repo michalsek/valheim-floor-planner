@@ -15,7 +15,7 @@ const NAME_PATTERN = '[a-zA-Z]*([a-zA-Z0-9])';
 
 export default defineConfig(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '.claude/**', 'research/extract/**'],
+    ignores: ['**/node_modules/**', '**/dist/**', '.claude/**', 'private/**'],
   },
   eslint.configs.recommended,
   tseslint.configs.recommended,

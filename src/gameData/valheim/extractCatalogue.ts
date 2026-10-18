@@ -2,8 +2,9 @@
  * Builds the planner's catalogue from the game files: every piece on the Hammer's
  * piece table with its names, category, station, material, health, comfort, cost,
  * snap points and collider bounds, plus station build ranges, the ward radius and the
- * names of the resource items. The output has the shape of
- * `research/valheim-pieces.json` and `valheim-items.json`, so `buildLibrary` reads it.
+ * names of the resource items. The output has the shape of the UnityPy fixtures
+ * (`private/research/valheim-pieces.json`, `valheim-items.json`), so `buildLibrary` reads
+ * either.
  */
 import type { ByteSource } from '../bytes/ByteSource';
 import { GameDataError } from '../GameDataError';

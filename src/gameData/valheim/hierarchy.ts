@@ -1,6 +1,6 @@
 /**
  * Walks prefab hierarchies for snap points and collider corners, matching
- * `research/extract/extract_pieces.py`:
+ * `private/research/extract/extract_pieces.py`:
  * - the root's own transform is ignored (pieces are in their local space);
  * - snap points are GameObjects tagged 20000, active or not;
  * - colliders count only on active GameObjects, and not when they are triggers or

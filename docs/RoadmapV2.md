@@ -26,9 +26,9 @@ This builds on v1 (M1–M7, see [Roadmap.md](Roadmap.md)). The stack and princip
   - the UnityFS bundle reader;
   - the serialized-file reader with type trees;
   - the objects we need: GameObject, Transform, colliders, Piece/WearNTear/CraftingStation/ItemDrop data, and the localization TextAsset in `resources.assets`.
-- The parser builds the same catalogue the app gets today from `research/valheim-pieces.json`, plus item names.
+- The parser builds the same catalogue the app gets today from `valheim-pieces.json` (the UnityPy extract, now `private/research/`), plus item names.
   - The result is cached in OPFS, keyed by bundle size and last-modified date.
-  - The research JSON stays in the repo only as a fixture for tests.
+  - The research JSON stays only as a fixture for tests (in the private satellite repo, `private/research/`).
 - **Already verified:** the main bundle (`c4210710`, 745 MB) is UnityFS v8 with 8,062 blocks of 128 KB or less, compressed with LZ4HC or stored raw. Random access to individual blocks works.
 - The material support constants come from game code (`assembly_valheim.dll`), not asset data. They stay hard-coded, with a version note.
 

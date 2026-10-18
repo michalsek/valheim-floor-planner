@@ -68,7 +68,11 @@ export const refitRoof = (ctx: ToolContext, roof: Roof): boolean => {
   const p = insidePoint(roof.outline);
   if (!p) return false;
   // The rooms of the level whose walls hold it up (a roof drawn at their tops).
-  const plan = levelPlan(all, roofSeat(walls, roof.outline, roof.elevation).elevation, getLibrary());
+  const plan = levelPlan(
+    all,
+    roofSeat(walls, roof.outline, roof.elevation).elevation,
+    getLibrary()
+  );
   const room = outlineAt(plan, p, false);
   if (!room) return false;
   const building = ringArea(roof.outline) > ringArea(room) ? outlineAt(plan, p, true) : null;

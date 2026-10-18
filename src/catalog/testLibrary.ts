@@ -1,10 +1,11 @@
 /**
- * The library built from the research fixture. Tests only: the app builds its
- * library from the user's install (`install/loadInstall.ts`).
+ * The library built from the game-data fixtures (`testGameData.ts`). Tests only: the app
+ * builds its library from the user's install (`install/loadInstall.ts`).
  */
-import rawItems from '../../research/valheim-items.json';
-import rawPieces from '../../research/valheim-pieces.json';
-
 import { buildLibrary } from './buildLibrary';
+import { readGameData } from './testGameData';
 
-export const testLibrary = buildLibrary(rawPieces, rawItems);
+export const testLibrary = buildLibrary(
+  readGameData('valheim-pieces.json'),
+  readGameData('valheim-items.json')
+);

@@ -9,3 +9,6 @@ coverage/
 
 # Local copies of real Valheim worlds for manual testing (personal data, never commit)
 docs/testWorlds/
+
+# Private satellite repo (plans, research tooling, extracted game data)
+private/

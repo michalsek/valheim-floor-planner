@@ -1,6 +1,8 @@
 # Valheim Floor Planner
 
-A 2D top-down planner for Valheim builds, with a 3D view of the same plan. Every piece size, snap rule, cost and build radius comes from the game's own files, so a plan here matches what you can build in the game.
+A browser tool for prototyping Valheim buildings before you build them in the game: a 2D top-down planner with a 3D view of the same plan. Every piece size, snap rule, cost and build radius comes from the game's own files, so a plan here matches what you can build in the game.
+
+An unofficial fan project, not affiliated with or endorsed by Iron Gate or Coffee Stain. No game data is shipped: it is all parsed in your browser from your own install.
 
 The planner needs your own Valheim install. On first visit it asks for the game folder (Steam's `steamapps/common/Valheim`; pick it, or drag it onto the page from Finder or Explorer) and reads the building pieces from it in a Web Worker, in a few seconds. Nothing is uploaded. The result is cached in the browser (IndexedDB), so later visits open the editor at once; the status-strip menu (`398 pieces · Unity …`) re-scans after a game update or switches to another install. Chrome and Edge remember the folder; other browsers use an upload-style folder dialog and can reuse the cached catalogue.
 
@@ -8,11 +10,15 @@ The planner needs your own Valheim install. On first visit it asks for the game 
 pnpm install
 pnpm dev            # http://localhost:5173  (append ?webgl to force the WebGL2 fallback)
 pnpm verify         # typecheck, lint, tests, build
-pnpm test:install   # parses the local Steam install and compares it with research/*.json
+pnpm test:install   # parses the local Steam install and compares it with the fixtures
                     # (VALHEIM_DIR=/path/to/Valheim to point elsewhere)
 VALHEIM_WORLD_TEST=/path/to/world pnpm test:world
                     # reads a real 1.0 world folder (golden numbers of the author's world)
 ```
+
+Some test suites compare against data extracted from the game (`valheim-*.json`), which isn't published: they read it from `private/research/` (the author's private repo) and are skipped, with one note, when it is missing. `pnpm verify` passes either way; `test:install`, `test:assets` and `test:world` need the fixtures.
+
+Stack: Vite, React 19 and TypeScript; three.js (WebGPU with a WebGL2 fallback) through react-three-fiber, TypeGPU for the grid shader, Jotai and Immer for state, Vitest, ESLint and Prettier.
 
 ## Tools
 
@@ -72,6 +78,10 @@ The planner shows the game the right way round: north (+z in the game) is up in 
 
 ## Docs
 
-- `research/README.md`: what we know about the game, plus the extracted data (`valheim-pieces.json`, `valheim-items.json`) and the UnityPy scripts that extract it (`research/extract/`). The app parses the install itself (`src/gameData/`); the JSON is now the fixture for tests.
-- `docs/Roadmap.md`: the stack, the architecture and the milestones. Each milestone has a plan in `docs/plans/` (M1–M11; `docs/RoadmapV2.md` covers M8 onwards).
+- `research/README.md`: what we know about the game. The app parses the install itself (`src/gameData/`); the data extracted with UnityPy and the extraction scripts are kept privately as test fixtures (`private/research/`).
+- `docs/Roadmap.md`: the stack, the architecture and the milestones (`docs/RoadmapV2.md` covers M8 onwards). The detailed milestone plans are private (`private/plans/`).
 - `docs/Findings.md`: known issues and follow-ups that agents logged while building it.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE). `Mathf.PerlinNoise` and `UnityEngine.Random` in `src/gameData/valheim/terrain/unityNatives.ts` are reimplemented from the constants in [ricosolana/Valhalla](https://github.com/ricosolana/Valhalla) (MIT licence, © its authors).

@@ -1,23 +1,33 @@
 /**
  * Golden test against the real game: extracts every piece's model and texture from the
- * local install and compares with `research/valheim-models.json` (counts, checksums,
- * bounds and formats from UnityPy, `research/extract/extract_models_golden.py`). Runs
- * only with VALHEIM_INSTALL_TEST=1 (`pnpm test:assets`).
+ * local install and compares with the `valheim-models.json` game-data fixture
+ * (`testGameData.ts`; counts, checksums, bounds and formats from UnityPy,
+ * `private/research/extract/extract_models_golden.py`). Runs only with
+ * VALHEIM_INSTALL_TEST=1 (`pnpm test:assets`).
  */
 import { afterAll, describe, expect, it } from 'vitest';
 
-import golden from '../../../research/valheim-models.json';
-import rawPieces from '../../../research/valheim-pieces.json';
-
+import { readGameData } from '../../catalog/testGameData';
 import { readMesh } from '../unity/mesh';
 import { bundleResources } from '../unity/streamingInfo';
 import { readFields } from '../unity/values';
 
 import { builtinMesh } from './builtinMeshes';
+import type { RawPieces } from './extractCatalogue';
 import { openModelSource, textureIdsOf, type ModelSource, type PrefabModel } from './extractModels';
 import { openPieceBundle } from './pieceBundle';
 import { closeInstall, installSources } from './testInstall';
 
+interface GoldenMesh {
+  name: string;
+  vertices: number;
+  indices: number;
+  streamed: boolean;
+  normalFormat: number;
+  posSum: number;
+  normalSum: number | null;
+  uvSum: number | null;
+}
 interface GoldenGroup {
   vertices: number;
   indices: number;
@@ -28,6 +38,23 @@ interface GoldenPrefab {
   groups: Record<string, GoldenGroup>;
   bounds: [number[], number[]] | null;
 }
+interface GoldenTexture {
+  name: string;
+  format: number;
+  width: number;
+  height: number;
+  mips: number;
+  bytes: number;
+  colorSpace: number;
+  filter: number;
+}
+interface Golden {
+  meshes: Record<string, GoldenMesh>;
+  prefabs: Record<string, GoldenPrefab>;
+  textures: Record<string, GoldenTexture>;
+}
+
+const golden = readGameData('valheim-models.json') as Golden;
 
 const FORMATS: Record<number, string> = { 10: 'bc1', 12: 'bc3', 25: 'bc7' };
 const BATCH = 25;
@@ -111,7 +138,7 @@ describe.skipIf(!process.env.VALHEIM_INSTALL_TEST)('extractModels on the local i
     const ids = Object.keys(golden.meshes).map(BigInt);
     const res = bundleResources(bundle);
     for (const [id, fields] of readFields(file, ids)) {
-      const want = golden.meshes[String(id) as keyof typeof golden.meshes];
+      const want = golden.meshes[String(id)]!;
       const mesh = readMesh(fields, res);
       const what = `${want.name} (${id})`;
       expect(mesh.name, what).toBe(want.name);
@@ -125,7 +152,7 @@ describe.skipIf(!process.env.VALHEIM_INSTALL_TEST)('extractModels on the local i
   });
 
   it('matches the UnityPy golden: prefabs and textures', () => {
-    const prefabs = golden.prefabs as unknown as Record<string, GoldenPrefab>;
+    const { prefabs } = golden;
     expect([...models.keys()].sort()).toEqual(Object.keys(prefabs).sort());
     for (const [name, want] of Object.entries(prefabs)) {
       const model = models.get(name) ?? null;
@@ -177,7 +204,8 @@ describe.skipIf(!process.env.VALHEIM_INSTALL_TEST)('extractModels on the local i
   });
 
   it('keeps walls and floors within their colliders (± 0.3 m)', () => {
-    const colliders = new Map(rawPieces.pieces.map((p) => [p.prefab, p.colliderBounds]));
+    const { pieces } = readGameData('valheim-pieces.json') as RawPieces;
+    const colliders = new Map(pieces.map((p) => [p.prefab, p.colliderBounds]));
     const checked = [...models].filter(([name, model]) => model && /wall|floor/.test(name));
     const outside = checked.flatMap(([name, model]) => {
       const [min, max] = colliders.get(name)! as [number[], number[]];
