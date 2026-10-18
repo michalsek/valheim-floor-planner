@@ -31,6 +31,61 @@ Axes in the data are Unity local space, metres: `x` = length along the piece,
   existing piece. There is no global world grid. "Grid" only exists because pieces
   have regular sizes.
 
+### Placement and snapping (`Player.UpdatePlacementGhost`, 1.0.20 IL, M17)
+Read from `assembly_valheim.dll` / `assembly_utils.dll` with `ilDump.py`; paraphrased.
+This supersedes the "placement controls" bullet of §10 where they differ.
+- **The ray.** One `Physics.Raycast` from the camera along its forward axis, up to 50 m,
+  on the placement layers (`Default`, `static_solid`, `Default_small`, `piece`,
+  `piece_nonsolid`, `terrain`, `vehicle`). A hit on a collider with a rigidbody counts as
+  no hit, and so does a hit farther than 5 m from the player's eye (`m_maxPlaceDistance`,
+  plus the piece's `m_extraPlacementDistance`). It returns the point, the surface normal,
+  the `Piece` above the collider (if any) and the terrain `Heightmap` (if it is ground).
+  The validity checks below see the real normal; for positioning, a ground hit's normal
+  is then replaced by straight up.
+- **The ghost's base pose.** Rotation is yaw only: `m_placeRotation × 22.5°`
+  (`m_placeRotationDegrees`). The position depends on the piece:
+  - ground pieces and `m_clipGround` pieces on ground, and `m_clipEverything` pieces: the
+    pivot goes on the hit point;
+  - every other piece: the ghost is put 50 m out along the normal, the point of its own
+    (non-trigger, enabled; mesh colliders only if convex) colliders closest to the hit
+    point is found, and the ghost is moved so that point lands on the hit point. So the
+    collider's surface touches the surface under the cursor, pushed out along its normal;
+  - with a **manual snap point** chosen (below), the pivot goes so that snap point sits
+    on the hit point instead.
+- **Snapping** (skipped while `AltPlace` is held, **Left Shift** by default).
+  - The ghost's snap points are its direct children tagged `snappoint`, in child order.
+  - The targets are the snap points of every piece with a collider within **10 m** of the
+    ghost's pivot (an overlap sphere on the piece layers), not just the piece under the
+    cursor.
+  - For each ghost snap point (or only the manual one), the nearest target snap point
+    within **0.5 m** is found; the pair with the smallest distance overall wins (a strict
+    `<`, so the first pair found keeps a tie).
+  - The ghost then moves by (target − ghost snap point). **The snap is dropped** (the
+    ghost stays at its base pose) if a piece of the same prefab already has its pivot
+    within 0.05 m of the snapped pivot; with the piece's `m_allowRotatedOverlap` set, only
+    when that piece is also turned within 10°.
+- **Manual snap point.** `TabLeft` / `TabRight` (**Q** / **E** by default) step
+  `m_manualSnapPoint` down or up through −1 (auto) and 0 … n − 1, wrapping both ways.
+  It goes back to auto when another piece is selected (and when out of range), and is
+  announced as "Snapping <snap point name>" or "auto".
+- **Rotation.** The scroll wheel adds or removes one step whenever the accumulated scroll
+  passes 0.1 (`m_scrollAmountThreshold`); wheel up turns +22.5°, clockwise seen from
+  above. The rotation is kept when another piece is selected (pieces with
+  `m_randomInitBuildRotation` start at a random step). There is **no finer step and no
+  precision mode** in the vanilla code (no field or branch for it; the §10 "Ctrl
+  precision" note came from mods).
+- **Validity** (the ghost turns red; nothing is placed). Only rules about the target and
+  the place, for example: the piece under the cursor has `WearNTear.m_supports` off;
+  ground-only pieces off the ground; `m_notOnWood` on wood or core wood;
+  `m_notOnTiltingSurface` where normal.y < 0.8; `m_inCeilingOnly` unless normal.y < −0.5;
+  `m_notOnFloor` where normal.y > 0.1; water, biome, no-build locations, wards, players
+  in the way. **Clipping into other pieces is only tested for pieces with
+  `m_noClipping`** (`TestGhostClipping`: `Physics.ComputePenetration` of each ghost
+  collider against the colliders within 10 m, invalid above **0.2 m**). Ordinary pieces
+  may overlap anything.
+- **Placing.** "Attack" (left mouse) places once per press (`m_placeDelay` 0.4 s); the
+  hammer stays on the same piece. "Remove" is a separate key.
+
 ## 2. Wall families: the important difference
 
 There are **two kinds of wall**, and they behave differently on a plan:
