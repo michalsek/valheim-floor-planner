@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { formatLevel } from '../format';
 import type { WorldBox } from '../model/geometry/box';
 import { plateRect } from '../scene/view3d/plateRect';
-import { usePreviewLevel, useShownBoxes } from '../scene/view3d/useLevelShading';
+import { usePlateShown, usePreviewLevel, useShownBoxes } from '../scene/view3d/useLevelShading';
 import { useCursor } from '../store/hooks';
 import { useDisplayPlan } from '../store/planHooks';
 import { projection3dAtom, workDatumAtom } from '../store/session';
@@ -104,9 +104,9 @@ const CornerTag = ({
 };
 
 /**
- * The 3D view's level heights (`LevelPlate` draws the plates): off the ground, at the
- * current level's plate corner and over the cursor; and at the previewed level's
- * outline.
+ * The 3D view's level heights (`LevelPlate` draws the plates): wherever the plate is
+ * shown (off the ground, and at every level over terrain), at its corner and over the
+ * cursor; and at the previewed level's outline.
  */
 export const LevelTags3d = () => {
   const datum = useAtomValue(workDatumAtom);
@@ -114,7 +114,7 @@ export const LevelTags3d = () => {
   const cursor = useCursor();
   const { bounds } = useShownBoxes(useDisplayPlan());
   const rect = useMemo(() => plateRect(bounds), [bounds]);
-  const raised = datum !== 0;
+  const raised = usePlateShown();
   return (
     <g>
       {raised && <CornerTag rect={rect} text={formatLevel(datum)} />}

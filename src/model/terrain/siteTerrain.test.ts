@@ -9,6 +9,7 @@ import {
   groundAtWorld,
   groundRange,
   groundUnder,
+  groundUnderOrEdge,
   planToWorld,
   terrainGrid,
   worldToPlan,
@@ -92,6 +93,9 @@ describe('site terrain', () => {
         square(1).map((p) => ({ x: p.x + 50, z: p.z }))
       )
     ).toBeNull();
+    // Off the patch, support carries the nearest edge on (x = 5 → 0.5).
+    const far = square(1).map((p) => ({ x: p.x + 50, z: p.z }));
+    expect(groundUnderOrEdge(grid, flat, far)).toBeCloseTo(0.5, 6);
     expect(groundRange(grid, flat, { min: { x: -2, z: -2 }, max: { x: 2, z: 2 } })).toEqual({
       min: expect.closeTo(-0.2, 6),
       max: 3,

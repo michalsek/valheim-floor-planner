@@ -8,7 +8,7 @@ import { usePlan } from '../../store/planHooks';
 import { addTerrain } from '../../store/worldImport';
 import { useToolContext } from '../../tools/toolContext';
 
-import { phaseText, useTerrainTask } from './useTerrainTask';
+import { phaseText, type TerrainTask } from './useTerrainTask';
 import styles from './WorldPanel.module.css';
 
 /** The current plan's import has no ground and came from this world. */
@@ -19,10 +19,9 @@ const missingTerrain = (plan: Plan, world: LoadedWorld): boolean =>
  * "Add terrain to the current plan", shown over a world's builds when the plan was
  * imported from it without terrain (an older import, or terrain skipped).
  */
-export const AddTerrain = ({ world }: { world: LoadedWorld }) => {
+export const AddTerrain = ({ world, task }: { world: LoadedWorld; task: TerrainTask }) => {
   const ctx = useToolContext();
   const plan = usePlan();
-  const task = useTerrainTask();
   const [error, setError] = useState<string | null>(null);
   const show = missingTerrain(plan, world);
   const availability = useMemo(() => {
@@ -33,16 +32,17 @@ export const AddTerrain = ({ world }: { world: LoadedWorld }) => {
 
   const add = async () => {
     setError(null);
-    const result = await task.start((opts) => addTerrain(ctx, world, opts));
+    const result = await task.start('add', (opts) => addTerrain(ctx, world, opts));
     if (result === 'done') closeWorldPanel();
-    else if (typeof result === 'object') setError(result.error);
+    else if (result && typeof result === 'object') setError(result.error);
   };
+  const phase = task.phaseOf('add');
 
   return (
     <div className={styles.banner}>
-      {task.phase ? (
+      {phase ? (
         <>
-          <span role="status">{phaseText(task.phase)}</span>
+          <span role="status">{phaseText(phase)}</span>
           <button type="button" className={styles.button} onClick={task.cancel}>
             Cancel
           </button>
@@ -50,7 +50,12 @@ export const AddTerrain = ({ world }: { world: LoadedWorld }) => {
       ) : availability.ok ? (
         <>
           <span>The current plan came from this world without its ground.</span>
-          <button type="button" className={styles.primary} onClick={() => void add()}>
+          <button
+            type="button"
+            className={styles.primary}
+            disabled={task.running !== null}
+            onClick={() => void add()}
+          >
             Add terrain to the current plan
           </button>
         </>

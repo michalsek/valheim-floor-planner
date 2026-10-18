@@ -27,8 +27,6 @@ import type { StoredWorld } from './worldCache';
 export const CHECK_RADIUS = 1500;
 /** Locations this close to the patch are listed in the notices (metres). */
 export const NOTICE_REACH = 32;
-/** A location height off by more than this says the ground may not match (metres). */
-export const MISMATCH = 0.05;
 /** A plan without terrain matches an open world with a build this close to its origin. */
 const MATCH_DISTANCE = 100;
 
@@ -124,7 +122,7 @@ export const siteTerrainFrom = (
   world: TerrainSource,
   frame: Pick<ImportFrame, 'origin'>,
   rect: PatchRect,
-  result: Pick<TerrainResult, 'heights' | 'biomes' | 'check'>
+  result: Pick<TerrainResult, 'heights' | 'biomes' | 'check' | 'unreadEdits'>
 ): SiteTerrain => {
   const { heights } = encodeHeights(Float64Array.from(result.heights, (h) => h - frame.origin.y));
   const locations: { x: number; z: number }[] = [];
@@ -144,7 +142,7 @@ export const siteTerrainFrom = (
     biomes: result.biomes,
     worldGenVersion: world.site?.worldGenVersion ?? SUPPORTED_WORLD_GEN_VERSION,
     revision: GENERATOR_REVISION,
-    notices: { locations, legacyEdits, check: result.check },
+    notices: { locations, legacyEdits, unreadEdits: result.unreadEdits, check: result.check },
   };
 };
 

@@ -142,8 +142,35 @@ export const groundUnder = (
   grid: TerrainGrid,
   frame: SiteFrame,
   polygon: readonly Vec2[]
-): number | null => {
+): number | null =>
+  groundUnderRing(
+    grid,
+    polygon.map((p) => planToWorld(frame, p))
+  );
+
+/**
+ * The ground under a footprint for support: `groundUnder` on the patch; wholly off it,
+ * the patch's edge carried on flat (the footprint pressed onto the patch's border), so
+ * the ground stays continuous where the patch ends rather than dropping to the datum.
+ */
+export const groundUnderOrEdge = (
+  grid: TerrainGrid,
+  frame: SiteFrame,
+  polygon: readonly Vec2[]
+): number => {
   const ring = polygon.map((p) => planToWorld(frame, p));
+  const clamp = (v: number, lo: number, n: number) => Math.min(lo + n - 1, Math.max(lo, v));
+  return (
+    groundUnderRing(grid, ring) ??
+    groundUnderRing(
+      grid,
+      ring.map((p) => ({ x: clamp(p.x, grid.x0, grid.cols), z: clamp(p.z, grid.z0, grid.rows) }))
+    )!
+  );
+};
+
+/** `groundUnder` of a ring already in world coordinates. */
+const groundUnderRing = (grid: TerrainGrid, ring: readonly Vec2[]): number | null => {
   let best = -Infinity;
   const sample = (x: number, z: number) => {
     const h = groundAtWorld(grid, x, z);

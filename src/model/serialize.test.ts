@@ -16,7 +16,12 @@ const terrain: SiteTerrain = {
   biomes: { zx0: 2, zz0: -1, cols: 2, rows: 2, codes: [1, 1, 1, 8] },
   worldGenVersion: 2,
   revision: 1,
-  notices: { locations: [{ x: 120, z: -40 }], legacyEdits: 0, check: { n: 4, maxError: 0.001 } },
+  notices: {
+    locations: [{ x: 120, z: -40 }],
+    legacyEdits: 0,
+    unreadEdits: 1,
+    check: { n: 4, maxError: 0.001 },
+  },
 };
 
 const plan: Plan = {
@@ -119,6 +124,12 @@ describe('serialize', () => {
     expect(loaded.rawPieces).toEqual(plan.rawPieces);
   });
 
+  it('reads terrain saved before the unread-edits notice as none unread', () => {
+    const saved = JSON.parse(serializePlan(plan));
+    delete saved.importFrame.terrain.notices.unreadEdits;
+    expect(parsePlan(saved).importFrame?.terrain?.notices.unreadEdits).toBe(0);
+  });
+
   it('loads a version 2 file without roofs, and saves it as version 5', () => {
     const v2 = { ...JSON.parse(serializePlan(plan)), version: 2 };
     const loaded = parsePlan(v2);
@@ -176,6 +187,21 @@ describe('serialize', () => {
       importFrame: {
         ...plan.importFrame,
         terrain: { ...terrain, biomes: { ...terrain.biomes, codes: [1] } },
+      },
+    },
+    // A 1 × 1 corner grid, and a grid that stops short of the patch.
+    {
+      version: 5,
+      importFrame: {
+        ...plan.importFrame,
+        terrain: { ...terrain, biomes: { zx0: 2, zz0: -1, cols: 1, rows: 1, codes: [1] } },
+      },
+    },
+    {
+      version: 5,
+      importFrame: {
+        ...plan.importFrame,
+        terrain: { ...terrain, biomes: { ...terrain.biomes, zx0: 3 } },
       },
     },
     { version: 3, roofs: { r: { ...plan.roofs.r, pitch: 30 } } },

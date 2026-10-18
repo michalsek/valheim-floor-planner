@@ -4,8 +4,8 @@
  * Either way it is one `plan.replace`, so one undo step. Adding terrain later to a plan
  * imported without it is one `site.setTerrain` ("Add terrain").
  *
- * The terrain is made in a worker (`generateSiteTerrain`). Each import or add takes a
- * token; a result that arrives after a newer one started is dropped.
+ * The terrain is made in a worker (`generateSiteTerrain`), one request at a time: an
+ * import and an Add terrain exclude each other.
  */
 import type { WorldCluster } from '../model/world/clusters';
 import { clampElevation, roundElevation } from '../model/elevation';
@@ -70,7 +70,22 @@ export const prepareBuild = (
   }
 };
 
-let token = 0;
+/**
+ * An import or an Add terrain is under way: only one at a time, so neither replaces the
+ * plan the other is making ground for (the World panel also disables the other button).
+ */
+let busy = false;
+const BUSY: ImportResult = { error: 'The ground is still being made for another request.' };
+
+const exclusively = async (run: () => Promise<ImportResult>): Promise<ImportResult> => {
+  if (busy) return BUSY;
+  busy = true;
+  try {
+    return await run();
+  } finally {
+    busy = false;
+  }
+};
 
 /** The ground for `plan`'s frame, or null when skipped; throws an `AbortError` when cancelled. */
 const makeTerrain = async (
@@ -98,13 +113,22 @@ export const importBuild = async (
   build: PreparedBuild,
   opts: TerrainOptions | null
 ): Promise<ImportResult> => {
+  if (busy) return BUSY;
   if (
     !isPlanEmpty(ctx.plan.getPlan()) &&
     !window.confirm('Replace the current plan with this build? You can undo this.')
   ) {
     return 'kept';
   }
-  const mine = ++token;
+  return exclusively(() => replaceWithBuild(ctx, world, build, opts));
+};
+
+const replaceWithBuild = async (
+  ctx: ImportContext,
+  world: TerrainSource,
+  build: PreparedBuild,
+  opts: TerrainOptions | null
+): Promise<ImportResult> => {
   let terrain: SiteTerrain | null = null;
   if (opts && build.rect && build.terrain.ok) {
     try {
@@ -114,7 +138,7 @@ export const importBuild = async (
       return { error: `The ground couldn’t be made: ${messageOf(error)}` };
     }
   }
-  if (mine !== token || opts?.signal.aborted) return 'cancelled';
+  if (opts?.signal.aborted) return 'cancelled';
   const plan: Plan = { ...build.plan, importFrame: { ...build.plan.importFrame!, terrain } };
   ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Import from ${world.name}` });
   ctx.set(selectionAtom, []);
@@ -126,7 +150,13 @@ export const importBuild = async (
 };
 
 /** Adds the ground to the current plan's import (one undoable "Add terrain"). */
-export const addTerrain = async (
+export const addTerrain = (
+  ctx: ImportContext,
+  world: TerrainSource,
+  opts: TerrainOptions
+): Promise<ImportResult> => exclusively(() => addToPlan(ctx, world, opts));
+
+const addToPlan = async (
   ctx: ImportContext,
   world: TerrainSource,
   opts: TerrainOptions
@@ -136,7 +166,6 @@ export const addTerrain = async (
   if (!plan.importFrame || !rect) return { error: 'The plan has no imported build.' };
   const available = terrainAvailability(world, rect);
   if (!available.ok) return { error: available.reason };
-  const mine = ++token;
   let made: SiteGeneration | null;
   try {
     made = await makeTerrain(world, plan, rect, opts);
@@ -144,8 +173,8 @@ export const addTerrain = async (
     if (isAbort(error)) return 'cancelled';
     return { error: `The ground couldn’t be made: ${messageOf(error)}` };
   }
-  // A newer request, or the plan changed under it (another import, an undo).
-  if (!made || mine !== token || ctx.plan.getPlan().importFrame !== plan.importFrame) {
+  // Cancelled, or the plan changed under it (an undo).
+  if (!made || opts.signal.aborted || ctx.plan.getPlan().importFrame !== plan.importFrame) {
     return 'cancelled';
   }
   const result = ctx.plan.dispatch(

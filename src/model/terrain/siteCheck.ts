@@ -10,6 +10,23 @@ import { MAX_SIDE } from './sitePatch';
 const MAX_VERTICES_SIDE = MAX_SIDE + 1;
 
 const finite = (n: number) => Number.isFinite(n);
+const count = (n: number) => Number.isInteger(n) && n >= 0;
+
+/** The game's zones (metres): zone corner `k` is at world `k · 64 − 32`. */
+const ZONE_SIZE = 64;
+
+/** Whether `corners` zone corners from zone `first` span the patch's `vertices` from `start`. */
+const covers = (first: number, corners: number, start: number, vertices: number): boolean => {
+  const low = first * ZONE_SIZE - ZONE_SIZE / 2;
+  const high = (first + corners - 1) * ZONE_SIZE - ZONE_SIZE / 2;
+  return low <= start && high >= start + vertices - 1;
+};
+
+/**
+ * A self-check error above this (metres: the save's location heights against the
+ * generator's) says the ground may not match the world.
+ */
+export const MISMATCH = 0.05;
 
 /** Bytes the base64 string decodes to (without decoding it). */
 const base64Bytes = (text: string): number | null => {
@@ -32,8 +49,11 @@ export const siteTerrainProblem = (t: SiteTerrain): string | null => {
     return `heights of ${t.cols} × ${t.rows} int16 values in base64`;
   }
   const b = t.biomes;
-  if (![b.zx0, b.zz0, b.cols, b.rows].every(Number.isInteger) || b.cols < 1 || b.rows < 1) {
-    return 'a biome grid of whole zones';
+  if (![b.zx0, b.zz0, b.cols, b.rows].every(Number.isInteger) || b.cols < 2 || b.rows < 2) {
+    return 'a biome grid of whole zones, at least 2 × 2 corners';
+  }
+  if (!covers(b.zx0, b.cols, t.x0, t.cols) || !covers(b.zz0, b.rows, t.z0, t.rows)) {
+    return 'a biome grid over the whole patch';
   }
   if (b.codes.length !== b.cols * b.rows || !b.codes.every(Number.isInteger)) {
     return `${b.cols} × ${b.rows} biome codes`;
@@ -41,9 +61,10 @@ export const siteTerrainProblem = (t: SiteTerrain): string | null => {
   if (!Number.isInteger(t.worldGenVersion) || !Number.isInteger(t.revision)) {
     return 'whole-number generator versions';
   }
-  const { locations, legacyEdits, check } = t.notices;
+  const { locations, legacyEdits, unreadEdits, check } = t.notices;
   if (!locations.every((p) => finite(p.x) && finite(p.z))) return 'location notices at points';
-  if (!Number.isInteger(legacyEdits) || legacyEdits < 0) return 'a count of legacy edits';
+  if (!count(legacyEdits)) return 'a count of legacy edits';
+  if (!count(unreadEdits)) return 'a count of unread terrain edits';
   if (!Number.isInteger(check.n) || check.n < 0 || !finite(check.maxError)) {
     return 'a self-check count and error';
   }

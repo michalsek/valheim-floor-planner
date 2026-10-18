@@ -14,6 +14,7 @@ import { AddTerrain } from './AddTerrain';
 import { ClusterMap } from './ClusterMap';
 import { ImportRow } from './ImportRow';
 import { useBuildImport } from './useBuildImport';
+import { useTerrainTask } from './useTerrainTask';
 import styles from './WorldPanel.module.css';
 
 const materialOf = (prefab: string) => getLibrary().catalog.pieces.get(prefab)?.material ?? null;
@@ -46,7 +47,8 @@ export const WorldOverview = ({ world }: { world: LoadedWorld }) => {
   const hidden = groups.length - clusters.length;
   const current = clusters[selected] ?? clusters[0];
   const total = world.pieces.prefabIndex.length;
-  const importer = useBuildImport(world, current);
+  const task = useTerrainTask();
+  const importer = useBuildImport(world, current, task);
   const setSelected = (index: number) => {
     setSelectedIndex(index);
     importer.setError(null);
@@ -59,7 +61,7 @@ export const WorldOverview = ({ world }: { world: LoadedWorld }) => {
         {world.generation !== null && ` · save ${world.generation}`} ·{' '}
         {world.fromCache ? 'kept copy' : 'read'} in {Math.round(world.readMs)} ms
       </p>
-      <AddTerrain world={world} />
+      <AddTerrain world={world} task={task} />
       <div className={styles.overviewGrid}>
         <ClusterMap
           cloud={world.pieces}

@@ -8,7 +8,7 @@ import { atom, useAtomValue } from 'jotai';
 
 import { roofContacts } from '../model/roofs/roofContacts';
 import { planSupport, type GroundUnder, type PlanSupport } from '../model/support/planSupport';
-import { groundUnder } from '../model/terrain/siteTerrain';
+import { groundUnderOrEdge } from '../model/terrain/siteTerrain';
 import type { Plan } from '../model/types';
 
 import { getLibrary } from './libraryInstance';
@@ -39,11 +39,13 @@ const whenIdle = (run: () => void): (() => void) => {
 
 /**
  * The site's ground under a footprint, whether the terrain is shown or not; null on flat
- * ground. Off the patch (far from the import) the ground is the datum, 0.
+ * ground. Off the patch (64 m or more from the import) the patch's nearest edge carries
+ * on flat, not the datum: the datum is the build's lowest piece, which may sit metres
+ * above or below the ground there.
  */
 const siteGroundUnder = (plan: Plan): GroundUnder | null => {
   const site = getSiteGround(plan);
-  return site && ((footprint) => groundUnder(site.grid, site.frame, footprint) ?? 0);
+  return site && ((footprint) => groundUnderOrEdge(site.grid, site.frame, footprint));
 };
 
 /** Raw pieces hold up what rests on them but aren't checked themselves (an info note says so). */

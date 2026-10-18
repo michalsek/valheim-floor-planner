@@ -6,35 +6,42 @@ import type { ImportResult, TerrainOptions } from '../../store/worldImport';
 /** Before the worker's first phase arrives. */
 export type TaskPhase = TerrainPhase | 'starting';
 
+/** What the request is for: importing a build, or adding ground to the current plan. */
+export type TaskKind = 'import' | 'add';
+
 /**
- * One terrain request at a time, with its phase for the progress line: `skip` stops the
- * ground (an import goes on without it), `cancel` stops everything. Leaving the panel
- * (unmounting) cancels.
+ * The World panel's terrain request, one at a time (an import and an Add terrain share
+ * it, so each is disabled while the other runs), with its phase for the progress line:
+ * `skip` stops the ground (an import goes on without it), `cancel` stops everything.
+ * Leaving the panel (unmounting) cancels.
  */
 export const useTerrainTask = () => {
-  const [phase, setPhase] = useState<TaskPhase | null>(null);
+  const [state, setState] = useState<{ kind: TaskKind; phase: TaskPhase } | null>(null);
   const running = useRef<{ cancel: AbortController; skip: AbortController } | null>(null);
   useEffect(() => () => running.current?.cancel.abort(), []);
 
   const start = async (
+    kind: TaskKind,
     run: (opts: TerrainOptions) => Promise<ImportResult>
-  ): Promise<ImportResult> => {
-    running.current?.cancel.abort();
+  ): Promise<ImportResult | null> => {
+    if (running.current) return null;
     const task = { cancel: new AbortController(), skip: new AbortController() };
     running.current = task;
-    setPhase('starting');
+    setState({ kind, phase: 'starting' });
+    const onPhase = (phase: TaskPhase) => setState({ kind, phase });
     try {
-      return await run({ onPhase: setPhase, signal: task.cancel.signal, skip: task.skip.signal });
+      return await run({ onPhase, signal: task.cancel.signal, skip: task.skip.signal });
     } finally {
-      if (running.current === task) {
-        running.current = null;
-        setPhase(null);
-      }
+      running.current = null;
+      setState(null);
     }
   };
 
   return {
-    phase,
+    /** The running request's kind, or null. */
+    running: state?.kind ?? null,
+    /** Its phase, for the progress line of `kind`. */
+    phaseOf: (kind: TaskKind): TaskPhase | null => (state?.kind === kind ? state.phase : null),
     start,
     skip: () => running.current?.skip.abort(),
     cancel: () => running.current?.cancel.abort(),
@@ -51,3 +58,5 @@ const PHASES: Record<TaskPhase, string> = {
 };
 
 export const phaseText = (phase: TaskPhase): string => PHASES[phase];
+
+export type TerrainTask = ReturnType<typeof useTerrainTask>;

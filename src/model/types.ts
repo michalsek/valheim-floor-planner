@@ -197,6 +197,8 @@ export interface SiteNotices {
   locations: { x: number; z: number }[];
   /** Pre-1.0 terrain-edit pieces inside the patch (not applied). */
   legacyEdits: number;
+  /** Zones whose saved terrain edits couldn't be read (another data version): not applied. */
+  unreadEdits: number;
   /** The save's location heights near the site against the generator's. */
   check: { n: number; maxError: number };
 }

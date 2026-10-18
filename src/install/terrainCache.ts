@@ -53,8 +53,7 @@ const write = async (dir: FileSystemDirectoryHandle, name: string, data: Blob | 
   await writable.close();
 };
 
-/** Marks `name` as just used and drops the worlds beyond `MAX_KEPT`. */
-const touch = async (root: FileSystemDirectoryHandle, name: string): Promise<void> => {
+const updateIndex = async (root: FileSystemDirectoryHandle, name: string): Promise<void> => {
   const others = (await readIndex(root)).filter((e) => e.name !== name);
   const list = [{ name, usedAt: Date.now() }, ...others];
   const kept = list.slice(0, MAX_KEPT);
@@ -62,6 +61,16 @@ const touch = async (root: FileSystemDirectoryHandle, name: string): Promise<voi
   for (const { name: stale } of list.slice(MAX_KEPT)) {
     await root.removeEntry(stale, { recursive: true }).catch(() => {});
   }
+};
+
+/** The index updates, one after another (each reads, then rewrites the whole index). */
+let indexQueue: Promise<void> = Promise.resolve();
+
+/** Marks `name` as just used and drops the worlds beyond `MAX_KEPT`, after earlier updates. */
+const touch = (root: FileSystemDirectoryHandle, name: string): Promise<void> => {
+  const next = indexQueue.then(() => updateIndex(root, name));
+  indexQueue = next.catch(() => {});
+  return next;
 };
 
 /** The world's kept pregeneration for this revision, or null. */

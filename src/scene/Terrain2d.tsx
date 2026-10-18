@@ -18,6 +18,8 @@ import { worldToPlan } from '../model/terrain/siteTerrain';
 import { useThemeTokens, useViewport } from '../store/hooks';
 import { useShownSiteTerrain, type SiteGround } from '../store/siteTerrain';
 
+import { useRelease } from './useRelease';
+
 /** Under the level-below ghosts (−0.2) and everything else; contours just over it. */
 const RELIEF_Y = -0.3;
 const CONTOUR_Y = -0.25;
@@ -52,6 +54,8 @@ const contourPositions = (ground: SiteGround, { step, except }: ContourSet): Flo
   return positions;
 };
 
+const disposeGeometry = (geometry: BufferGeometry) => geometry.dispose();
+
 /** One interval's contour lines, in the theme's contour colour. */
 const Contours = ({ ground, set }: { ground: SiteGround; set: ContourSet }) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -64,7 +68,7 @@ const Contours = ({ ground, set }: { ground: SiteGround; set: ContourSet }) => {
   const [material] = useState(
     () => new LineBasicNodeMaterial({ transparent: true, opacity: set.opacity, depthWrite: false })
   );
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  useRelease(geometry, disposeGeometry);
   useEffect(() => () => material.dispose(), [material]);
   useLayoutEffect(() => {
     material.color.set(terrain.contour);
@@ -131,6 +135,16 @@ const createReliefMaterial = (map: DataTexture) => {
   return { material, shade, light, water };
 };
 
+const disposeRelief = (resources: {
+  map: DataTexture;
+  quad: BufferGeometry;
+  material: MeshBasicNodeMaterial;
+}) => {
+  resources.map.dispose();
+  resources.quad.dispose();
+  resources.material.dispose();
+};
+
 const Relief = ({ ground }: { ground: SiteGround }) => {
   const invalidate = useThree((s) => s.invalidate);
   const { terrain } = useThemeTokens();
@@ -138,14 +152,7 @@ const Relief = ({ ground }: { ground: SiteGround }) => {
     const map = reliefTexture(ground);
     return { map, quad: reliefQuad(ground), ...createReliefMaterial(map) };
   }, [ground]);
-  useEffect(
-    () => () => {
-      resources.map.dispose();
-      resources.quad.dispose();
-      resources.material.dispose();
-    },
-    [resources]
-  );
+  useRelease(resources, disposeRelief);
   useLayoutEffect(() => {
     resources.shade.value.set(terrain.shade);
     resources.light.value.set(terrain.light);

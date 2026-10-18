@@ -57,6 +57,7 @@ describe('siteTerrainFrom', () => {
       heights,
       biomes,
       check: { n: 3, maxError: 0.001 },
+      unreadEdits: 1,
     });
     expect(decodeHeights(terrain.heights)?.[127]).toBeCloseTo(1.27, 5);
     expect(terrain.notices).toEqual({
@@ -65,6 +66,7 @@ describe('siteTerrainFrom', () => {
         { x: -30, z: 50 },
       ],
       legacyEdits: 1,
+      unreadEdits: 1,
       check: { n: 3, maxError: 0.001 },
     });
   });

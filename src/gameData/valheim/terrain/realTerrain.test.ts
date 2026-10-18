@@ -166,6 +166,7 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
     const frame = bare.importFrame!;
     const terrain = siteTerrainFrom(world, frame, rect, warm);
     expect(terrain.notices.legacyEdits).toBe(0);
+    expect(terrain.notices.unreadEdits).toBe(0);
     const plan: Plan = { ...bare, importFrame: { ...frame, terrain } };
     expect(parsePlan(JSON.parse(serializePlan(plan)))).toEqual(plan);
 

@@ -1,5 +1,5 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import {
   BoxGeometry,
   BufferGeometry,
@@ -16,6 +16,7 @@ import {
 
 import { SHAPE_TRIANGLES, type PieceShape } from '../../model/geometry/shapes';
 import type { PieceBox } from '../../model/pieceBoxes';
+import { useRelease } from '../useRelease';
 
 import type { PieceColorer } from './pieceColors';
 
@@ -83,6 +84,11 @@ const writeColors = (mesh: InstancedMesh, boxes: readonly PieceBox[], colorOf: P
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 };
 
+const disposeMesh = (mesh: InstancedMesh) => {
+  mesh.geometry.dispose();
+  mesh.dispose();
+};
+
 interface InstancesProps {
   shape: PieceShape;
   capacity: number;
@@ -108,13 +114,7 @@ const Instances = ({ shape, capacity, boxes, colorOf, material, castShadow }: In
 
   // The geometry and instance buffers are this mesh's own; the material is shared (and
   // `dispose={null}` keeps r3f off it).
-  useEffect(
-    () => () => {
-      mesh.geometry.dispose();
-      mesh.dispose();
-    },
-    [mesh]
-  );
+  useRelease(mesh, disposeMesh);
 
   return <primitive object={mesh} castShadow={castShadow} receiveShadow dispose={null} />;
 };

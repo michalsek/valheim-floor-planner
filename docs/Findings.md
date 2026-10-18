@@ -1171,8 +1171,26 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    **Terrain…** → Add terrain → Undo / Redo). The saved-file round trip is covered by
    `parsePlan(serializePlan(plan))` in `test:world`, not clicked through File → Open.
 8. **Not done:** int16 clamping beyond ±327.67 m has no notice field in `SiteNotices`, so
-   it clamps silently (impossible within a 384 m patch in practice); a TerrainComp of
-   another data version fails the whole terrain (reported as the import's error).
+   it clamps silently (impossible within a 384 m patch in practice).
+9. **Fix round.**
+   - A zone whose terrain edits don't read (another data version, a damaged blob) is
+     left out and counted (`decodeComps`) in the new `SiteNotices.unreadEdits`, listed by
+     the Terrain toggle; the rest of the site still comes in. v5 plans saved before the
+     field read it as 0.
+   - Import and Add terrain exclude each other: the store runs one request at a time
+     (the shared token is gone), and the panel shares one task, so the other button is
+     disabled while one runs (checked in the browser).
+   - `siteTerrainProblem` wants at least 2 × 2 biome corners that span the patch.
+   - **Off-patch ground for support: the patch's nearest edge, carried on flat**
+     (`groundUnderOrEdge`), not "not grounded" and no longer the datum. The patch reaches
+     at least 64 m past the build, so off-patch pieces are hand-drawn far out. The datum
+     is the build's lowest piece, which can sit metres above or below the ground there,
+     and "never grounded" would collapse anything drawn there for no visible reason. The
+     edge height keeps the ground continuous across the patch border, so a wall straddling
+     it behaves the same on both sides. Drawing (3D, drop line) is unchanged.
+   - `MISMATCH` moved to `model/terrain/siteCheck.ts`; the river-cache index updates are
+     serialised through a promise chain; the legacy-edit notice says "import the build
+     again".
 
 ## From M16 Stage 1 pass 2B (terrain rendering)
 
@@ -1222,10 +1240,28 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 6. **Level 0 on the import** shows mostly ground: the pad is ~4 m above the datum, so with
    the cut on the build is cut away and the plate at 0 is underground except near the
    water. Expected, and the landing level is +4 anyway.
-7. **Open (not owned by 2B):** `overlay/LevelTags3d.tsx` still tags the plate only off
-   datum 0, so the plate at 0 over terrain has no "+0 m" tag (it could use
-   `usePlateShown`). The orbit's lowest camera height is still y = 0.05, so a low orbit
-   can go inside a hill. The opaque 2D relief hides an underlay under the patch. Ground
-   outside the shadow camera's plan bounds is unshadowed, as planned.
+7. **Open:** the opaque 2D relief hides an underlay under the patch. Ground outside the
+   shadow camera's plan bounds is unshadowed, as planned. (The plate tag at 0 and the
+   camera inside hills were fixed in the fix round, item 9.)
 8. **Synthetic site** for work before the import existed: a scratchpad script built a v5
    plan from pass 1's generator with a made-up seed (not committed).
+9. **Fix round.**
+   - **Camera above the terrain:** `OrbitRig` takes the shown site (`ground`) and keeps
+     the camera 0.5 m (`TERRAIN_CLEARANCE`) above the collider height under it, after
+     every move (orbit, pan, zoom to the cursor, push-through); off the patch, or without
+     terrain, the old y = 0.05 floor. The push-through levels out when the target would
+     go under the ground ahead rather than under y = 0. Checked on the import with a low
+     orbit all round the pad and wheel pushes towards the western hill: the camera stays
+     on the hillside's surface, never inside it. The orbit target itself is not moved
+     onto the ground (at level 0 it can sit under the pad; orbiting around it still works).
+   - **The plate tag at 0:** `LevelTags3d` uses `usePlateShown`, so "0 m" shows at the
+     plate's corner and the cursor at level 0 over terrain.
+   - **Dev-only WebGPU validation errors** ("Buffer used in submit while destroyed",
+     two per frame in 3D on the import): StrictMode's simulated unmount ran the
+     `useEffect` cleanups that disposed `PieceInstances`' meshes (an M15 pattern, seen
+     here by chance of timing) and the terrain's geometries, which stayed in use.
+     `scene/useRelease.ts` counts holders and frees a resource a microtask after its
+     last holder unmounts, so the immediate remount keeps it. It is used by
+     `PieceInstances`, `Terrain3d` and `Terrain2d`. Other dispose-on-cleanup sites
+     (lines, slabs, models) showed no errors and were left alone. Production builds
+     have no StrictMode double mount.

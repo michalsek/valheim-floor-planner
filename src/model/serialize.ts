@@ -285,6 +285,8 @@ const parseSiteTerrain = (value: unknown, path: string): SiteTerrain | null => {
         asPoint(p, `${path}.notices.locations[${i}]`)
       ),
       legacyEdits: num(n.legacyEdits, 'notices.legacyEdits'),
+      // Added in the M16 fix round: v5 plans saved before it have none.
+      unreadEdits: n.unreadEdits === undefined ? 0 : num(n.unreadEdits, 'notices.unreadEdits'),
       check: {
         n: num(check.n, 'notices.check.n'),
         maxError: num(check.maxError, 'notices.check.maxError'),

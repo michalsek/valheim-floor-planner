@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MathUtils, MOUSE, Vector3, type PerspectiveCamera } from 'three/webgpu';
 
 import type { Bounds3 } from '../../model/geometry/bounds3';
+import { groundAt as groundAtPlan } from '../../model/terrain/siteTerrain';
 import type { Vec3 } from '../../model/types';
 import {
   modifiersAtom,
@@ -13,6 +14,7 @@ import {
   viewportSizeAtom,
   type SessionAccess,
 } from '../../store/session';
+import type { SiteGround } from '../../store/siteTerrain';
 import {
   orbitRequestAtom,
   orbitStateAtom,
@@ -37,6 +39,8 @@ import { fitClipPlanes, VIEW_FOV } from './useViewCamera';
 const EMPTY_RADIUS = 10;
 /** The lowest the camera goes: just above the ground (the datum). */
 const MIN_CAMERA_Y = 0.05;
+/** Over a site's terrain, the camera stays this far above the ground under it. */
+const TERRAIN_CLEARANCE = 0.5;
 /** How much one `+` / `−` press moves the camera in or out. */
 const DOLLY_FACTOR = 1.25;
 /**
@@ -72,6 +76,14 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
   const controls = createControls(camera);
   let radius = EMPTY_RADIUS;
   let canvas: Size = { width: 1, height: 1 };
+  /** The terrain's height under a plan point; null off the patch or without terrain. */
+  let groundAt: (x: number, z: number) => number | null = () => null;
+
+  /** The lowest the camera may be at (x, z): above the terrain there, or the datum. */
+  const cameraFloor = (x: number, z: number): number => {
+    const ground = groundAt(x, z);
+    return ground === null ? MIN_CAMERA_Y : ground + TERRAIN_CLEARANCE;
+  };
 
   /** The camera as plain data, for the cursor, picking and the 3D overlay. */
   const projection = (size: Size): Projection3d => {
@@ -97,12 +109,13 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
   const publish = () => onMove(projection(canvas));
 
   /**
-   * Keeps the camera above the ground (a pan or zoom to the cursor can take it lower
-   * than the polar limit alone does) and fits the depth planes to the new distance.
-   * Call after every camera move.
+   * Keeps the camera above the ground (a pan, a zoom to the cursor or an orbit by a
+   * hillside can take it lower than the polar limit alone does) and fits the depth
+   * planes to the new distance. Call after every camera move.
    */
   const afterMove = () => {
-    if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
+    const floor = cameraFloor(camera.position.x, camera.position.z);
+    if (camera.position.y < floor) camera.position.y = floor;
     const distance = camera.position.distanceTo(controls.target);
     // Pan speed scales with the distance to the target; keep a floor for close-ups.
     controls.panSpeed = Math.max(1, PAN_FLOOR_DISTANCE / Math.max(distance, 1e-3));
@@ -120,7 +133,9 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
   const pushThrough = () => {
     const forward = controls.target.clone().sub(camera.position).normalize();
     const step = Math.max(MIN_PUSH_STEP, camera.position.distanceTo(controls.target) * 0.25);
-    if (controls.target.y + forward.y * step < 0) {
+    const { target } = controls;
+    const below = groundAt(target.x + forward.x * step, target.z + forward.z * step) ?? 0;
+    if (target.y + forward.y * step < below) {
       forward.y = 0;
       if (forward.lengthSq() < 1e-6) return;
       forward.normalize();
@@ -149,6 +164,12 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
     place,
     setRadius(r: number) {
       radius = r;
+    },
+    /** The terrain the camera stays above (`() => null`: the flat datum). */
+    setGround(at: (x: number, z: number) => number | null) {
+      groundAt = at;
+      afterMove();
+      publish();
     },
     /** The canvas size is part of the projection. */
     setSize(size: Size) {
@@ -228,11 +249,14 @@ export const OrbitRig = ({
   camera,
   bounds,
   reach = 0,
+  ground = null,
 }: {
   camera: PerspectiveCamera;
   bounds: Bounds3 | null;
   /** How far beyond the bounds the scene goes (a site's ground): the depth planes hold it. */
   reach?: number;
+  /** A site's terrain shown in the view: the camera stays above it. */
+  ground?: SiteGround | null;
 }) => {
   const store = useStore();
   const gl = useThree((s) => s.gl);
@@ -254,6 +278,12 @@ export const OrbitRig = ({
   useLayoutEffect(() => {
     rig.setRadius(Math.max(bounds ? boundsRadius(bounds) : EMPTY_RADIUS, reach));
   }, [rig, bounds, reach]);
+
+  useLayoutEffect(() => {
+    rig.setGround(
+      ground ? (x, z) => groundAtPlan(ground.grid, ground.frame, { x, z }) : () => null
+    );
+  }, [rig, ground]);
 
   // Before the mount effect below, so the first placement is published at this size.
   useLayoutEffect(() => {

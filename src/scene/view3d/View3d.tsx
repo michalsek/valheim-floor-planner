@@ -49,7 +49,7 @@ export const View3d = () => {
 
   return (
     <>
-      <OrbitRig camera={camera} bounds={bounds} reach={siteReach(site)} />
+      <OrbitRig camera={camera} bounds={bounds} reach={siteReach(site)} ground={site} />
       <Lights bounds={bounds} />
       {site ? <Terrain3d ground={site} /> : <Ground />}
       <LevelPlate bounds={bounds} />

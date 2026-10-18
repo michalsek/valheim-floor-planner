@@ -17,11 +17,12 @@ export const ImportRow = ({ importer }: { importer: BuildImport }) => {
   const available = prepared?.terrain.ok ?? false;
   const reason = prepared && !prepared.terrain.ok ? prepared.terrain.reason : null;
 
-  if (task.phase) {
+  const phase = task.phaseOf('import');
+  if (phase) {
     return (
       <div className={styles.importRow}>
         <p className={styles.progress} role="status">
-          {phaseText(task.phase)}
+          {phaseText(phase)}
         </p>
         <button type="button" className={styles.button} onClick={task.skip}>
           Skip terrain
@@ -42,7 +43,7 @@ export const ImportRow = ({ importer }: { importer: BuildImport }) => {
         <button
           type="button"
           className={styles.primary}
-          disabled={!prepared || tooBig}
+          disabled={!prepared || tooBig || task.running !== null}
           onClick={() => void start()}
         >
           Import as a new plan

@@ -22,7 +22,11 @@ import {
   type Pregenerated,
 } from '../gameData/valheim/terrain/pregenerate';
 import { cellKey, riverCell } from '../gameData/valheim/terrain/rivers';
-import { applyTerrainComps, decodeTerrainComp } from '../gameData/valheim/terrain/terrainComp';
+import {
+  applyTerrainComps,
+  decodeTerrainComp,
+  type ZoneTerrainComp,
+} from '../gameData/valheim/terrain/terrainComp';
 import { WorldGenerator } from '../gameData/valheim/terrain/worldGenerator';
 import type { WorldSite } from '../gameData/valheim/world/worldFiles';
 import type { TerrainCompBlob } from '../gameData/valheim/world/worldTerrain';
@@ -57,6 +61,8 @@ export interface TerrainResult {
   check: { n: number; maxError: number };
   /** Vertices the save's terrain edits changed. */
   edited: number;
+  /** Zones whose terrain edits couldn't be read (left out). */
+  unreadEdits: number;
   /** A new or extended pregeneration to keep; null when the kept one served. */
   rivers: ArrayBuffer | null;
   /** Milliseconds per phase. */
@@ -122,10 +128,25 @@ const checkPoints = (gen: WorldGenerator, checks: Float32Array, deep: boolean): 
   return kept;
 };
 
-const decodeComps = async (blobs: readonly TerrainCompBlob[]) =>
-  Promise.all(
-    blobs.map(async ({ zx, zz, data }) => ({ zx, zz, comp: decodeTerrainComp(await gunzip(data)) }))
+/**
+ * The zones' terrain edits; a zone whose payload doesn't read (another data version, a
+ * damaged blob) is left out and counted, so one zone can't cost the whole site.
+ */
+export const decodeComps = async (
+  blobs: readonly TerrainCompBlob[]
+): Promise<{ comps: ZoneTerrainComp[]; unread: number }> => {
+  const decoded = await Promise.all(
+    blobs.map(async ({ zx, zz, data }) => {
+      try {
+        return { zx, zz, comp: decodeTerrainComp(await gunzip(data)) };
+      } catch {
+        return null;
+      }
+    })
   );
+  const comps = decoded.filter((c) => c !== null);
+  return { comps, unread: blobs.length - comps.length };
+};
 
 /** Makes the site's ground; `onPhase` hears each step as it starts. */
 export const runTerrainJob = async (
@@ -181,7 +202,8 @@ export const runTerrainJob = async (
   const groundMs = lap();
 
   onPhase('edits');
-  const edited = applyTerrainComps(heights, rect, await decodeComps(job.comps));
+  const { comps, unread } = await decodeComps(job.comps);
+  const edited = applyTerrainComps(heights, rect, comps);
   const editsMs = lap();
 
   onPhase('check');
@@ -196,10 +218,11 @@ export const runTerrainJob = async (
   const checkMs = lap();
 
   return {
-    heights: heights as Float32Array<ArrayBuffer>,
+    heights,
     biomes,
     check: { n, maxError },
     edited,
+    unreadEdits: unread,
     rivers,
     ms: { rivers: riversMs, ground: groundMs, edits: editsMs, check: checkMs },
   };

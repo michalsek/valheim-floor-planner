@@ -1,10 +1,15 @@
 /** What an imported site's terrain may get wrong, as the Terrain toggle's title lists it. */
-import { MISMATCH } from '../../install/siteGeneration';
+import { MISMATCH } from '../../model/terrain/siteCheck';
 import type { SiteNotices } from '../../model/types';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export const noticeLines = ({ locations, legacyEdits, check }: SiteNotices): string[] => {
+export const noticeLines = ({
+  locations,
+  legacyEdits,
+  unreadEdits,
+  check,
+}: SiteNotices): string[] => {
   const lines: string[] = [];
   if (locations.length > 0) {
     lines.push(
@@ -13,7 +18,12 @@ export const noticeLines = ({ locations, legacyEdits, check }: SiteNotices): str
   }
   if (legacyEdits > 0) {
     lines.push(
-      `${plural(legacyEdits, 'pre-1.0 terrain edit', 'pre-1.0 terrain edits')} here ${legacyEdits === 1 ? 'isn’t' : 'aren’t'} applied (the game still applies them as it runs). Run optterrain in the game’s console to fold them into the save, then add the terrain again.`
+      `${plural(legacyEdits, 'pre-1.0 terrain edit', 'pre-1.0 terrain edits')} here ${legacyEdits === 1 ? 'isn’t' : 'aren’t'} applied (the game still applies them as it runs). Run optterrain in the game’s console to fold them into the save, then import the build again.`
+    );
+  }
+  if (unreadEdits > 0) {
+    lines.push(
+      `Your terrain edits in ${plural(unreadEdits, 'zone', 'zones')} couldn’t be read (a newer save format?) and aren’t applied: the ground there is as generated.`
     );
   }
   if (check.n > 0 && check.maxError > MISMATCH) {
