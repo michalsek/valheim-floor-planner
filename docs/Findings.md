@@ -1418,6 +1418,26 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     the plan's order; `Other` takes the unmapped category and `ice` / no material.
     Placeable = a cost or a collider, which leaves out only the repair tool. Exports are
     named `Build*` so they don't clash with `materialColors`' palette.
+13. **Fix round:**
+    - **Mirror line:** now the middle of the selection's snap points (the boxes' bounds
+      only when none has any), so walls round a corner at x = 4 mirror onto their own
+      lattice. Before, it was the middle of the boxes' bounds, which put the walls 0.15 m
+      off. Tests check the mirrored snap points against the reflected ones, a pitched and
+      rolled wall included.
+    - **Raw doors and gates** (`OPENING_PREFABS`: the wall families' openings plus the
+      generic grate and gate) draw as their panel, `min(PANEL_THICKNESS, depth)`, as in
+      a drawn wall's gap. The constant moved to `rawBoxes.ts`, and `pieceBoxes` re-exports
+      it. Other doors (the hexagonal door, cloth doors) keep their collider box.
+    - **Roofs over exploded walls:** level raw pieces (not roof covers) whose top is within
+      5 cm of a roof's wall top count as its walls (`roofs/rawWallTops.ts`). An outline
+      edge rests when its middle lies on such a piece's footprint, so the "not resting"
+      note goes. They also count as eave supports in `roofContacts`. The roof's tiling
+      cache still follows only the level's walls; the note and contacts also follow its
+      raw pieces.
+    - `SupportBody.fixed` is removed. Explode has a one-undo-entry test. The rounding
+      helper (`geometry/round.ts`, `round6`) and the raw turn (`rawTurn`, `rotationOfTurn`
+      in `rawBoxes.ts`) each live in one place now; the copies in `tools/Select` and
+      `model/world` are other agents' files and were left as they are.
 
 ## Terrain opacity and site expansion (M16 follow-up)
 
@@ -1668,6 +1688,15 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
      94–154 ms task, not reproduced in two more runs). From the cache no thumbnail
      device is created at all.
 
+4. **Fix round:** the thumbnail store's reset for a new game build (revoking URLs,
+   clearing entries and the queue, pruning stale cache keys) moved out of the
+   `useSyncExternalStore` snapshot into the install listener (and the queue), which now
+   tells every tile and re-asks for the tiles in view; `getThumbnail` only reads, and
+   returns null while its entries belong to the previous build. No shared IndexedDB
+   helper existed yet, so the thumbnail cache keeps its own guarded open. Dropped the
+   "names starting with the query come first" assertion from `buildPalette.test.ts`.
+   Rechecked in the browser: thumbnails, scroll and search with no long task.
+
 ## From M17 pass 3 (snap-move, Mod+D carry, sink handle, screenshot and perf pass)
 
 1. **Snap-move** (`tools/Select/snapMove.ts`, phase `carrying`): dragging a selection of
@@ -1719,6 +1748,26 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 8. **Open:** the release recomputes the sink depth from the release event, so letting go
    of Shift a moment before the button snaps to the coarse step; the sink handle can sit
    off screen when the camera is close under a tall selection (zoom out).
+9. **Fix round (QA):**
+   - A click on the sink handle changes nothing: within the drag threshold no commands,
+     and the drag changes the depth in whole steps (not the depth rounded to the step), so
+     a piece 8 cm above the ground no longer drops onto it.
+   - Mod+D with ⌘/Ctrl still down: the modifier is ignored (`modIgnoredAtom`,
+     `removeModeAtom`) until pressed again, so the copy's ghost shows and a click places
+     it; Esc gives back the Build turn the carry replaced.
+   - `basePose` rests a floor tile's unlifted box on the hit (the 1 mm drawing lift no
+     longer lowers placed floors or what snaps onto them); test added.
+   - The blocked rule counts a piece's turns modulo its symmetry (`turnPeriod`: 90°,
+     180° or 360° from its snap points), so a wall turned 180° on the same spot is
+     "Already placed here"; 359°/1° and 180° tests added.
+   - `Tool.onPointerOffPlane`: with no world point under the pointer (sky, terrain off the
+     work plane), a snap-move and a sink drag follow the screen point and their release
+     commits the last preview (checked: a drag released over the sky is one "Move piece").
+   - Options hints say ⌘ on macOS; the ghost's edge lines are freed through `useRelease`
+     and their buffer attached in an effect.
+   - `pnpm verify` fails only in other agents' work in progress (`world/__scratch/*`,
+     `worldCodec.test.ts`, `support/propagate.test.ts`); typecheck, lint and tests are
+     clean for these files, and the build passes.
 
 ## WASD fly camera (3D)
 
@@ -1860,3 +1909,37 @@ heights in the localStorage autosave. Measured on the pokemanz site in headless 
      save at once.
    - The localStorage fallback's save packs a new site first (~170 ms at the cap).
    - On the first entry into 3D the far tiles of a large site appear over ~0.6 s.
+
+## Terrain storage fix round
+
+1. **A failed IndexedDB read no longer wipes the autosave** (`autosave.ts`): a read that
+   fails (`readPlanRecord` rejects) is told apart from "no plan stored". The app then
+   starts empty with autosave off, and the notice says the saved plan was left as it
+   was (`AutosaveStatus` `'unread'`). A record that doesn't parse is still kept aside
+   and then overwritten. Checked in the browser with an injected failing `get`: an edit
+   wrote nothing, and the next normal start had the site back.
+2. **Start-up can't hang on IndexedDB:** if opening and reading take longer than
+   `DB_TIMEOUT` (3 s), the localStorage fallback serves the session. Checked with an
+   `open` that never answers: the first paint came at ~3.3 s, and the IndexedDB plan was
+   intact on the next start. The edits of such a session stay under the localStorage key
+   and aren't merged back later.
+3. **`store/idb.ts`** is now the one opener (`openDatabase`, `databaseGetter`,
+   `transact`, `request`), used by `planDb`, `imageStore` and `installStore`
+   (`thumbnailCache` can adopt it). Connections close themselves on `versionchange`,
+   and the getter opens a new one next time.
+4. **Memory.** `useTerrainTiles` frees every made tile mesh, arrays and GPU buffers,
+   once no surface is mounted (a microtask later, so StrictMode's remount keeps them).
+   Entering 3D again makes them again. `Terrain2d` keeps the joined contours of the
+   current site only, and drops them and the tile lines when no site is shown. Heap
+   snapshots also found the r3f root's first state snapshot keeping a stale subscriber
+   list, which held the tiles hook's closure and so its meshes. `scene/useDetachedFrame.ts`
+   (used by `useTerrainTiles` and `Terrain3d`) subscribes a function that only reaches a
+   box emptied on unmount. After New, a snapshot holds no tile geometry (before: all of
+   them).
+5. **Nits:** `readPlanRecord` remembers the loaded heights' id, so a session's first save
+   doesn't rewrite them. A failed `packHeights` is no longer cached.
+6. **Tests:** `planDb.test.ts`, with a small in-memory store (`store/testIdb.ts`):
+   heights are written once, also after a load, and a failed read rejects.
+   `autosave.test.ts` uses fake records through a seam (`openPlanStorage(sources)`). It
+   covers the move from localStorage, never overwriting after a failed read, keeping a
+   corrupt record aside, the timeout fallback and both stores blocked.

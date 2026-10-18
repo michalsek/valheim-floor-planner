@@ -9,6 +9,7 @@ import { elevationStepAtom, projection3dAtom } from '../../store/session';
 import { viewModeAtom } from '../../store/view3d';
 import { project3d, type Projection3d } from '../../viewport/projection3d';
 import type { ScreenPoint } from '../../viewport/viewportMath';
+import { dragThresholdPx } from '../picking';
 import type { ToolContext, ToolPointerEvent } from '../types';
 
 import { commitCommands } from './selectActions';
@@ -63,9 +64,21 @@ export const pressSinkHandle = (ctx: ToolContext, e: ToolPointerEvent): Sinking 
   };
 };
 
-/** Follows the pointer: down sinks, up raises back to the ground (no further). */
-export const dragSink = (ctx: ToolContext, g: Sinking, e: ToolPointerEvent): Sinking => {
-  const metres = -(e.screen.y - g.startY) / g.pxPerMetre;
+/**
+ * Follows the pointer: down sinks, up raises back to the ground (no further). Within the
+ * drag threshold nothing moves, so a click on the handle changes nothing.
+ */
+export const dragSink = (
+  ctx: ToolContext,
+  g: Sinking,
+  e: Pick<ToolPointerEvent, 'screen' | 'shiftKey'>
+): Sinking => {
+  const dy = e.screen.y - g.startY;
+  if (Math.abs(dy) <= dragThresholdPx(ctx)) {
+    ctx.set(editPreviewAtom, null);
+    return { ...g, depth: g.targets[0]?.depth ?? g.depth };
+  }
+  const metres = -dy / g.pxPerMetre;
   const step = e.shiftKey ? FINE_STEP : ctx.get(elevationStepAtom);
   const { cmds, depth } = sinkCommands(ctx.plan.getPlan(), g.targets, metres, step);
   ctx.set(editPreviewAtom, cmds.length > 0 ? cmds : null);

@@ -43,8 +43,12 @@ const CONTOURS = [
 
 type ContourSet = (typeof CONTOURS)[number];
 
-/** Contour line end points in the plan (x, y, z), per site and interval, made once. */
-const contourCache = new WeakMap<SiteGround, Map<number, Float32Array>>();
+/**
+ * The shown site's contour lines in the plan (x, y, z), joined per interval. Only the
+ * current site's: undo history keeps older sites alive, and at 1409 × 1537 one 0.5 m
+ * set is ~34 MB (their tiles' lines stay in `tileLines`, so going back is quick).
+ */
+let joined: { ground: SiteGround; sets: Map<number, Float32Array> } | null = null;
 
 /**
  * Each tile's lines by tile key and interval, least recently used first: a new site
@@ -93,8 +97,8 @@ const evictTileLines = (keep: ReadonlySet<string>) => {
 };
 
 const contourPositions = (ground: SiteGround, set: ContourSet): Float32Array => {
-  let sets = contourCache.get(ground);
-  if (!sets) contourCache.set(ground, (sets = new Map()));
+  if (joined?.ground !== ground) joined = { ground, sets: new Map() };
+  const { sets } = joined;
   let positions = sets.get(set.step);
   if (!positions) {
     const tiles = groundTiles(ground);
@@ -247,7 +251,28 @@ const disposeRelief = (resources: {
   resources.seeThrough.dispose();
 };
 
+/** How many mounted reliefs (shown 2D sites) use the contour caches. */
+let holders = 0;
+
+/**
+ * Once no site is shown in 2D (the terrain gone, e.g. after New, or the view left), the
+ * contour caches are dropped. A microtask later, so StrictMode's simulated unmount keeps
+ * them.
+ */
+const releaseContours = () => {
+  holders--;
+  queueMicrotask(() => {
+    if (holders > 0) return;
+    joined = null;
+    tileLines.clear();
+  });
+};
+
 const Relief = ({ ground, opacity }: { ground: SiteGround; opacity: number }) => {
+  useEffect(() => {
+    holders++;
+    return releaseContours;
+  }, []);
   const invalidate = useThree((s) => s.invalidate);
   const { terrain } = useThemeTokens();
   const resources = useMemo(() => {

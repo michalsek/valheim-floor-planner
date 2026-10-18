@@ -16,7 +16,7 @@ import type { PlanCommand } from '../../model/commands';
 import { getLibrary } from '../../store/libraryInstance';
 import { selectionAtom } from '../../store/selection';
 import { snapStepAtom, workDatumAtom } from '../../store/session';
-import { armedSetAtom, buildYawAtom, carriedCopiesAtom } from '../Build/buildState';
+import { armCopiesAtom } from '../Build/buildState';
 import type { ToolContext } from '../types';
 
 import { isRawOnly } from './snapMove';
@@ -124,7 +124,8 @@ export const rotateItems = (
 
 /**
  * Raw pieces only (Mod+D): arms Build with a copy of the selection about its first piece,
- * turned as it is, so each click drops a copy; Esc ends. False for any other selection.
+ * turned as it is, so each click drops a copy; Esc ends (and gives back the Build turn).
+ * False for any other selection.
  */
 export const carryCopies = (ctx: ToolContext): boolean => {
   const plan = ctx.plan.getPlan();
@@ -132,8 +133,6 @@ export const carryCopies = (ctx: ToolContext): boolean => {
   if (!isRawOnly(plan, items)) return false;
   const first = plan.rawPieces[items[0]!.id]!;
   const pieces = items.map((item) => plan.rawPieces[item.id]!);
-  ctx.set(armedSetAtom, setFromRaw(pieces, first.id));
-  ctx.set(buildYawAtom, first.rotation.yaw);
-  ctx.set(carriedCopiesAtom, true);
+  ctx.set(armCopiesAtom, setFromRaw(pieces, first.id), first.rotation.yaw);
   return true;
 };

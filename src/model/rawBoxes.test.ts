@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { testLibrary } from '../catalog/testLibrary';
 
-import { rawBox } from './rawBoxes';
+import { PANEL_THICKNESS, rawBox } from './rawBoxes';
 import type { RawPiece } from './types';
 
 const raw = (prefab: string, pitch = 0): RawPiece => ({
@@ -24,5 +24,12 @@ describe('rawBox', () => {
     for (const prefab of ['wood_wall_roof_a', 'wood_wall_roof_top', 'woodwall']) {
       expect(rawBox(raw(prefab), testLibrary).roofCover).toBeUndefined();
     }
+  });
+
+  it('draws a door or gate as its thin panel, as in a drawn wall', () => {
+    for (const prefab of ['wood_door', 'wood_gate', 'iron_grate']) {
+      expect(rawBox(raw(prefab), testLibrary).size.z).toBe(PANEL_THICKNESS);
+    }
+    expect(rawBox(raw('woodwall'), testLibrary).size.z).toBeCloseTo(0.3);
   });
 });

@@ -24,15 +24,15 @@ const Root = () => (useInstall().loaded ? <App /> : <InstallGate />);
 
 /** Loads the autosaved plan (IndexedDB is asynchronous), then starts the app. */
 const start = async () => {
-  const { plan, saver } = await openPlanStorage();
-  planStore.load(plan);
+  const storage = await openPlanStorage();
+  planStore.load(storage.plan);
   // After the load, so the loaded plan isn't saved straight back.
-  if (saver) {
-    startAutosave(planStore, saver, {
+  if (storage.saver) {
+    startAutosave(planStore, storage.saver, {
       onResult: (saved) => sessionStore.set(autosaveStatusAtom, saved ? 'ok' : 'failed'),
     });
   } else {
-    sessionStore.set(autosaveStatusAtom, 'unavailable');
+    sessionStore.set(autosaveStatusAtom, storage.off);
   }
 
   // Safe now only: history is empty, so no undo can bring back another underlay image.

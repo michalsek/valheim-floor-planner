@@ -1,9 +1,10 @@
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BufferGeometry } from 'three/webgpu';
 
 import type { TerrainTile } from '../../model/terrain/siteTiles';
 import { groundTiles, type SiteGround } from '../../store/siteTerrain';
+import { useDetachedFrame } from '../useDetachedFrame';
 
 import { tileGeometry } from './tileGeometry';
 
@@ -45,6 +46,23 @@ const evict = (keep: ReadonlySet<string>) => {
   }
 };
 
+/** How many mounted surfaces use `made`. */
+let holders = 0;
+
+/**
+ * Once no surface is mounted (the terrain gone, e.g. after New, or the view left), every
+ * made mesh is freed, its arrays and GPU buffers: up to ~100 MB at the cap. Checked a
+ * microtask later, so StrictMode's simulated unmount, which remounts at once, keeps them.
+ */
+const releaseMade = () => {
+  holders--;
+  queueMicrotask(() => {
+    if (holders > 0) return;
+    made.forEach((geometry) => geometry.dispose());
+    made.clear();
+  });
+};
+
 const shownList = (
   tiles: readonly TerrainTile[],
   shown: ReadonlyMap<string, BufferGeometry>
@@ -58,8 +76,8 @@ const shownList = (
  * The site's surface tiles to draw (`siteTiles.ts`, `tileGeometry.ts`). Tiles whose mesh isn't made
  * yet are made a few each frame, nearest the camera first, so a large site never
  * blocks a frame for long; meanwhile a tile shows its previous mesh (an extension's old
- * border) or nothing (a new strip, the first entry into 3D). Leaving the view frees the
- * meshes' GPU buffers; their arrays stay for the next entry.
+ * border) or nothing (a new strip, the first entry into 3D). Unmounting frees the
+ * meshes (`releaseMade`); entering 3D again makes them again.
  */
 export const useTerrainTiles = (ground: SiteGround): readonly ShownTile[] => {
   const invalidate = useThree((s) => s.invalidate);
@@ -84,7 +102,7 @@ export const useTerrainTiles = (ground: SiteGround): readonly ShownTile[] => {
     else evict(new Set(tiles.map((t) => t.key)));
   }, [tiles, invalidate]);
 
-  useFrame(({ camera }) => {
+  useDetachedFrame(({ camera }) => {
     if (pending.current.length === 0) return;
     const { x, z } = camera.position;
     const distance = ({ centre }: TerrainTile) => Math.hypot(centre.x - x, centre.z - z);
@@ -101,8 +119,17 @@ export const useTerrainTiles = (ground: SiteGround): readonly ShownTile[] => {
     else evict(new Set(tiles.map((t) => t.key)));
   });
 
-  // Leaving the view frees the GPU buffers (drawn again, a mesh is uploaded again).
-  useEffect(() => () => made.forEach((geometry) => geometry.dispose()), []);
+  useEffect(() => {
+    holders++;
+    const [shownTiles, pendingTiles] = [shown, pending];
+    return () => {
+      // Nothing of this instance holds meshes once unmounted (a stale frame callback
+      // kept by the renderer's dev state would otherwise keep them alive).
+      shownTiles.current = new Map();
+      pendingTiles.current = [];
+      releaseMade();
+    };
+  }, []);
 
   return list;
 };

@@ -6,6 +6,7 @@ import { runSegments } from '../geometry/polyline';
 import { levelPlan } from '../levels';
 import type { Plan, PlanWarning, Roof } from '../types';
 
+import { onFootprint, rawWallTops } from './rawWallTops';
 import { roofWarning, type RoofPiece } from './roofPiece';
 import { tileRoof, type RoofTiling } from './tileRoof';
 
@@ -17,17 +18,29 @@ export interface RoofsResult {
 /** How close to an outline edge's middle a wall's line must pass to hold it (metres). */
 const ON_WALL = 0.05;
 
-/** An info note for outline edges with no wall under them at the roof's wall top. */
-const restingNote = (roof: Roof, walls: Plan['walls']): PlanWarning[] => {
+/**
+ * An info note for outline edges with no wall under them at the roof's wall top: a drawn
+ * wall's line, or a raw piece standing there (an exploded wall).
+ */
+const restingNote = (
+  roof: Roof,
+  walls: Plan['walls'],
+  rawPieces: Plan['rawPieces'],
+  lib: Library
+): PlanWarning[] => {
   const top = roof.elevation + roof.base;
   const segments = Object.values(walls)
     .filter((w) => sameLevel(w.elevation + w.height, top))
     .flatMap((w) => runSegments(w));
+  const raw = rawWallTops(rawPieces, top, lib);
   const { outline } = roof;
   const loose = outline.filter((a, i) => {
     const b = outline[(i + 1) % outline.length]!;
     const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
-    return !segments.some((s) => distanceToSegment(mid, s.a, s.b) < ON_WALL);
+    return (
+      !segments.some((s) => distanceToSegment(mid, s.a, s.b) < ON_WALL) &&
+      !raw.some((box) => onFootprint(box, mid, ON_WALL))
+    );
   }).length;
   if (loose === 0) return [];
   const what = loose === 1 ? 'A roof edge is' : `${loose} roof edges are`;
@@ -37,18 +50,23 @@ const restingNote = (roof: Roof, walls: Plan['walls']): PlanWarning[] => {
 interface Entry {
   walls: Plan['walls'];
   lib: Library;
+  tiling: RoofTiling;
+  /** The resting note follows the level's raw pieces too; the tiling doesn't. */
+  rawPieces: Plan['rawPieces'];
   result: RoofTiling;
 }
 
 const cache = new WeakMap<Roof, Entry>();
 
 const deriveRoof = (plan: Plan, roof: Roof, lib: Library): RoofTiling => {
-  const walls = levelPlan(plan, roof.elevation, lib).walls;
+  const { walls, rawPieces } = levelPlan(plan, roof.elevation, lib);
   const cached = cache.get(roof);
-  if (cached && cached.walls === walls && cached.lib === lib) return cached.result;
-  const tiling = tileRoof(roof, lib, walls);
-  const result = { ...tiling, warnings: [...tiling.warnings, ...restingNote(roof, walls)] };
-  cache.set(roof, { walls, lib, result });
+  const same = cached?.walls === walls && cached.lib === lib;
+  if (same && cached.rawPieces === rawPieces) return cached.result;
+  const tiling = same ? cached.tiling : tileRoof(roof, lib, walls);
+  const note = restingNote(roof, walls, rawPieces, lib);
+  const result = { ...tiling, warnings: [...tiling.warnings, ...note] };
+  cache.set(roof, { walls, lib, tiling, rawPieces, result });
   return result;
 };
 

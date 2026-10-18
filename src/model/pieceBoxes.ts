@@ -28,7 +28,7 @@ import type { Hit } from './hitTest';
 import { ITEM_KINDS } from './itemKinds';
 import { pieceAnchor, pivotFrom, propPivotLift } from './piecePivot';
 import { propArea } from './props';
-import { FLOOR_LIFT, rawBox } from './rawBoxes';
+import { FLOOR_LIFT, PANEL_THICKNESS, rawBox } from './rawBoxes';
 import { roofPieceBoxes } from './roofBoxes';
 
 export { ROOF_SLAB, roofPieceBoxes } from './roofBoxes';
@@ -80,8 +80,7 @@ export interface PieceBox {
   modelTurn?: Vec3;
 }
 
-/** Door and gate panels are drawn this thin at most, so the gap still reads as one. */
-export const PANEL_THICKNESS = 0.12;
+export { PANEL_THICKNESS } from './rawBoxes';
 
 const DEG = Math.PI / 180;
 

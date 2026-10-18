@@ -159,15 +159,6 @@ describe('ground contact', () => {
     // Buried: its bottom far into the hill.
     expect(stateOf(onSlope(ground - 3))).toBe('grounded');
   });
-
-  it('keeps raw pieces fixed, reporting only whether they touch the ground', () => {
-    const ground = onSlope(0).ground!;
-    const touching = onSlope(ground, { fixed: true });
-    const raised = onSlope(ground + 2, { fixed: true });
-    const { state, value } = propagateSupport([touching, raised], []);
-    expect(state).toEqual(['grounded', 'none']);
-    expect([...value]).toEqual([100, 100]);
-  });
 });
 
 describe('poles', () => {

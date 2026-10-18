@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { PieceDef } from '../../catalog/pieceDefs';
 import { testLibrary } from '../../catalog/testLibrary';
 import { rawBox } from '../rawBoxes';
+import { rawSpan } from '../rawPieces';
 import type { RawPiece, Vec3 } from '../types';
 
 import { placeSet, setSnaps, singlePiece } from './ghostSet';
 import { basePose, blockedBy, duplicateOf, snapPose, stepManual } from './placement';
+
 import { snapIndex } from './snapPoints';
 
 const UP = { x: 0, y: 1, z: 0 };
@@ -44,6 +46,18 @@ describe('basePose', () => {
       testLibrary
     );
     expectNear(pose.pivot, { x: 2.3, y: 1, z: 0.1 });
+  });
+
+  it("rests a floor's collider on the hit, without its 1 mm drawing lift", () => {
+    const pose = basePose(
+      { point: { x: 0, y: 0, z: 0 }, normal: UP },
+      singlePiece('wood_floor'),
+      0,
+      null,
+      testLibrary
+    );
+    const span = rawSpan(testLibrary.catalog.pieces.get('wood_floor'));
+    expect(pose.pivot.y).toBeCloseTo(-span.minY, 9);
   });
 
   it('puts a manual snap point on the hit', () => {
@@ -142,6 +156,14 @@ describe('duplicates', () => {
     expect(blockedBy(at(90), index)).toBeNull();
     expect(duplicateOf(at(90), index, null)).not.toBeNull();
     expect(duplicateOf(at(0, 0.06), index, null)).toBeNull();
+  });
+
+  it('counts 359° and 1° as the same turn, and a symmetric wall turned 180°', () => {
+    const at359 = indexOf([raw('woodwall', { x: 0, y: 1, z: 0 }, 359)]);
+    expect(blockedBy(at(1), at359, testLibrary)).not.toBeNull();
+    expect(blockedBy(at(180), index, testLibrary)).not.toBeNull();
+    expect(blockedBy(at(180), index)).toBeNull();
+    expect(blockedBy(at(90), index, testLibrary)).toBeNull();
   });
 });
 

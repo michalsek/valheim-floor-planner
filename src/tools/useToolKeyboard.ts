@@ -21,6 +21,7 @@ import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
 import { isMod, isRedoKey, isUndoKey } from './keys';
 import { jumpLevel, moveSelectionLevel, stepLevel, type LevelDirection } from './levelActions';
+import { modIgnoredAtom } from './Build/buildState';
 import { carryCopies } from './Select/selectActions';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, TOOLS } from './toolbox';
@@ -187,6 +188,8 @@ export const useToolKeyboard = (): void => {
       const held = HELD_KEYS[e.key];
       if (held) {
         setModifier(ctx, held, true);
+        // A fresh Ctrl/⌘ press counts again after a Mod+D carry (`modIgnoredAtom`).
+        if (held === 'mod' && !e.repeat) ctx.set(modIgnoredAtom, false);
         return;
       }
       if (getTool(ctx.get(activeToolIdAtom)).onKeyDown?.(e, ctx)) {
@@ -205,10 +208,14 @@ export const useToolKeyboard = (): void => {
       if (e.key === 'Alt') setModifier(ctx, 'alt', false);
       const held = HELD_KEYS[e.key];
       if (held) setModifier(ctx, held, false);
+      if (held === 'mod') ctx.set(modIgnoredAtom, false);
     };
 
     // Keys released while the window is in the background never reach us.
-    const onBlur = () => resetModifiers(ctx);
+    const onBlur = () => {
+      resetModifiers(ctx);
+      ctx.set(modIgnoredAtom, false);
+    };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);

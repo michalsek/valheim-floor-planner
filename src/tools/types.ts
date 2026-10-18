@@ -25,6 +25,12 @@ export interface ToolPointerEvent {
   shiftKey: boolean;
 }
 
+/** A pointer event with no world point: only where it is on screen, and its keys. */
+export type OffPlanePointerEvent = Pick<
+  ToolPointerEvent,
+  'screen' | 'button' | 'altKey' | 'shiftKey'
+>;
+
 /**
  * What a tool may touch: the session store's `get` and `set`, and the plan store.
  * (Jotai's store methods close over the store, so they work detached.)
@@ -63,6 +69,12 @@ export interface Tool {
    * plane). No other pointer event of that sequence reaches the tool.
    */
   onPointerMiss?(e: Pick<ToolPointerEvent, 'button' | 'shiftKey'>, ctx: ToolContext): void;
+  /**
+   * During the tool's own pointer sequence, a move or the release where the pointer has
+   * no world point (3D: over the sky, or terrain the work plane doesn't reach). Without
+   * it, such a move only drops the hover and such a release cancels the sequence.
+   */
+  onPointerOffPlane?(e: OffPlanePointerEvent, phase: 'move' | 'up', ctx: ToolContext): void;
   /** A double-click; its two pointer-downs have already reached `onPointerDown`. */
   onDoubleClick?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** Receives every key first (modified ones too); returns true when handled. */

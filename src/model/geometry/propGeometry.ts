@@ -7,17 +7,14 @@ import type { LocalRect, PropSnap } from '../../catalog/propDefs';
 import type { Prop, Vec2 } from '../types';
 
 import type { BoxMode, WorldBox } from './box';
+import { round6 } from './round';
 import { snapValue } from './snap';
 
 const DEG = Math.PI / 180;
-/** Rotations and positions are rounded to this, so repeated turns don't drift. */
-const ROUND = 1e6;
-
-const round = (n: number): number => Math.round(n * ROUND) / ROUND + 0;
 
 /** `d` in [0, 360), rounded. */
 export const normalizeDeg = (d: number): number => {
-  const r = round(((d % 360) + 360) % 360);
+  const r = round6(((d % 360) + 360) % 360);
   return r === 360 ? 0 : r;
 };
 
@@ -40,7 +37,7 @@ const localCentre = (rect: LocalRect): Vec2 => ({
 
 const plus = (p: Vec2, d: Vec2): Vec2 => ({ x: p.x + d.x, z: p.z + d.z });
 const minus = (p: Vec2, d: Vec2): Vec2 => ({ x: p.x - d.x, z: p.z - d.z });
-const roundPoint = (p: Vec2): Vec2 => ({ x: round(p.x), z: round(p.z) });
+const roundPoint = (p: Vec2): Vec2 => ({ x: round6(p.x), z: round6(p.z) });
 
 /** The footprint's corners, clockwise on screen from the local (min x, min z) one. */
 export const propCorners = (pos: Vec2, deg: number, rect: LocalRect): Vec2[] =>

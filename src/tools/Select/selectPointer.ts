@@ -16,7 +16,7 @@ import { cursorStyleAtom, snapStepAtom, workDatumAtom } from '../../store/sessio
 import { viewModeAtom } from '../../store/view3d';
 import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
-import type { ToolContext, ToolPointerEvent } from '../types';
+import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from '../types';
 
 import { anchoredDelta, anchorOf, commitCommands, moveStep } from './selectActions';
 import { commitSink, dragSink, overSinkHandle, pressSinkHandle } from './sinkPointer';
@@ -276,4 +276,38 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
   }
   finish(ctx);
   updateHover(ctx, e);
+};
+
+/**
+ * A move or release with no world point (3D: over the sky, or terrain the work plane
+ * doesn't reach): a snap-move and a sink drag follow the pointer by screen point, and the
+ * release commits their last preview; other gestures wait, and their release cancels.
+ */
+export const onSelectOffPlane = (
+  e: OffPlanePointerEvent,
+  phase: 'move' | 'up',
+  ctx: ToolContext
+): void => {
+  const g = ctx.get(selectGestureAtom);
+  let next: SelectGesture = g;
+  if (g.phase === 'carrying') {
+    const pointer = { screen: e.screen, alt: e.altKey, shift: e.shiftKey };
+    next = { ...g, carry: carryTo(ctx, g.carry, pointer) };
+  } else if (g.phase === 'sinking') {
+    next = dragSink(ctx, g, e);
+  }
+  if (phase === 'move') {
+    ctx.set(selectGestureAtom, next);
+    return;
+  }
+  if (next.phase === 'carrying') {
+    commitCommands(ctx, itemsLabel('Move', next.items), ctx.get(editPreviewAtom) ?? []);
+  } else if (next.phase === 'sinking') {
+    commitSink(ctx, next);
+  } else {
+    cancelGesture(ctx);
+    return;
+  }
+  finish(ctx);
+  ctx.set(cursorStyleAtom, null);
 };

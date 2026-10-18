@@ -37,6 +37,14 @@ describe('sink handle', () => {
     expect(sinkCommands(plan, targets, -0.6, 0.1).depth).toBeCloseTo(-0.6, 6);
   });
 
+  it('moves in whole steps of change, so a piece a hair above the ground stays put', () => {
+    const plan = planOf(wall('a', 0, 1.08));
+    const targets = sinkTargets(plan, sel('a'));
+    expect(targets[0]!.depth).toBeCloseTo(0.08, 6);
+    expect(sinkCommands(plan, targets, -0.3, 1).cmds).toEqual([]);
+    expect(sinkCommands(plan, targets, -0.6, 0.5).depth).toBeCloseTo(-0.42, 6);
+  });
+
   it('stops at the ground on the way up', () => {
     const plan = planOf(wall('a', 0, 0));
     const [target] = sinkTargets(plan, sel('a'));

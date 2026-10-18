@@ -3,39 +3,19 @@
  * IndexedDB can't take (it is unavailable, or the write fails) is kept in memory for
  * this session only.
  */
+import { databaseGetter, request } from './idb';
+
 const DB_NAME = 'valheimFloorPlanner';
 const STORE = 'images';
 
 const memory = new Map<string, Blob>();
-let dbPromise: Promise<IDBDatabase | null> | null = null;
+const openDb = databaseGetter(DB_NAME, STORE);
 
-const openDb = (): Promise<IDBDatabase | null> => {
-  dbPromise ??= new Promise((resolve) => {
-    try {
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-  return dbPromise;
-};
-
-/** Runs one request in a transaction; resolves with its result once committed. */
 const run = <T>(
   db: IDBDatabase,
   mode: IDBTransactionMode,
   makeRequest: (store: IDBObjectStore) => IDBRequest<T>
-): Promise<T> =>
-  new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, mode);
-    const request = makeRequest(tx.objectStore(STORE));
-    tx.oncomplete = () => resolve(request.result);
-    tx.onerror = () => reject(tx.error ?? request.error);
-    tx.onabort = () => reject(tx.error ?? new Error('Image store transaction aborted'));
-  });
+): Promise<T> => request(db, STORE, mode, makeRequest);
 
 export const putImage = async (id: string, blob: Blob): Promise<void> => {
   const db = await openDb();

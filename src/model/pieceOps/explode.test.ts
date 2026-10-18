@@ -9,6 +9,7 @@ import { rawBox } from '../rawBoxes';
 import { roofContacts } from '../roofs/roofContacts';
 import { modelSupport, supportModel } from '../support/planSupport';
 import { snapJoints } from '../support/snapJoints';
+import { createPlanStore } from '../../store/planStore';
 import { emptyPlan, type Plan } from '../types';
 
 import { explodeCommands, explodeLabel } from './explode';
@@ -161,5 +162,28 @@ describe('explodeCommands', () => {
     const plan = house(pitch);
     const after = applyCommands(plan, explodeCommands(plan, everything, lib, ids()).cmds);
     expect(collapsing(after)).toBe(collapsing(plan));
+  });
+
+  it('keeps a drawn roof resting on its exploded walls', () => {
+    const plan = house(45);
+    const after = applyCommands(plan, explodeCommands(plan, [everything[0]], lib, ids()).cmds);
+    const notes = (p: Plan) =>
+      derivePlan(p, lib).warnings.filter((w) => /not resting/.test(w.message));
+    expect(notes(after)).toEqual([]);
+    const rests = (p: Plan) => roofContacts(p, derivePlan(p, lib), lib);
+    expect(rests(plan).length).toBeGreaterThan(0);
+    expect(rests(after).length).toBe(rests(plan).length);
+    expect(rests(after).every(([, wall]) => wall.startsWith('raw:'))).toBe(true);
+  });
+
+  it('commits as one undo entry, which brings the house back', () => {
+    const plan = house(26);
+    const store = createPlanStore(plan);
+    const explosion = explodeCommands(plan, everything, lib, ids());
+    const label = explodeLabel(explosion);
+    expect(store.transact(label, (dispatch) => explosion.cmds.forEach(dispatch)).ok).toBe(true);
+    expect(store.historyLabels().undo).toEqual([label]);
+    store.undo();
+    expect(store.getPlan()).toEqual(plan);
   });
 });

@@ -5,8 +5,9 @@
  */
 import { boxSnapPoints } from '../build/snapPoints';
 import type { PlanCommand } from '../commands';
-import { boxCorners } from '../geometry/orient';
-import { rawBox } from '../rawBoxes';
+import { boxAxes, boxCorners } from '../geometry/orient';
+import { round6 } from '../geometry/round';
+import { rawBox, rawTurn } from '../rawBoxes';
 import type { RawShapeLib } from '../rawShapes';
 import type { SelectionItem } from '../selection';
 import type { Plan, RawPiece, Vec3 } from '../types';
@@ -27,20 +28,17 @@ export interface RepeatOptions {
 export const MIN_REPEAT = 2;
 export const MAX_REPEAT = 50;
 
-const DEG = Math.PI / 180;
-
 const rawOf = (plan: Plan, items: readonly SelectionItem[]): RawPiece[] =>
   items.flatMap((item) => {
     const piece = item.kind === 'raw' ? plan.rawPieces[item.id] : undefined;
     return piece ? [piece] : [];
   });
 
-/** The axis as a world direction, from the primary piece's yaw (clockwise on screen). */
+/** The axis as a world direction: the primary piece's local x or z on the plan (its yaw), or up. */
 export const repeatDirection = (primary: RawPiece, axis: RepeatAxis): Vec3 => {
-  const a = primary.rotation.yaw * DEG;
   if (axis === 'up') return { x: 0, y: 1, z: 0 };
-  if (axis === 'along') return { x: Math.cos(a), y: 0, z: Math.sin(a) };
-  return { x: -Math.sin(a), y: 0, z: Math.cos(a) };
+  const [x, , z] = boxAxes({ rotationY: rawTurn(primary.rotation).rotationY });
+  return axis === 'along' ? x : z;
 };
 
 const extentAlong = (points: readonly Vec3[], d: Vec3): number => {
@@ -71,8 +69,6 @@ export const setSnapExtent = (
   return Math.round(extent * 1000) / 1000;
 };
 
-const round = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
-
 /**
  * Commands adding `count − 1` copies of the selected raw pieces (others are ignored),
  * each a step further along, and the copies as items.
@@ -94,9 +90,9 @@ export const repeatCommands = (
       ...piece,
       id: newId(),
       position: {
-        x: round(piece.position.x + d.x * t),
-        y: round(piece.position.y + d.y * t),
-        z: round(piece.position.z + d.z * t),
+        x: round6(piece.position.x + d.x * t),
+        y: round6(piece.position.y + d.y * t),
+        z: round6(piece.position.z + d.z * t),
       },
     }));
   }).flat();

@@ -1,4 +1,4 @@
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import { useAtomValue } from 'jotai';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MeshLambertNodeMaterial, type BufferGeometry, type Group } from 'three/webgpu';
@@ -9,6 +9,7 @@ import type { SiteGround } from '../../store/siteTerrain';
 import { terrainOpacityAtom } from '../../store/terrainOpacity';
 import { usePrewarm } from '../usePrewarm';
 import { useRelease } from '../useRelease';
+import { useDetachedFrame } from '../useDetachedFrame';
 
 import { lowestGround, skirtGeometry, waterGeometry } from './terrainGeometry';
 import { useGroundGrid } from './useGroundGrid';
@@ -148,7 +149,7 @@ export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
 
   // Before every frame drawn: hide the surface while the camera is under the ground
   // (under its lowest point off the patch). Visibility only: no new pipelines.
-  useFrame(({ camera }) => {
+  useDetachedFrame(({ camera }) => {
     if (!surface.current) return;
     const { x, y, z } = camera.position;
     const below = groundAt(ground.grid, ground.frame, { x, z }) ?? lowest;

@@ -65,8 +65,11 @@ export const pointerScreenAtom = atom<ScreenPoint | null>(null);
 export const activeToolIdAtom = atom<ToolId>('select');
 export const rendererBackendAtom = atom<RendererBackend>('pending');
 
-/** 'failed' after a save threw (e.g. quota); 'unavailable' when storage is blocked. */
-export type AutosaveStatus = 'ok' | 'failed' | 'unavailable';
+/**
+ * 'failed' after a save threw (e.g. quota); 'unavailable' when storage is blocked;
+ * 'unread' when the stored plan couldn't be read (autosave off, so it isn't overwritten).
+ */
+export type AutosaveStatus = 'ok' | 'failed' | 'unavailable' | 'unread';
 export const autosaveStatusAtom = atom<AutosaveStatus>('ok');
 
 // Wall tool settings (session state: they never enter undo history).

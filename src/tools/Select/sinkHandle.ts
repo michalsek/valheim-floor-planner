@@ -173,8 +173,8 @@ const maxRise = (targets: readonly SinkTarget[]): number =>
   Math.min(...targets.filter((t) => t.grounded).map((t) => Math.max(t.depth, 0) - t.depth));
 
 /**
- * The targets moved together by dragging `metres` (negative: down): the first one's
- * depth on the step, never above where a grounded one meets the ground. The commands,
+ * The targets moved together by dragging `metres` (negative: down), in whole steps,
+ * never above where a grounded one meets the ground. The commands,
  * and the first one's new depth.
  */
 export const sinkCommands = (
@@ -185,8 +185,9 @@ export const sinkCommands = (
 ): { cmds: PlanCommand[]; depth: number } => {
   const first = targets[0];
   if (!first) return { cmds: [], depth: 0 };
-  const stepped = Math.round((first.depth + metres) / step) * step;
-  const change = Math.min(stepped - first.depth, maxRise(targets));
+  // The change goes in whole steps (not the depth), so a piece a hair off the ground
+  // doesn't jump onto it.
+  const change = Math.min(Math.round(metres / step) * step, maxRise(targets));
   const cmds =
     Math.abs(change) < 1e-9 ? [] : targets.flatMap((t) => shiftCommand(plan, t.item, change) ?? []);
   return { cmds, depth: first.depth + change };

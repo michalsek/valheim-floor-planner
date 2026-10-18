@@ -7,11 +7,11 @@
 import type { Library } from '../../catalog/library';
 import type { PlanCommand } from '../commands';
 import { derivePlan } from '../derivePlan';
-import { normalizeDeg } from '../geometry/propGeometry';
+import { round6 } from '../geometry/round';
 import { ITEM_KINDS } from '../itemKinds';
 import type { PieceBox } from '../pieceBoxes';
 import { pieceBoxes } from '../pieceBoxes';
-import { FLOOR_LIFT } from '../rawBoxes';
+import { FLOOR_LIFT, rotationOfTurn } from '../rawBoxes';
 import type { SelectionItem, SelectionKind } from '../selection';
 import type { Plan, RawPiece } from '../types';
 
@@ -28,9 +28,6 @@ type ExplodableKind = keyof typeof EXPLODABLE;
 export const canExplode = (item: SelectionItem): item is SelectionItem & { kind: ExplodableKind } =>
   Object.hasOwn(EXPLODABLE, item.kind);
 
-const DEG = Math.PI / 180;
-const round = (n: number, step: number) => Math.round(n / step) * step + 0;
-
 /**
  * The raw piece a box's model is: its prefab at its pivot, turned as the model is
  * (`modelTurn`, else `rotationY`). Null without a prefab. A floor's box (and pivot) is
@@ -44,15 +41,11 @@ export const rawFromBox = (box: PieceBox, id: string): RawPiece | null => {
     id,
     prefab: box.prefab,
     position: {
-      x: round(box.pivot.x, 1e-6),
-      y: round(box.pivot.y - lift - box.elevation, 1e-6),
-      z: round(box.pivot.z, 1e-6),
+      x: round6(box.pivot.x),
+      y: round6(box.pivot.y - lift - box.elevation),
+      z: round6(box.pivot.z),
     },
-    rotation: {
-      yaw: normalizeDeg(-turn.y / DEG),
-      pitch: round(-turn.x / DEG, 1e-6),
-      roll: round(turn.z / DEG, 1e-6),
-    },
+    rotation: rotationOfTurn(turn),
     elevation: box.elevation,
   };
 };

@@ -1,6 +1,6 @@
 import { useThree } from '@react-three/fiber';
 import { useAtomValue } from 'jotai';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { DynamicDrawUsage, Float32BufferAttribute, type BufferAttribute } from 'three/webgpu';
 
 import { fromLocal } from '../../model/geometry/orient';
@@ -13,7 +13,9 @@ import {
   HIDDEN_RENDER_ORDER,
   setStyle,
   VISIBLE_RENDER_ORDER,
+  type Lines,
 } from '../../scene/view3d/lineObjects';
+import { useRelease } from '../../scene/useRelease';
 import { realLookAtom } from '../../store/modelView';
 import { workDatumAtom } from '../../store/session';
 
@@ -57,6 +59,15 @@ const writeEdges = (attribute: BufferAttribute, boxes: readonly PieceBox[]): voi
   attribute.needsUpdate = true;
 };
 
+/** Puts the boxes' edges in the lines' (grown) buffer and draws that many. */
+const showEdges = (pair: Lines, attribute: BufferAttribute, boxes: readonly PieceBox[]) => {
+  if (pair.geometry.getAttribute('position') !== attribute) {
+    pair.geometry.setAttribute('position', attribute);
+  }
+  writeEdges(attribute, boxes);
+  pair.geometry.setDrawRange(0, boxes.length * 24);
+};
+
 /**
  * Box edges, at full strength where seen and faintly through the pieces in front (the
  * `PlaneLines` passes), so a ghost model reads as a ghost. A move rewrites the points in
@@ -70,19 +81,17 @@ const BoxEdges = ({ boxes, color }: { boxes: readonly PieceBox[]; color: string 
   const attribute = useMemo(() => {
     const created = new Float32BufferAttribute(new Float32Array(capacity * BOX_FLOATS), 3);
     created.setUsage(DynamicDrawUsage);
-    pair.geometry.setAttribute('position', created);
     return created;
-  }, [pair, capacity]);
+  }, [capacity]);
   useLayoutEffect(() => {
-    writeEdges(attribute, boxes);
-    pair.geometry.setDrawRange(0, boxes.length * 24);
+    showEdges(pair, attribute, boxes);
     invalidate();
   }, [pair, attribute, boxes, invalidate]);
   useLayoutEffect(() => {
     setStyle(pair, color, undefined);
     invalidate();
   }, [pair, color, invalidate]);
-  useEffect(() => () => disposeLines(pair), [pair]);
+  useRelease(pair, disposeLines);
   return (
     <>
       <primitive object={pair.hidden} renderOrder={HIDDEN_RENDER_ORDER} frustumCulled={false} />

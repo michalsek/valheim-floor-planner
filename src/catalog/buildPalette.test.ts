@@ -12,8 +12,6 @@ describe('buildPalette', () => {
     expect(prefabs('wood wall')).toContain('woodwall');
     expect(prefabs('drewniana sciana')).toContain('woodwall');
     expect(prefabs('stone_floor_2x2')).toEqual(['stone_floor_2x2']);
-    // Names starting with the query come first.
-    expect(prefabs('wood')[0]).toMatch(/^wood/);
   });
 
   it('filters by category and material, and leaves the repair tool out', () => {

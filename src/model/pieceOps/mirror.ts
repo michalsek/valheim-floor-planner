@@ -1,5 +1,6 @@
 /**
- * Mirror X / Mirror Z for raw pieces, about the selection's centre. A game piece can't
+ * Mirror X / Mirror Z for raw pieces, about the middle of the selection's snap points
+ * (so pieces on the build lattice stay on it). A game piece can't
  * be mirrored, so each is placed as its mirror image as far as its symmetry allows: its
  * centre is reflected, and it is turned so the local axis across which it is symmetric
  * keeps its line (walls, beams and floors keep x; stairs, symmetric only across x, keep
@@ -9,8 +10,10 @@ import type { PieceDef } from '../../catalog/pieceDefs';
 import type { PlanCommand } from '../commands';
 import { fromLocal } from '../geometry/orient';
 import { normalizeDeg } from '../geometry/propGeometry';
-import { boxesBounds } from '../pieceBoxes';
-import { rawBox } from '../rawBoxes';
+import { boxSnapPoints } from '../build/snapPoints';
+import { round6 } from '../geometry/round';
+import { boxesBounds, type PieceBox } from '../pieceBoxes';
+import { rawBox, rawTurn } from '../rawBoxes';
 import { rawDef, rawRect, rawSpan } from '../rawPieces';
 import type { RawShapeLib } from '../rawShapes';
 import type { SelectionItem } from '../selection';
@@ -21,7 +24,6 @@ export type MirrorAxis = 'x' | 'z';
 
 /** How far a snap point may miss its mirror image and still count as symmetric (metres). */
 const SYMMETRY_TOLERANCE = 0.01;
-const DEG = Math.PI / 180;
 
 const middle = (values: readonly number[]) => (Math.min(...values) + Math.max(...values)) / 2;
 
@@ -85,15 +87,18 @@ const mirroredRotation = (
 
 /** A point of the piece's frame (about its pivot) in the world. */
 const placed = (rotation: RawPiece['rotation'], pivot: Vec3, local: Vec3): Vec3 =>
-  fromLocal(local, {
-    center: pivot,
-    size: local,
-    rotationY: -rotation.yaw * DEG,
-    tiltX: -rotation.pitch * DEG,
-    rollZ: rotation.roll * DEG,
-  });
+  fromLocal(local, { center: pivot, size: local, ...rawTurn(rotation) });
 
-const round = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
+/**
+ * The mirror line along `axis`: the middle of the boxes' snap points (on the build
+ * lattice, so a reflection maps it onto itself), or of the boxes without any.
+ */
+const mirrorLine = (boxes: readonly PieceBox[], axis: MirrorAxis, lib: RawShapeLib): number => {
+  const snaps = boxes.flatMap((box) => boxSnapPoints(box, lib)).map((p) => p[axis]);
+  if (snaps.length > 0) return middle(snaps);
+  const bounds = boxesBounds(boxes)!;
+  return (bounds.min[axis] + bounds.max[axis]) / 2;
+};
 
 /**
  * Commands mirroring the selected raw pieces across the selection's centre line
@@ -110,9 +115,12 @@ export const mirrorCommands = (
     const piece = item.kind === 'raw' ? plan.rawPieces[item.id] : undefined;
     return piece ? [piece] : [];
   });
-  const bounds = boxesBounds(pieces.map((piece) => rawBox(piece, lib)));
-  if (!bounds) return { cmds: [], inexact: 0 };
-  const line = (bounds.min[axis] + bounds.max[axis]) / 2;
+  if (pieces.length === 0) return { cmds: [], inexact: 0 };
+  const line = mirrorLine(
+    pieces.map((piece) => rawBox(piece, lib)),
+    axis,
+    lib
+  );
   let inexact = 0;
   const cmds = pieces.map((piece): PlanCommand => {
     const def = rawDef(lib, piece);
@@ -125,9 +133,9 @@ export const mirrorCommands = (
     const rotation = mirroredRotation(piece.rotation, axis, keepX);
     const offset = placed(rotation, { x: 0, y: 0, z: 0 }, local);
     const position = {
-      x: round(reflected.x - offset.x),
-      y: round(reflected.y - offset.y - piece.elevation),
-      z: round(reflected.z - offset.z),
+      x: round6(reflected.x - offset.x),
+      y: round6(reflected.y - offset.y - piece.elevation),
+      z: round6(reflected.z - offset.z),
     };
     return { type: 'raw.patch', id: piece.id, changes: { position, rotation } };
   });

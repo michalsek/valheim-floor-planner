@@ -1,13 +1,16 @@
 import { useAtomValue } from 'jotai';
 
 import { formatCompact } from '../../format';
-import { modifiersAtom } from '../../store/session';
+import { userPlatform } from '../../install/platform';
 
 import { buildGhostAtom, buildRemovalAtom } from './buildGhost';
 import { pieceName } from './buildLabel';
-import { armedSetAtom, buildYawAtom } from './buildState';
+import { armedSetAtom, buildYawAtom, removeModeAtom } from './buildState';
 
-const KEYS = 'Wheel or R turn · Q/E snap point · Shift free · Ctrl+click remove · Esc stop';
+/** The remove modifier as the keyboard labels it. */
+const MOD = userPlatform() === 'mac' ? '⌘' : 'Ctrl';
+
+const KEYS = `Wheel or R turn · Q/E snap point · Shift free · ${MOD}+click remove · Esc stop`;
 
 /** The snap mode: free, auto or the manual point, and why nothing snaps when pieces hide. */
 const SnapMode = () => {
@@ -35,16 +38,16 @@ export const BuildOptions = () => {
   const armed = useAtomValue(armedSetAtom);
   const yaw = useAtomValue(buildYawAtom);
   const removal = useAtomValue(buildRemovalAtom);
-  const mod = useAtomValue(modifiersAtom).mod;
+  const mod = useAtomValue(removeModeAtom);
   if (mod) {
-    if (!removal) return <span>Ctrl+click a piece or item to remove it</span>;
+    if (!removal) return <span>{MOD}+click a piece or item to remove it</span>;
     return removal.removable ? (
       <span>Click to remove {pieceName(removal.box.prefab)}</span>
     ) : (
       <span>Explode it to remove single pieces</span>
     );
   }
-  if (!armed) return <span>Pick a piece in the palette · Ctrl+click removes</span>;
+  if (!armed) return <span>Pick a piece in the palette · {MOD}+click removes</span>;
   const pieces = armed.pieces;
   return (
     <>

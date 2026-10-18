@@ -4,7 +4,7 @@ import { testLibrary } from '../../catalog/testLibrary';
 import { applyCommands } from '../commands';
 import { emptyPlan, type Plan, type RawPiece } from '../types';
 
-import { repeatCommands, repeatLabel, setSnapExtent } from './repeat';
+import { repeatCommands, setSnapExtent } from './repeat';
 
 const lib = testLibrary;
 
@@ -26,7 +26,7 @@ describe('repeatCommands', () => {
     expect(setSnapExtent(plan, items, 'across', lib)).toBe(0.3);
   });
 
-  it('makes count − 1 copies at multiples of the step, as one list of inserts', () => {
+  it('makes count − 1 copies at multiples of the step', () => {
     let n = 0;
     const step = setSnapExtent(plan, items, 'along', lib);
     const result = repeatCommands(
@@ -35,13 +35,11 @@ describe('repeatCommands', () => {
       { count: 5, axis: 'along', sign: -1, step },
       () => `c${n++}`
     );
-    expect(result.cmds.every((cmd) => cmd.type === 'raw.insert')).toBe(true);
     const after = applyCommands(plan, result.cmds);
     const zs = result.items.map((item) => after.rawPieces[item.id]!.position.z);
     expect(zs).toEqual([-2, -4, -6, -8]);
     expect(result.items.every((item) => after.rawPieces[item.id]!.prefab === 'woodwall')).toBe(
       true
     );
-    expect(repeatLabel(1, 5)).toBe('Repeat 1 piece ×5');
   });
 });

@@ -69,7 +69,10 @@ const through = (bytes: Uint8Array<ArrayBuffer>, transform: ReadableWritablePair
 
 const packed = new WeakMap<Int16Array, Promise<PackedHeights>>();
 
-/** `heights`, `cols` values a row, packed (once per array: files and the fallback share it). */
+/**
+ * `heights`, `cols` values a row, packed (once per array: files and the fallback share
+ * it; a pack that failed is made again next time).
+ */
 export const packHeights = (heights: Int16Array, cols: number): Promise<PackedHeights> => {
   let pack = packed.get(heights);
   if (!pack) {
@@ -90,6 +93,8 @@ export const packHeights = (heights: Int16Array, cols: number): Promise<PackedHe
       return { packing: PACKING, data: toBase64(deflated) };
     })();
     packed.set(heights, pack);
+    // A failed pack isn't kept: the next save tries again.
+    pack.catch(() => packed.delete(heights));
   }
   return pack;
 };

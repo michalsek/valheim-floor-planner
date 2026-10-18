@@ -4,10 +4,13 @@
  * the ray's hit, then a snap to the nearest pair of snap points, dropped when it would
  * land on a piece of the same prefab. Pure.
  */
+import { FLOOR_FAMILY_SPECS } from '../../catalog/floorFamilies';
 import { normalizeDeg } from '../geometry/propGeometry';
 import { fromLocal, toLocal } from '../geometry/orient';
 import { addVec3 as add, scaleVec3, subVec3 as sub } from '../geometry/ray';
+import type { PieceDef } from '../../catalog/pieceDefs';
 import type { PieceBox } from '../pieceBoxes';
+import { FLOOR_LIFT } from '../rawBoxes';
 import type { RawShapeLib } from '../rawShapes';
 import type { Vec3 } from '../types';
 
@@ -23,9 +26,11 @@ import {
 } from './ghostSet';
 import {
   boundsDistance,
+  localSnaps,
   pivotsNear,
   snapsNear,
   type SnapIndex,
+  type SnapLib,
   type SnapTarget,
 } from './snapPoints';
 
@@ -56,6 +61,15 @@ const closestOnBox = (box: PieceBox, p: Vec3): Vec3 => {
   );
 };
 
+/** Floor tiles, whose raw boxes are lifted 1 mm for drawing (`rawBoxes.ts`). */
+const FLOOR_TILES: ReadonlySet<string> = new Set(FLOOR_FAMILY_SPECS.flatMap((spec) => spec.tiles));
+
+/** A box as its collider is: a floor tile's drawing lift taken off, so it rests on the hit. */
+const unlifted = (box: PieceBox): PieceBox =>
+  box.prefab !== null && FLOOR_TILES.has(box.prefab)
+    ? { ...box, center: { ...box.center, y: box.center.y - FLOOR_LIFT } }
+    : box;
+
 /** The manual snap point when it is in range; null for auto (the game resets out-of-range ones). */
 const manualOf = (manual: number | null, count: number): number | null =>
   manual !== null && manual >= 0 && manual < count ? manual : null;
@@ -80,7 +94,7 @@ export const basePose = (
   const out = add(p, scaleVec3(hit.normal, PUSH_OUT));
   let nearest: Vec3 | null = null;
   for (const box of setBoxes(set, { pivot: out, yaw }, lib)) {
-    const c = closestOnBox(box, p);
+    const c = closestOnBox(unlifted(box), p);
     if (nearest === null || dist(c, p) < dist(nearest, p)) nearest = c;
   }
   return { pivot: nearest ? add(out, sub(p, nearest)) : p, yaw };
@@ -160,25 +174,55 @@ export const snapPose = (
 /** A box's yaw as a raw piece's (degrees, clockwise), from its model's turn. */
 const boxYaw = (box: PieceBox): number => normalizeDeg(-(box.modelTurn?.y ?? box.rotationY) / DEG);
 
-const angleBetween = (a: number, b: number): number => {
-  const d = normalizeDeg(a - b);
-  return Math.min(d, 360 - d);
+/** How far a snap point may miss its turned image and still count as symmetric (metres). */
+const SYMMETRY = 0.01;
+
+const turnPeriods = new WeakMap<object, number>();
+
+/**
+ * The smallest turn (90°, 180° or 360°) that maps the prefab's snap points onto
+ * themselves about its pivot: a wall turned 180° on the same spot is the same wall.
+ */
+export const turnPeriod = (def: PieceDef | undefined): number => {
+  if (!def) return 360;
+  const cached = turnPeriods.get(def);
+  if (cached !== undefined) return cached;
+  const snaps = localSnaps(def);
+  const maps = (turn: (p: Vec3) => Vec3) =>
+    snaps.length > 0 && snaps.every((p) => snaps.some((q) => dist(q, turn(p)) <= SYMMETRY));
+  const period = maps((p) => ({ x: -p.z, y: p.y, z: p.x }))
+    ? 90
+    : maps((p) => ({ x: -p.x, y: p.y, z: -p.z }))
+      ? 180
+      : 360;
+  turnPeriods.set(def, period);
+  return period;
+};
+
+/** Degrees between two turns of a piece that looks the same every `period` degrees. */
+const turnBetween = (a: number, b: number, period: number): number => {
+  const d = normalizeDeg(a - b) % period;
+  return Math.min(d, period - d);
 };
 
 /**
  * The first drawn piece a placed piece would duplicate: same prefab, pivot within
- * `DUPLICATE_DISTANCE`, and (when `angle` is given) yaw within `angle` degrees.
+ * `DUPLICATE_DISTANCE`, and (when `angle` is given) turned within `angle` degrees, a
+ * symmetric piece's turns counted modulo its symmetry (with `lib`).
  */
 export const duplicateOf = (
   placed: readonly PlacedGhost[],
   index: SnapIndex,
   angle: number | null,
-  ignore?: (box: PieceBox) => boolean
+  ignore?: (box: PieceBox) => boolean,
+  lib?: SnapLib
 ): PieceBox | null => {
   for (const piece of placed) {
     for (const box of pivotsNear(index, piece.pivot, DUPLICATE_DISTANCE)) {
       if (box.prefab !== piece.prefab || ignore?.(box)) continue;
-      if (angle === null || angleBetween(boxYaw(box), piece.rotation.yaw) <= angle) return box;
+      if (angle === null) return box;
+      const period = lib ? turnPeriod(lib.catalog.pieces.get(piece.prefab)) : 360;
+      if (turnBetween(boxYaw(box), piece.rotation.yaw, period) <= angle) return box;
     }
   }
   return null;
@@ -186,13 +230,15 @@ export const duplicateOf = (
 
 /**
  * Whether placing is blocked (M17 §3.6, planner): a piece would duplicate one already
- * there, turned the same way (within `DUPLICATE_ANGLE`). Returns that piece's box.
+ * there, turned the same way (within `DUPLICATE_ANGLE`, up to its symmetry with `lib`).
+ * Returns that piece's box.
  */
 export const blockedBy = (
   placed: readonly PlacedGhost[],
   index: SnapIndex,
+  lib?: SnapLib,
   ignore?: (box: PieceBox) => boolean
-): PieceBox | null => duplicateOf(placed, index, DUPLICATE_ANGLE, ignore);
+): PieceBox | null => duplicateOf(placed, index, DUPLICATE_ANGLE, ignore, lib);
 
 /**
  * The next manual snap point (Q / E, the game's TabLeft / TabRight): null (auto), then

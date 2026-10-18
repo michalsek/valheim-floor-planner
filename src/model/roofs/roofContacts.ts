@@ -3,7 +3,8 @@
  * cells rest on the walls (and filler courses) under them where the roof plane crosses
  * their top edge. At 67° an overlap test on a slab that only meets an edge is fragile,
  * so these pairs are declared. Cells resting on each other share faces, which the
- * overlap test finds. Cached per roof while its level's walls stay. Pure.
+ * overlap test finds. Raw pieces at the wall top (exploded walls) count as walls.
+ * Cached per roof while its level's walls and raw pieces stay. Pure.
  */
 import type { Library } from '../../catalog/library';
 import { sameLevel } from '../elevation';
@@ -14,6 +15,7 @@ import type { PlacedPiece, Plan, Roof, Vec2 } from '../types';
 
 import { CELL } from './roofFrame';
 import { roofGeometry } from './roofGeometry';
+import { footprintLine, rawWallTops } from './rawWallTops';
 import type { RoofPiece } from './roofPiece';
 import { eaveHeight, type RoofLib } from './tileRoof';
 
@@ -104,6 +106,7 @@ const restingPairs = (
 
 interface Entry {
   walls: Plan['walls'];
+  rawPieces: Plan['rawPieces'];
   lib: Library;
   pairs: Pair[];
 }
@@ -138,9 +141,11 @@ export const roofContacts = (
 ): Pair[] => {
   let wallPieces: Map<string, PlacedPiece[]> | null = null;
   return Object.values(plan.roofs).flatMap((roof) => {
-    const walls = levelPlan(plan, roof.elevation, lib).walls;
+    const { walls, rawPieces } = levelPlan(plan, roof.elevation, lib);
     const cached = cache.get(roof);
-    if (cached && cached.walls === walls && cached.lib === lib) return cached.pairs;
+    if (cached?.walls === walls && cached.rawPieces === rawPieces && cached.lib === lib) {
+      return cached.pairs;
+    }
     if (!wallPieces) {
       wallPieces = new Map();
       for (const p of derived.pieces) {
@@ -152,9 +157,15 @@ export const roofContacts = (
     }
     const pieces = derived.roofPieces.filter((p) => p.sourceId === roof.id);
     const fillers = pieces.filter((p) => p.role === 'filler').map(fillerSupport);
-    const supports = [...wallSupports(roof, walls, wallPieces), ...fillers];
+    const top = roof.elevation + roof.base;
+    const raw = rawWallTops(rawPieces, top, lib).map((box): Support => ({
+      key: box.key,
+      line: footprintLine(box),
+      top,
+    }));
+    const supports = [...wallSupports(roof, walls, wallPieces), ...raw, ...fillers];
     const pairs = restingPairs(roof, pieces, supports, lib);
-    cache.set(roof, { walls, lib, pairs });
+    cache.set(roof, { walls, rawPieces, lib, pairs });
     return pairs;
   });
 };

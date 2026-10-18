@@ -45,28 +45,60 @@ const localSaver = (storage: LocalStore): PlanSaver => ({
   save: async (plan) => storage.setItem(PLAN_STORAGE_KEY, await planFileText(plan)),
 });
 
-/** The plan IndexedDB holds, or null when there is none or it is unreadable. */
-const readDb = async (db: IDBDatabase): Promise<Plan | null> => {
-  let record: unknown = null;
-  try {
-    record = await readPlanRecord(db);
-    return record === null ? null : parsePlan(record);
-  } catch (error) {
-    console.warn('Saved plan is unreadable; starting with an empty plan.', error);
-    if (record !== null) await keepCorruptRecord(db, record);
-    return null;
-  }
+/** The autosave's IndexedDB side as start-up uses it (`planDb.ts`; tests give a fake). */
+export interface PlanRecords {
+  /** The stored record, null when none; rejects when the read fails. */
+  read(): Promise<unknown>;
+  write(plan: Plan): Promise<void>;
+  keepCorrupt(record: unknown): Promise<void>;
+}
+
+/** The autosave database's records, or null where IndexedDB won't open. */
+export const indexedDbRecords = async (): Promise<PlanRecords | null> => {
+  const db = await openPlanDb();
+  return (
+    db && {
+      read: () => readPlanRecord(db),
+      write: (plan) => writePlanRecord(db, plan),
+      keepCorrupt: (record) => keepCorruptRecord(db, record),
+    }
+  );
 };
+
+/** Where start-up looks for the plan. */
+export interface PlanSources {
+  openRecords(): Promise<PlanRecords | null>;
+  local: LocalStore | null;
+  /** How long IndexedDB may take to open and read before localStorage is used (ms). */
+  timeoutMs: number;
+}
+
+/** IndexedDB may take this long at start-up before the localStorage fallback (ms). */
+export const DB_TIMEOUT = 3000;
+
+const browserSources = (): PlanSources => ({
+  openRecords: indexedDbRecords,
+  local: getLocalStorage(),
+  timeoutMs: DB_TIMEOUT,
+});
+
+/**
+ * The plan at start-up and where to keep saving it. Without a saver, autosave is off:
+ * `unavailable` when the browser blocks both stores, `unread` when IndexedDB holds a
+ * plan it couldn't read (so nothing may overwrite it this session).
+ */
+export type OpenedStorage =
+  { plan: Plan; saver: PlanSaver } | { plan: Plan; saver: null; off: 'unavailable' | 'unread' };
 
 /**
  * Moves the old localStorage autosave into IndexedDB: the key is removed only once the
  * plan is stored there, so a failed move leaves it to try again on the next start.
  */
-const migrate = async (db: IDBDatabase, local: LocalStore | null): Promise<Plan | null> => {
+const migrate = async (records: PlanRecords, local: LocalStore | null): Promise<Plan | null> => {
   const plan = local && (await readLocal(local));
   if (!plan) return null;
   try {
-    await writePlanRecord(db, plan);
+    await records.write(plan);
     local.removeItem(PLAN_STORAGE_KEY);
   } catch (error) {
     console.warn('Could not move the saved plan to IndexedDB; it stays in localStorage.', error);
@@ -75,18 +107,61 @@ const migrate = async (db: IDBDatabase, local: LocalStore | null): Promise<Plan 
 };
 
 /**
- * The saved plan (or an empty one) and where to keep saving it; `saver` is null when
- * the browser blocks both IndexedDB and localStorage.
+ * The plan IndexedDB holds. A read that fails is not "nothing stored": autosave is off
+ * for the session, so the stored plan stays as it was. A record that doesn't parse is
+ * kept aside, and the app starts empty.
  */
-export const openPlanStorage = async (): Promise<{ plan: Plan; saver: PlanSaver | null }> => {
-  const local = getLocalStorage();
-  const db = await openPlanDb();
-  if (db) {
-    const plan = (await readDb(db)) ?? (await migrate(db, local)) ?? emptyPlan();
-    return { plan, saver: { save: (p) => writePlanRecord(db, p) } };
+const fromRecords = async (
+  records: PlanRecords,
+  local: LocalStore | null
+): Promise<OpenedStorage> => {
+  const saver: PlanSaver = { save: (plan) => records.write(plan) };
+  let record: unknown;
+  try {
+    record = await records.read();
+  } catch (error) {
+    console.warn('Could not read the saved plan; autosave is off so it stays as it was.', error);
+    return { plan: emptyPlan(), saver: null, off: 'unread' };
   }
-  if (local) return { plan: (await readLocal(local)) ?? emptyPlan(), saver: localSaver(local) };
-  return { plan: emptyPlan(), saver: null };
+  if (record === null) return { plan: (await migrate(records, local)) ?? emptyPlan(), saver };
+  try {
+    return { plan: parsePlan(record), saver };
+  } catch (error) {
+    console.warn('Saved plan is unreadable; starting with an empty plan.', error);
+    await records.keepCorrupt(record);
+    return { plan: emptyPlan(), saver };
+  }
+};
+
+const fromLocal = async (local: LocalStore | null): Promise<OpenedStorage> =>
+  local
+    ? { plan: (await readLocal(local)) ?? emptyPlan(), saver: localSaver(local) }
+    : { plan: emptyPlan(), saver: null, off: 'unavailable' };
+
+/**
+ * The saved plan (or an empty one) and where to keep saving it: IndexedDB, or
+ * localStorage where IndexedDB won't open or doesn't answer within `timeoutMs` (a page
+ * never stays blank waiting for it).
+ */
+export const openPlanStorage = async (
+  sources: PlanSources = browserSources()
+): Promise<OpenedStorage> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), sources.timeoutMs);
+  });
+  const fromDb = sources
+    .openRecords()
+    .then((records) => (records ? fromRecords(records, sources.local) : null))
+    .catch(() => null);
+  const first = await Promise.race([fromDb, timeout]);
+  clearTimeout(timer);
+  if (first === 'timeout') {
+    console.warn('IndexedDB did not answer; the plan is kept in localStorage this session.');
+  } else if (first) {
+    return first;
+  }
+  return fromLocal(sources.local);
 };
 
 /**

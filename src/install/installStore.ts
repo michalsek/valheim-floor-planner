@@ -20,26 +20,14 @@ export interface CachedCatalogue {
   info: InstallInfo;
 }
 
+import { databaseGetter, request } from '../store/idb';
+
 const DB_NAME = 'valheimInstall';
 const STORE = 'install';
 const HANDLE = 'handle';
 const CACHE = 'catalogue';
 
-let dbPromise: Promise<IDBDatabase | null> | null = null;
-
-const openDb = (): Promise<IDBDatabase | null> => {
-  dbPromise ??= new Promise((resolve) => {
-    try {
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-  return dbPromise;
-};
+const openDb = databaseGetter(DB_NAME, STORE);
 
 /** Runs one request in a transaction; resolves with its result once committed. */
 const run = async (
@@ -47,14 +35,7 @@ const run = async (
   makeRequest: (store: IDBObjectStore) => IDBRequest
 ): Promise<unknown> => {
   const db = await openDb();
-  if (!db) return null;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, mode);
-    const request = makeRequest(tx.objectStore(STORE));
-    tx.oncomplete = () => resolve(request.result);
-    tx.onerror = () => reject(tx.error ?? request.error);
-    tx.onabort = () => reject(tx.error ?? new Error('Install store transaction aborted'));
-  });
+  return db ? request(db, STORE, mode, makeRequest) : null;
 };
 
 const get = async (key: string): Promise<unknown> => {

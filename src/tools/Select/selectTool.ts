@@ -13,7 +13,13 @@ import {
   selectAll,
 } from './selectActions';
 import { SelectIcon } from './SelectIcon';
-import { cancelGesture, onSelectDown, onSelectMove, onSelectUp } from './selectPointer';
+import {
+  cancelGesture,
+  onSelectDown,
+  onSelectMove,
+  onSelectOffPlane,
+  onSelectUp,
+} from './selectPointer';
 import { SelectPreview } from './SelectPreview';
 import { SelectOverlay3d } from './SelectPreview3d';
 import { selectGestureAtom, sinkHotAtom } from './selectState';
@@ -91,6 +97,7 @@ export const selectTool: Tool = {
   onPointerMove: onSelectMove,
   onPointerUp: onSelectUp,
   onPointerCancel: cancelGesture,
+  onPointerOffPlane: onSelectOffPlane,
   // Clicking empty sky in 3D clears the selection, as clicking empty ground does.
   onPointerMiss(e, ctx) {
     if (e.button === PRIMARY_BUTTON && !e.shiftKey) clearSelection(ctx);

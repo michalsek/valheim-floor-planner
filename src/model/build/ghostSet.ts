@@ -4,6 +4,7 @@
  * and turns the whole set about it. Pure.
  */
 import { normalizeDeg, rotate } from '../geometry/propGeometry';
+import { round6 } from '../geometry/round';
 import type { PieceBox } from '../pieceBoxes';
 import { rawBox } from '../rawBoxes';
 import type { RawShapeLib } from '../rawShapes';
@@ -46,8 +47,6 @@ export interface GhostSnap {
 }
 
 const ORIGIN = { x: 0, y: 0, z: 0 };
-
-const round6 = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
 
 /** One piece of a prefab, its pivot on the anchor. */
 export const singlePiece = (prefab: string): GhostSet => ({

@@ -52,12 +52,6 @@ export interface SupportBody {
   material: MaterialSupport | null;
   /** Whether other bodies can rest on it: walls, floors, poles, stairs; not doors or furniture. */
   gives: boolean;
-  /**
-   * Held up whatever is under it, and not checked: it gives its material's maximum, like
-   * a grounded body. Its state only says whether it touches the ground ('grounded') or
-   * not ('none'). Plans no longer use it (raw pieces are checked since M17).
-   */
-  fixed?: boolean;
 }
 
 /** Whether a body's bottom reaches the ground under it. */
@@ -192,7 +186,7 @@ const supportFrom = (
   return Math.min(material.maxSupport, best);
 };
 
-/** A body's state from its support, as `propagateSupport` gives it (not for fixed bodies). */
+/** A body's state from its support, as `propagateSupport` gives it. */
 const stateOf = (material: MaterialSupport, value: number, grounded: boolean): SupportState => {
   if (grounded) return 'grounded';
   return value > material.minSupport ? 'supported' : 'collapsing';
@@ -243,7 +237,7 @@ export const propagateSupport = (
     pairs: pairsOf(list),
   }));
 
-  const grounded = bodies.map((b) => b.material !== null && (b.fixed === true || onGround(b)));
+  const grounded = bodies.map((b) => b.material !== null && onGround(b));
   const value = new Float64Array(n);
   const published = new Float64Array(n);
   const heap = createHeap();
@@ -273,7 +267,6 @@ export const propagateSupport = (
 
   const state = bodies.map((body, i): SupportState => {
     if (!body.material) return 'none';
-    if (body.fixed) return onGround(body) ? 'grounded' : 'none';
     return stateOf(body.material, value[i]!, grounded[i]!);
   });
   return { value: Float32Array.from(value), state };

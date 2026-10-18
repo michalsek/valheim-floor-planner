@@ -3,14 +3,16 @@
  * Turned by yaw, tilted by pitch and rolled by roll (the game's Euler angles, mirrored
  * into planner space: three.js 'YXZ' of (−pitch, −yaw, roll); yaw is stored clockwise,
  * so `rotationY` is −yaw). Roof pieces take their roof shape, diagonal beams a beam,
- * anything else its collider box. Floor tiles' boxes are lifted 1 mm, as derived
- * floors' are; their pivot (the model, snap points) stays. Pure.
+ * anything else its collider box; doors and gates their thin panel. Floor tiles' boxes
+ * are lifted 1 mm, as derived floors' are; their pivot (the model, snap points) stays. Pure.
  */
 import { FLOOR_FAMILY_SPECS } from '../catalog/floorFamilies';
+import { OPENING_PREFABS } from '../catalog/openingDefs';
 
 import type { Hit } from './hitTest';
 import { convexHull, polygonArea } from './geometry/convex';
 import { normalizeDeg, rotate } from './geometry/propGeometry';
+import { round6 } from './geometry/round';
 import { boxCorners, fromLocal, type OrientedBox } from './geometry/orient';
 import type { PieceBox } from './pieceBoxes';
 import { pieceAnchor } from './piecePivot';
@@ -27,6 +29,9 @@ const DEG = Math.PI / 180;
  */
 export const FLOOR_LIFT = 0.001;
 
+/** Door and gate panels are drawn this thin at most, so the gap still reads as one. */
+export const PANEL_THICKNESS = 0.12;
+
 /** The floor families' tiles: lifted as derived floors are. */
 const FLOOR_TILES: ReadonlySet<string> = new Set(FLOOR_FAMILY_SPECS.flatMap((spec) => spec.tiles));
 
@@ -36,12 +41,24 @@ const pivotOf = (piece: RawPiece): Vec3 => ({
   z: piece.position.z,
 });
 
-/** The piece's turn as an oriented frame at its pivot. */
-const frameOf = (piece: RawPiece) => ({
-  rotationY: -piece.rotation.yaw * DEG,
-  tiltX: -piece.rotation.pitch * DEG,
-  rollZ: piece.rotation.roll * DEG,
+/**
+ * A raw piece's turn (game Euler degrees, yaw clockwise) as the planner's frame: three.js
+ * 'YXZ' radians of (−pitch, −yaw, roll), as `OrientedBox` and `modelTurn` take it.
+ */
+export const rawTurn = ({ yaw, pitch, roll }: RawPiece['rotation']) => ({
+  rotationY: -yaw * DEG,
+  tiltX: -pitch * DEG,
+  rollZ: roll * DEG,
 });
+
+/** The raw rotation of a model turn (`PieceBox.modelTurn`: x tilt, y turn, z roll). */
+export const rotationOfTurn = (turn: Vec3): RawPiece['rotation'] => ({
+  yaw: normalizeDeg(-turn.y / DEG),
+  pitch: round6(-turn.x / DEG),
+  roll: round6(turn.z / DEG),
+});
+
+const frameOf = (piece: RawPiece) => rawTurn(piece.rotation);
 
 /** A point of the prefab's frame in the world. */
 const placed = (piece: RawPiece, local: Vec3): Vec3 =>
@@ -97,9 +114,15 @@ const bodyOf = (piece: RawPiece, lib: RawShapeLib, item: PieceBox['item'], hit: 
     y: (span.minY + span.maxY) / 2,
     z: (rect.minZ + rect.maxZ) / 2,
   };
+  // A door or gate is its panel, as in a drawn wall's gap.
+  const depth = rect.maxZ - rect.minZ;
   return {
     center: placed(piece, local),
-    size: { x: rect.maxX - rect.minX, y: span.maxY - span.minY, z: rect.maxZ - rect.minZ },
+    size: {
+      x: rect.maxX - rect.minX,
+      y: span.maxY - span.minY,
+      z: OPENING_PREFABS.has(piece.prefab) ? Math.min(PANEL_THICKNESS, depth) : depth,
+    },
     ...frame,
     pivot: pivotOf(piece),
   };
@@ -176,9 +199,8 @@ export const rotateRaw = (
     { x: piece.position.x - center.x, z: piece.position.z - center.z },
     deltaDeg
   );
-  const round = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
   return {
-    position: { ...piece.position, x: round(center.x + offset.x), z: round(center.z + offset.z) },
+    position: { ...piece.position, x: round6(center.x + offset.x), z: round6(center.z + offset.z) },
     rotation: { ...piece.rotation, yaw: normalizeDeg(piece.rotation.yaw + deltaDeg) },
   };
 };

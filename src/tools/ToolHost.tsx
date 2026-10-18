@@ -36,7 +36,7 @@ import { MIDDLE_BUTTON, PRIMARY_BUTTON } from './pointerButtons';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, worksIn3d } from './toolbox';
 import styles from './ToolHost.module.css';
-import type { ToolContext, ToolPointerEvent } from './types';
+import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from './types';
 import { useToolKeyboard } from './useToolKeyboard';
 
 type HostPointerEvent = ReactPointerEvent<HTMLDivElement>;
@@ -49,6 +49,11 @@ const surfaceCursor = (ctx: ToolContext, screen: ScreenPoint, alt: boolean): Cur
   return { raw, snapped, snapping: !alt };
 };
 type HostMouseEvent = ReactMouseEvent<HTMLDivElement>;
+
+const offPlane = (
+  screen: ScreenPoint,
+  e: { button: number; altKey: boolean; shiftKey: boolean }
+): OffPlanePointerEvent => ({ screen, button: e.button, altKey: e.altKey, shiftKey: e.shiftKey });
 
 /**
  * The pointer this host is tracking: a 2D pan, a pointer sequence owned by the tool, or
@@ -242,10 +247,13 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       return;
     }
     // Without a world point (a 3D ray at the sky) the tool keeps its state, but its
-    // hover goes.
+    // hover goes; a tool following its own drag by screen point still hears it.
     const event = toolEvent(screen, e);
-    if (event) activeTool().onPointerMove?.(event, ctx);
-    else activeTool().onPointerLeave?.(ctx);
+    const tool = activeTool();
+    if (event) tool.onPointerMove?.(event, ctx);
+    else if (gesture?.kind === 'tool' && tool.onPointerOffPlane) {
+      tool.onPointerOffPlane(offPlane(screen, e), 'move', ctx);
+    } else tool.onPointerLeave?.(ctx);
   };
 
   const onPointerUp = (e: HostPointerEvent) => {
@@ -255,8 +263,10 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     endGesture(false);
     if (gesture.kind !== 'tool') return;
     const event = toolEvent(screen, e) ?? clickAtPress(gesture.press, screen, e.button);
-    if (event) activeTool().onPointerUp?.(event, ctx);
-    else activeTool().onPointerCancel?.(ctx);
+    const tool = activeTool();
+    if (event) tool.onPointerUp?.(event, ctx);
+    else if (tool.onPointerOffPlane) tool.onPointerOffPlane(offPlane(screen, e), 'up', ctx);
+    else tool.onPointerCancel?.(ctx);
   };
 
   /**

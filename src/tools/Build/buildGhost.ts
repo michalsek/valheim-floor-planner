@@ -42,7 +42,7 @@ import { viewModeAtom } from '../../store/view3d';
 import { screenRay } from '../../viewport/projection3d';
 import { screenToWorld, type ScreenPoint } from '../../viewport/viewportMath';
 
-import { armedSetAtom, buildYawAtom, manualSnapAtom } from './buildState';
+import { armedSetAtom, buildYawAtom, manualSnapAtom, removeModeAtom } from './buildState';
 import {
   buildTargets,
   buildTargetsAtom,
@@ -194,7 +194,7 @@ export const ghostFor = (get: Getter, request: GhostRequest): BuildGhost | null 
     pair,
     manual,
     free,
-    blockedBy: blockedBy(placed, targets.index),
+    blockedBy: blockedBy(placed, targets.index, lib),
     overlap: deepest(deepOverlaps(boxes, near)),
     support,
     checking: !fresh && (request.awaitSupport ?? false),
@@ -207,7 +207,7 @@ export const buildGhostAtom = atom<BuildGhost | null>((get) => {
   const set = get(armedSetAtom);
   const modifiers = get(modifiersAtom);
   const screen = get(pointerScreenAtom);
-  if (!set || modifiers.mod || !screen) return null;
+  if (!set || get(removeModeAtom) || !screen) return null;
   return ghostFor(get, {
     set,
     yaw: get(buildYawAtom),
@@ -231,7 +231,7 @@ export interface BuildRemoval {
  * under the pointer, in 2D the current level's topmost piece under the cursor.
  */
 export const buildRemovalAtom = atom<BuildRemoval | null>((get) => {
-  if (!get(modifiersAtom).mod) return null;
+  if (!get(removeModeAtom)) return null;
   const pointer = pointerRay(get, get(pointerScreenAtom));
   if (!pointer) return null;
   const targets = get(buildTargetsAtom);

@@ -4,17 +4,16 @@
  * perpendicular strips meet (the outer corner of an L, a block wall's corner column).
  */
 import type { Rect } from './geometry/region';
+import { round6 } from './geometry/round';
 import type { Vec2 } from './types';
 import type { GraphEdge, VertexKey, WallGraph } from './wallGraph';
 
-/** Rounds to the 1e-6 m grid, so strips computed from different walls line up exactly. */
-const q = (v: number): number => Math.round(v * 1e6) / 1e6;
-
+/** The rectangle around `points`, on the 1e-6 m grid so strips of different walls line up. */
 const box = (points: readonly Vec2[]): Rect => ({
-  x0: q(Math.min(...points.map((p) => p.x))),
-  x1: q(Math.max(...points.map((p) => p.x))),
-  z0: q(Math.min(...points.map((p) => p.z))),
-  z1: q(Math.max(...points.map((p) => p.z))),
+  x0: round6(Math.min(...points.map((p) => p.x))),
+  x1: round6(Math.max(...points.map((p) => p.x))),
+  z0: round6(Math.min(...points.map((p) => p.z))),
+  z1: round6(Math.max(...points.map((p) => p.z))),
 });
 
 /** Where an edge reaches across at one of its ends: its right and left faces. */

@@ -7,6 +7,8 @@
 import { newId } from '../model/newId';
 import type { Plan } from '../model/types';
 
+import { openDatabase, transact as transactStore } from './idb';
+
 const DB_NAME = 'valheimFloorPlanner.autosave';
 const STORE = 'plan';
 const PLAN = 'plan';
@@ -16,43 +18,35 @@ const HEIGHTS_ID = 'heightsId';
 const CORRUPT = 'corrupt';
 
 /** The database, or null where IndexedDB is missing or refuses to open. */
-export const openPlanDb = (): Promise<IDBDatabase | null> =>
-  new Promise((resolve) => {
-    try {
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onblocked = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
+export const openPlanDb = (): Promise<IDBDatabase | null> => openDatabase(DB_NAME, STORE);
 
-/** Runs `use` in one transaction; resolves once it has committed. */
+/** The id of each heights array stored or loaded this session. */
+const ids = new WeakMap<Int16Array, string>();
+
 const transact = (
   db: IDBDatabase,
   mode: IDBTransactionMode,
   use: (store: IDBObjectStore) => void
-): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, mode);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('Autosave transaction failed'));
-    tx.onabort = () => reject(tx.error ?? new Error('Autosave transaction aborted'));
-    use(tx.objectStore(STORE));
-  });
+): Promise<void> => transactStore(db, STORE, mode, use);
 
-/** The stored plan with its heights put back, unchecked (`parsePlan` checks it); null when none. */
+/**
+ * The stored plan with its heights put back, unchecked (`parsePlan` checks it); null
+ * when none. Rejects when the read itself fails (not the same as nothing stored).
+ */
 export const readPlanRecord = async (db: IDBDatabase): Promise<unknown> => {
   let plan: unknown = null;
   let heights: unknown = null;
+  let heightsId: unknown = null;
   await transact(db, 'readonly', (store) => {
     const p = store.get(PLAN);
     const h = store.get(HEIGHTS);
+    const i = store.get(HEIGHTS_ID);
     p.onsuccess = () => (plan = p.result ?? null);
     h.onsuccess = () => (heights = h.result ?? null);
+    i.onsuccess = () => (heightsId = i.result ?? null);
   });
+  // The loaded array is the stored one: the first save of a session needn't write it.
+  if (heights instanceof Int16Array && typeof heightsId === 'string') ids.set(heights, heightsId);
   const terrain = (plan as Partial<Plan> | null)?.importFrame?.terrain;
   return terrain ? withHeights(plan as Plan, heights) : plan;
 };
@@ -62,7 +56,6 @@ const withHeights = (plan: Plan, heights: unknown): unknown => ({
   importFrame: { ...plan.importFrame, terrain: { ...plan.importFrame!.terrain, heights } },
 });
 
-const ids = new WeakMap<Int16Array, string>();
 const idOf = (heights: Int16Array): string => {
   let id = ids.get(heights);
   if (!id) ids.set(heights, (id = newId()));

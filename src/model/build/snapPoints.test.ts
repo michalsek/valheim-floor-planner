@@ -63,7 +63,6 @@ describe('snapIndex', () => {
       rawBox(p, testLibrary)
     );
     const index = snapIndex(boxes, testLibrary);
-    expect(snapIndex(boxes, testLibrary)).toBe(index);
     const near = snapsNear(index, { x: 0.2, y: 2, z: 0 }, 0.25);
     expect(near.map((t) => [t.box, t.index])).toEqual([
       [0, 0],

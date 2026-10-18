@@ -3,7 +3,7 @@
  * openings plus a few generic ones any family can take.
  */
 import type { Catalog } from './pieceDefs';
-import { toOpening, type WallFamily } from './wallFamilies';
+import { toOpening, WALL_FAMILY_SPECS, type WallFamily } from './wallFamilies';
 
 export type OpeningKind = 'door' | 'gate' | 'grate';
 
@@ -19,6 +19,12 @@ export interface OpeningDef {
 
 /** Openings every wall family offers. */
 const GENERIC_OPENINGS: readonly string[] = ['iron_grate', 'darkwood_gate'];
+
+/** Every prefab a wall can take as an opening (the families' own and the generic ones). */
+export const OPENING_PREFABS: ReadonlySet<string> = new Set([
+  ...WALL_FAMILY_SPECS.flatMap((spec) => spec.openings),
+  ...GENERIC_OPENINGS,
+]);
 
 /**
  * Heights the snap points get wrong. The ashwood door snaps 2 m high but its collider

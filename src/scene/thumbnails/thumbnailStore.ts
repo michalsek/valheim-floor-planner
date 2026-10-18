@@ -35,18 +35,26 @@ const settle = (prefab: string, entry: Entry) => {
   notify(prefab);
 };
 
-/** The cache keys' start for the loaded game build; old entries go when it changes. */
-const currentPrefix = (): string | null => {
-  const key = getCatalogueKey();
-  if (!key) return null;
-  const next = `${key}|a${ASSET_VERSION}|t${THUMB_VERSION}|`;
-  if (next !== prefix) {
-    for (const entry of entries.values())
-      if (typeof entry === 'object') URL.revokeObjectURL(entry.url);
-    entries.clear();
-    prefix = next;
-    void pruneThumbnails(next);
-  }
+/** The cache keys' start for a game build (null: no install loaded). */
+const prefixOf = (key: string | null): string | null =>
+  key ? `${key}|a${ASSET_VERSION}|t${THUMB_VERSION}|` : null;
+
+/**
+ * Moves over to the loaded build's keys when it changed: the old thumbnails go (URLs
+ * revoked, stale cache entries pruned), every tile is told, and tiles in view ask
+ * again. Called from the install listener and the queue, never during render.
+ */
+const syncPrefix = (): string | null => {
+  const next = prefixOf(getCatalogueKey());
+  if (next === prefix) return prefix;
+  for (const entry of entries.values())
+    if (typeof entry === 'object') URL.revokeObjectURL(entry.url);
+  entries.clear();
+  queue.length = 0;
+  prefix = next;
+  if (next) void pruneThumbnails(next);
+  listeners.forEach((set) => set.forEach((listener) => listener()));
+  if (next) wanted.forEach((prefab) => enqueue(prefab));
   return prefix;
 };
 
@@ -66,7 +74,10 @@ const onRetry = () => {
   lastToken = token;
   forgetFailures();
 };
-subscribeInstall(onRetry);
+subscribeInstall(() => {
+  syncPrefix();
+  onRetry();
+});
 subscribeAssets(onRetry);
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -87,12 +98,12 @@ const drain = async () => {
   try {
     while (queue.length > 0) {
       const prefab = queue.shift()!;
-      const keyPrefix = currentPrefix();
+      const keyPrefix = syncPrefix();
       if (!wanted.has(prefab) || entries.has(prefab) || !keyPrefix) continue;
       await nextFrame();
       try {
         const blob = await renderThumbnail(prefab);
-        if (currentPrefix() !== keyPrefix) continue;
+        if (syncPrefix() !== keyPrefix) continue;
         void writeThumbnail(keyPrefix + prefab, blob ?? NO_MODEL);
         settle(prefab, blob ? { url: URL.createObjectURL(blob) } : 'none');
       } catch {
@@ -107,10 +118,10 @@ const drain = async () => {
 
 /** Reads the cache, else queues a render. */
 const enqueue = (prefab: string) => {
-  const keyPrefix = currentPrefix();
+  const keyPrefix = syncPrefix();
   if (!keyPrefix) return;
   void readThumbnail(keyPrefix + prefab).then((cached) => {
-    if (entries.has(prefab) || currentPrefix() !== keyPrefix) return;
+    if (entries.has(prefab) || syncPrefix() !== keyPrefix) return;
     if (cached === NO_MODEL) return settle(prefab, 'none');
     if (cached) return settle(prefab, { url: URL.createObjectURL(cached) });
     if (!wanted.has(prefab) || queue.includes(prefab)) return;
@@ -119,9 +130,10 @@ const enqueue = (prefab: string) => {
   });
 };
 
-/** The prefab's thumbnail URL; null while there is none (yet). */
+/** The prefab's thumbnail URL; null while there is none (yet). Reads only. */
 export const getThumbnail = (prefab: string): string | null => {
-  currentPrefix();
+  // Entries of a build just replaced, before the install listener has run.
+  if (prefix !== prefixOf(getCatalogueKey())) return null;
   const entry = entries.get(prefab);
   return typeof entry === 'object' ? entry.url : null;
 };

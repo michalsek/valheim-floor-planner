@@ -5,6 +5,7 @@
 import { atom } from 'jotai';
 
 import { type GhostSet, singlePiece } from '../../model/build/ghostSet';
+import { modifiersAtom } from '../../store/session';
 
 /** How many recently armed prefabs keep their ghost meshes (and models) loaded. */
 export const GHOST_KEPT = 8;
@@ -14,8 +15,23 @@ const armedSetBase = atom<GhostSet | null>(null);
 /** The manual snap point (Q/E), as an index into the set's snap points; null is auto. */
 export const manualSnapAtom = atom<number | null>(null);
 
-/** The armed set is copies of a selection (Select's Mod+D): Esc goes back to Select. */
-export const carriedCopiesAtom = atom<boolean>(false);
+/**
+ * While copies of a selection are armed (Select's Mod+D): the turn to give back when they
+ * are disarmed or replaced; null otherwise.
+ */
+const carryYawBase = atom<number | null>(null);
+
+/** The armed set is copies of a selection: Esc goes back to Select. */
+export const carriedCopiesAtom = atom((get) => get(carryYawBase) !== null);
+
+/**
+ * Ctrl/⌘ is ignored until it is pressed again (it was still down from the Mod+D that
+ * carried copies in, and would otherwise turn every click into a removal).
+ */
+export const modIgnoredAtom = atom<boolean>(false);
+
+/** Ctrl/⌘ + click removes: the modifier is held, and not left over from Mod+D. */
+export const removeModeAtom = atom((get) => get(modifiersAtom).mod && !get(modIgnoredAtom));
 
 /** The prefabs armed last, newest first (at most `GHOST_KEPT`). */
 export const keptPrefabsAtom = atom<readonly string[]>([]);
@@ -29,7 +45,11 @@ export const armedSetAtom = atom(
   (get, set, next: GhostSet | null) => {
     set(armedSetBase, next);
     set(manualSnapAtom, null);
-    set(carriedCopiesAtom, false);
+    const carryYaw = get(carryYawBase);
+    if (carryYaw !== null) {
+      set(buildYawAtom, carryYaw);
+      set(carryYawBase, null);
+    }
     if (!next) return;
     const prefabs = [...new Set(next.pieces.map((p) => p.prefab))];
     const kept = get(keptPrefabsAtom);
@@ -52,3 +72,14 @@ export const armedPrefabAtom = atom<string | null>((get) => {
 
 /** The ghost's turn in degrees (clockwise, multiples of 22.5°), kept across armed pieces. */
 export const buildYawAtom = atom<number>(0);
+
+/**
+ * Arms copies of a selection turned as it is (`yaw`, its first piece's): the Build turn
+ * comes back when they are disarmed; Ctrl/⌘, still down from Mod+D, is ignored.
+ */
+export const armCopiesAtom = atom(null, (get, set, copies: GhostSet, yaw: number) => {
+  set(armedSetAtom, copies);
+  set(carryYawBase, get(buildYawAtom));
+  set(buildYawAtom, yaw);
+  set(modIgnoredAtom, get(modifiersAtom).mod);
+});
