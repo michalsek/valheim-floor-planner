@@ -33,6 +33,7 @@ import { CatalogBrowser } from './ui/CatalogBrowser/CatalogBrowser';
 import { Inspector } from './ui/Inspector/Inspector';
 import { LevelsBar } from './ui/LevelsBar/LevelsBar';
 import { PlanHeader } from './ui/PlanHeader/PlanHeader';
+import { SiteExpandHandles } from './ui/SiteExpand/SiteExpandHandles';
 import { StatusStrip } from './ui/StatusStrip/StatusStrip';
 import { ToolOptionsBar } from './ui/ToolOptions/ToolOptionsBar';
 import { ToolRail } from './ui/ToolRail/ToolRail';
@@ -96,6 +97,7 @@ const CanvasLayers = () => {
  */
 const CanvasChrome = () => (
   <>
+    <SiteExpandHandles />
     <CatalogBrowser />
     <ToolOptionsBar />
     <LevelsBar />

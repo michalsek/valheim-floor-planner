@@ -9,9 +9,10 @@ import { Biome, biomeName } from '../gameData/valheim/terrain/biomes';
 import { zoneOf } from '../gameData/valheim/terrain/heightmap';
 import { SUPPORTED_WORLD_GEN_VERSION } from '../gameData/valheim/terrain/worldGenerator';
 import { planBounds } from '../model/planBounds';
+import { growSiteTerrain, type SiteGrowth } from '../model/terrain/siteExtend';
 import { patchRect, type PatchRect } from '../model/terrain/sitePatch';
-import { encodeHeights } from '../model/terrain/siteTerrain';
-import type { ImportFrame, Plan, SiteTerrain } from '../model/types';
+import { encodeHeightBytes, heightBytes } from '../model/terrain/siteTerrain';
+import type { ImportFrame, Plan, SiteNotices, SiteTerrain } from '../model/types';
 
 import { GENERATOR_REVISION, loadRivers, saveRivers } from './terrainCache';
 import { runTerrainWorker } from './terrainClient';
@@ -95,27 +96,36 @@ const distanceTo = (rect: PatchRect, x: number, z: number): number =>
     Math.max(rect.z0 - z, 0, z - (rect.z0 + rect.rows - 1))
   );
 
-/** What the worker needs: the patch's terrain edits and the locations to check. */
+/**
+ * What the worker needs: the ground over `rect`, and the terrain edits and the locations
+ * to check of the whole `site` it belongs to (the patch, or a grown patch when `rect` is
+ * only its new strip), so the notices cover the whole site.
+ */
 export const terrainJobFor = (
   world: TerrainSource,
   rect: PatchRect,
-  rivers: ArrayBuffer | null
+  rivers: ArrayBuffer | null,
+  site: PatchRect = rect
 ): TerrainJob => {
   if (!world.site) throw new Error('The world has no seed.');
   const zones = (from: number, count: number) => [zoneOf(from), zoneOf(from + count - 1)];
-  const [zx0, zx1] = zones(rect.x0, rect.cols);
-  const [zz0, zz1] = zones(rect.z0, rect.rows);
+  const [zx0, zx1] = zones(site.x0, site.cols);
+  const [zz0, zz1] = zones(site.z0, site.rows);
   const comps = world.terrainComps.filter(
     (c) => c.zx >= zx0! && c.zx <= zx1! && c.zz >= zz0! && c.zz <= zz1!
   );
   const checks: number[] = [];
   const at = world.locations?.position ?? new Float32Array();
   for (let i = 0; i < at.length; i += 3) {
-    if (distanceTo(rect, at[i]!, at[i + 2]!) <= CHECK_RADIUS)
+    if (distanceTo(site, at[i]!, at[i + 2]!) <= CHECK_RADIUS)
       checks.push(at[i]!, at[i + 1]!, at[i + 2]!);
   }
   return { site: world.site, rect, comps, checks: Float32Array.from(checks), rivers };
 };
+
+/** World heights (metres) as plan centimetres, int16, for `frame`. */
+const planBytes = (frame: Pick<ImportFrame, 'origin'>, heights: Float32Array): Uint8Array =>
+  heightBytes(Float64Array.from(heights, (h) => h - frame.origin.y)).bytes;
 
 /** The finished ground as the plan stores it, with its notices. */
 export const siteTerrainFrom = (
@@ -123,8 +133,21 @@ export const siteTerrainFrom = (
   frame: Pick<ImportFrame, 'origin'>,
   rect: PatchRect,
   result: Pick<TerrainResult, 'heights' | 'biomes' | 'check' | 'unreadEdits'>
-): SiteTerrain => {
-  const { heights } = encodeHeights(Float64Array.from(result.heights, (h) => h - frame.origin.y));
+): SiteTerrain => ({
+  ...rect,
+  heights: encodeHeightBytes(planBytes(frame, result.heights)),
+  biomes: result.biomes,
+  worldGenVersion: world.site?.worldGenVersion ?? SUPPORTED_WORLD_GEN_VERSION,
+  revision: GENERATOR_REVISION,
+  notices: siteNotices(world, rect, result),
+});
+
+/** What the terrain over `rect` may get wrong: locations, legacy and unread edits, the check. */
+const siteNotices = (
+  world: TerrainSource,
+  rect: PatchRect,
+  result: Pick<TerrainResult, 'check' | 'unreadEdits'>
+): SiteNotices => {
   const locations: { x: number; z: number }[] = [];
   const at = world.locations?.position ?? new Float32Array();
   for (let i = 0; i < at.length; i += 3) {
@@ -136,14 +159,7 @@ export const siteTerrainFrom = (
   for (let i = 0; i < world.legacyEdits.length; i += 2) {
     if (distanceTo(rect, world.legacyEdits[i]!, world.legacyEdits[i + 1]!) === 0) legacyEdits++;
   }
-  return {
-    ...rect,
-    heights,
-    biomes: result.biomes,
-    worldGenVersion: world.site?.worldGenVersion ?? SUPPORTED_WORLD_GEN_VERSION,
-    revision: GENERATOR_REVISION,
-    notices: { locations, legacyEdits, unreadEdits: result.unreadEdits, check: result.check },
-  };
+  return { locations, legacyEdits, unreadEdits: result.unreadEdits, check: result.check };
 };
 
 export interface SiteGeneration {
@@ -163,12 +179,48 @@ export const generateSiteTerrain = async (
   rect: PatchRect,
   onPhase: (phase: TerrainPhase) => void,
   signal?: AbortSignal
+): Promise<SiteGeneration> =>
+  runSiteJob(world, rect, rect, onPhase, signal, (result) =>
+    siteTerrainFrom(world, frame, rect, result)
+  );
+
+/**
+ * Grows the site's `terrain` by `growth` (`siteExtend.ts`): only the new strip is made in
+ * the worker; the terrain's own heights are kept as they are, and the notices are the
+ * whole grown site's.
+ */
+export const growSiteGround = (
+  world: TerrainSource,
+  frame: Pick<ImportFrame, 'origin'>,
+  terrain: SiteTerrain,
+  growth: SiteGrowth,
+  onPhase: (phase: TerrainPhase) => void,
+  signal?: AbortSignal
+): Promise<SiteGeneration> =>
+  runSiteJob(world, growth.strip, growth.rect, onPhase, signal, (result) =>
+    growSiteTerrain(
+      terrain,
+      growth,
+      { bytes: planBytes(frame, result.heights), biomes: result.biomes },
+      siteNotices(world, growth.rect, result)
+    )
+  );
+
+/** One worker request: the ground over `rect`, notices over `site`, then `finish`. */
+const runSiteJob = async (
+  world: TerrainSource,
+  rect: PatchRect,
+  site: PatchRect,
+  onPhase: (phase: TerrainPhase) => void,
+  signal: AbortSignal | undefined,
+  finish: (result: TerrainResult) => SiteTerrain
 ): Promise<SiteGeneration> => {
   const started = performance.now();
   const rivers = world.site && (await loadRivers(world.site));
-  const result = await runTerrainWorker(terrainJobFor(world, rect, rivers), onPhase, signal);
+  const job = terrainJobFor(world, rect, rivers, site);
+  const result = await runTerrainWorker(job, onPhase, signal);
   if (result.rivers && world.site) void saveRivers(world.site, result.rivers);
-  const terrain = siteTerrainFrom(world, frame, rect, result);
+  const terrain = finish(result);
   const total = performance.now() - started;
   const detail = { ...result.ms, pregenerated: result.rivers !== null };
   performance.measure('terrain', { start: started, duration: total, detail });

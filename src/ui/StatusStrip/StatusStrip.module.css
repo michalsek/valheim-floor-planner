@@ -159,3 +159,15 @@
   color: var(--warning);
   font-weight: 600;
 }
+
+.terrain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opacity {
+  width: 72px;
+  margin: 0;
+  accent-color: var(--accent);
+}

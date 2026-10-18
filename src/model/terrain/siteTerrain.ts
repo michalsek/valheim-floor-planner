@@ -35,14 +35,18 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(text);
 };
 
-const fromBase64 = (text: string): Uint8Array =>
-  Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+const fromBase64 = (text: string): Uint8Array => {
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
 
 /**
- * Plan heights (metres) as `SiteTerrain.heights`: int16 little-endian centimetres in
- * base64. `clamped` counts values beyond ±327.67 m, which are clamped.
+ * Plan heights (metres) as int16 little-endian centimetres (the bytes `SiteTerrain.heights`
+ * holds in base64). `clamped` counts values beyond ±327.67 m, which are clamped.
  */
-export const encodeHeights = (metres: ArrayLike<number>): { heights: string; clamped: number } => {
+export const heightBytes = (metres: ArrayLike<number>): { bytes: Uint8Array; clamped: number } => {
   const view = new DataView(new ArrayBuffer(metres.length * 2));
   let clamped = 0;
   for (let i = 0; i < metres.length; i++) {
@@ -50,23 +54,37 @@ export const encodeHeights = (metres: ArrayLike<number>): { heights: string; cla
     if (Math.abs(cm) > CM_LIMIT) clamped++;
     view.setInt16(2 * i, Math.max(-CM_LIMIT, Math.min(CM_LIMIT, cm)), true);
   }
-  return { heights: toBase64(new Uint8Array(view.buffer)), clamped };
+  return { bytes: new Uint8Array(view.buffer), clamped };
 };
 
-/** `SiteTerrain.heights` back as metres; null when it isn't base64. */
-export const decodeHeights = (heights: string): Float32Array | null => {
+/** int16 little-endian centimetres as `SiteTerrain.heights` (base64). */
+export const encodeHeightBytes = (bytes: Uint8Array): string => toBase64(bytes);
+
+/** Plan heights (metres) as `SiteTerrain.heights`; `clamped` as `heightBytes`. */
+export const encodeHeights = (metres: ArrayLike<number>): { heights: string; clamped: number } => {
+  const { bytes, clamped } = heightBytes(metres);
+  return { heights: toBase64(bytes), clamped };
+};
+
+/** `SiteTerrain.heights` back as its int16 bytes; null when it isn't base64 of whole values. */
+export const decodeHeightBytes = (heights: string): Uint8Array | null => {
   let bytes: Uint8Array;
   try {
     bytes = fromBase64(heights);
   } catch {
     return null;
   }
-  if (bytes.length % 2 !== 0) return null;
+  return bytes.length % 2 === 0 ? bytes : null;
+};
+
+/** `SiteTerrain.heights` back as metres; null when it isn't base64. */
+export const decodeHeights = (heights: string): Float32Array | null => {
+  const bytes = decodeHeightBytes(heights);
+  if (!bytes) return null;
   const view = new DataView(bytes.buffer);
-  return Float32Array.from(
-    { length: bytes.length / 2 },
-    (_, i) => view.getInt16(2 * i, true) / 100
-  );
+  const metres = new Float32Array(bytes.length / 2);
+  for (let i = 0; i < metres.length; i++) metres[i] = view.getInt16(2 * i, true) / 100;
+  return metres;
 };
 
 const grids = new WeakMap<SiteTerrain, TerrainGrid>();

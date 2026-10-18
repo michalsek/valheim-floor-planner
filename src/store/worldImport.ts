@@ -4,18 +4,23 @@
  * Either way it is one `plan.replace`, so one undo step. Adding terrain later to a plan
  * imported without it is one `site.setTerrain` ("Add terrain").
  *
+ * Growing the site on one side (the expand handles) is one `site.setTerrain` too
+ * ("Extend terrain north").
+ *
  * The terrain is made in a worker (`generateSiteTerrain`), one request at a time: an
- * import and an Add terrain exclude each other.
+ * import, an Add terrain and an extension exclude each other.
  */
 import type { WorldCluster } from '../model/world/clusters';
 import { clampElevation, roundElevation } from '../model/elevation';
 import { planBounds } from '../model/planBounds';
 import { isPlanEmpty } from '../model/selection';
-import type { PatchRect } from '../model/terrain/sitePatch';
+import { growRect, type SiteSide } from '../model/terrain/siteExtend';
+import { MAX_SITE_SIDE, type PatchRect } from '../model/terrain/sitePatch';
 import type { Plan, SiteTerrain } from '../model/types';
 import { importCluster } from '../model/world/importCluster';
 import {
   generateSiteTerrain,
+  growSiteGround,
   siteRect,
   terrainAvailability,
   type SiteGeneration,
@@ -180,6 +185,53 @@ const addToPlan = async (
   const result = ctx.plan.dispatch(
     { type: 'site.setTerrain', terrain: made.terrain },
     { label: 'Add terrain' }
+  );
+  return result.ok ? 'done' : { error: result.error.message };
+};
+
+/** Whether a terrain request (an import, Add terrain, an extension) is running. */
+export const isTerrainBusy = (): boolean => busy;
+
+/**
+ * Grows the plan's site by `metres` on `side` (up to `MAX_SITE_SIDE`), from `world`: one
+ * undoable "Extend terrain …". The site's own heights, frame and datum stay.
+ */
+export const extendTerrain = (
+  ctx: ImportContext,
+  world: TerrainSource,
+  side: SiteSide,
+  metres: number,
+  opts: Pick<TerrainOptions, 'onPhase' | 'signal'>
+): Promise<ImportResult> => exclusively(() => growPlanSite(ctx, world, side, metres, opts));
+
+const growPlanSite = async (
+  ctx: ImportContext,
+  world: TerrainSource,
+  side: SiteSide,
+  metres: number,
+  opts: Pick<TerrainOptions, 'onPhase' | 'signal'>
+): Promise<ImportResult> => {
+  const frame = ctx.plan.getPlan().importFrame;
+  const terrain = frame?.terrain;
+  if (!frame || !terrain) return { error: 'The plan has no terrain.' };
+  const growth = growRect(terrain, side, metres);
+  if (!growth) return { error: `The site is at its largest: ${MAX_SITE_SIDE} m a side.` };
+  const available = terrainAvailability(world, growth.strip);
+  if (!available.ok) return { error: available.reason };
+  let made: SiteGeneration;
+  try {
+    made = await growSiteGround(world, frame, terrain, growth, opts.onPhase, opts.signal);
+  } catch (error) {
+    if (isAbort(error)) return 'cancelled';
+    return { error: `The ground couldn’t be made: ${messageOf(error)}` };
+  }
+  // Cancelled, or the terrain changed under it (an undo, another plan).
+  if (opts.signal.aborted || ctx.plan.getPlan().importFrame?.terrain !== terrain) {
+    return 'cancelled';
+  }
+  const result = ctx.plan.dispatch(
+    { type: 'site.setTerrain', terrain: made.terrain },
+    { label: `Extend terrain ${side}` }
   );
   return result.ok ? 'done' : { error: result.error.message };
 };

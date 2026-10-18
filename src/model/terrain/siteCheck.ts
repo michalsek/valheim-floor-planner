@@ -4,10 +4,10 @@
  */
 import type { SiteTerrain } from '../types';
 
-import { MAX_SIDE } from './sitePatch';
+import { MAX_SITE_SIDE } from './sitePatch';
 
-/** Vertices a side may have: 2 up to a capped patch's. */
-const MAX_VERTICES_SIDE = MAX_SIDE + 1;
+/** Vertices a side may have: 2 up to a fully extended patch's. */
+const MAX_VERTICES_SIDE = MAX_SITE_SIDE + 1;
 
 const finite = (n: number) => Number.isFinite(n);
 const count = (n: number) => Number.isInteger(n) && n >= 0;

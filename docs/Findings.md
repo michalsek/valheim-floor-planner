@@ -1418,3 +1418,84 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
     the plan's order; `Other` takes the unmapped category and `ice` / no material.
     Placeable = a cost or a collider, which leaves out only the repair tool. Exports are
     named `Build*` so they don't clash with `materialColors`' palette.
+
+## Terrain opacity and site expansion (M16 follow-up)
+
+1. **Terrain opacity** (`store/terrainOpacity.ts`, `persistedAtom`, default 1): a slider
+   beside the Terrain toggle (shown while terrain is), 0–1 in 0.05 steps, dropping focus
+   on pointer up as the plate slider does (checked: C and PageUp work right after a drag;
+   a reload keeps the value). It covers both views:
+   - **3D** (`Terrain3d` `GroundPart`): at 1 the surface and skirts are the unchanged
+     opaque mesh (casting and taking shadows), so the view is M16's. Below 1 they switch
+     (visibility only) to a see-through pair drawn first among the transparent things: a
+     depth-only pass (`colorWrite: false`) that keeps the nearest ground, so hills never
+     show through each other, then the colour blended with an `opacity` uniform
+     (`depthWrite: false`, taking shadows). Pieces are drawn before it, so the opaque
+     pieces under the ground and the foundations read through it; faded pieces, the
+     plate and the sea still test against the ground's depth, as with the solid ground.
+     See-through ground casts no shadow, so what is under it is lit. The draped grid and
+     the sea fade with it; at 0 all of it is hidden.
+   - **2D:** the relief swaps to a see-through twin material (an underlay under the
+     transparent canvas now shows through: the "opaque 2D relief hides an underlay" item
+     of pass 2B, 7), and contours fade with it. The patch outline and location rings stay.
+   - **Pipelines:** both variants are compiled when the terrain mounts
+     (`scene/usePrewarm.ts`: hidden meshes shown only for the synchronous part of
+     `compileAsync`), so the slider creates no programs on `?webgl` (before, the first
+     move below 1 linked 2 programs in a 170 ms long task). On WebGPU the first return
+     to 1 in a session still builds one shadow pipeline; after that, sweeps over 0–1 make
+     none. At 1 a round trip through 0.5 or 0 differs from the first frame only by the
+     renderer's own noise (≤ 120 px above 8/255, as toggling Roofs off and on).
+2. **Site expansion.** Handles over the canvas in both views (`ui/SiteExpand/`, mounted
+   in the canvas chrome, outside `ToolHost`, so a click never reaches the tool or the
+   orbit controls): in 3D a translucent wall on the middle of each patch edge (6 m high,
+   at least 22 px on screen, left out when it would cover half the view); in 2D a tab
+   outside the dashed outline, centred on the part of the edge in view (at the minimum
+   zoom a 768 m site is bigger than the view). Hover shows the strip a click adds. A
+   click grows that side by **64 m** (one zone, the grain of the game's terrain and of
+   its terrain edits); **Shift** by 256 m. It is one `site.setTerrain` labelled "Extend
+   terrain north" (undo and redo checked, 3 steps each way).
+3. **Only the strip is made** (`siteExtend.ts` `growRect` / `growSiteTerrain`,
+   `siteGeneration.ts` `growSiteGround`): the worker job's ground rect is the new strip,
+   while its terrain edits and self-check locations are the whole grown patch's, so the
+   notices (`siteNotices`, also locations and legacy edits over the whole patch) are
+   exact. The old heights are copied byte for byte, the strip's int16 rows placed beside
+   them, the zone-corner biome grids joined (`mergeBiomes`). Checked in the browser: the
+   318 × 264 site grown east, north and west is **byte-identical** to the same rectangle
+   generated in one request (heights, biomes and notices). Frame, datum and `revision`
+   stay. Ashlands and Deep North strips are refused with M16's reason on the handle
+   (`terrainAvailability` of the strip; the test world can't reach them, so this is the
+   unit-tested path only).
+4. **The world.** The plan keeps no seed, so a click needs the world: the World panel's
+   open world when it matches the import (`worldMatchesFrame`), else a kept world (OPFS)
+   of the same name that matches (`store/siteWorld.ts`; looked for on the first hover or
+   click, not on load, and dropped once forgotten). Without it the handle's title says to
+   open the world, and a click opens the World panel, whose start now says the plan's
+   ground came from that world and can be extended once it is open. Checked on a fresh
+   profile: the panel opens; after opening the world a click extends (rivers
+   pregenerated, 302 ms), and after "Another world…" the kept copy serves.
+5. **New cap: `MAX_SITE_SIDE = 768` m a side** (the import still makes at most 384 m;
+   `siteCheck` and `parsePlan` accept up to 769 vertices). Measured at 766 × 584 / 766 ×
+   769 (headless Chrome 155, M4 Pro):
+   - plan size: heights 1.57 M base64 chars at 768², the whole autosave 1.75 M chars;
+     Chrome's localStorage holds about 5.2 M chars per origin (measured: 4.5 MiB of
+     characters fit, 4.9 MiB not), so 1024 m (2.8 M chars) would leave too little room
+     for the rest of a big plan. Serialising and `setItem` take ~1 ms each.
+   - main thread per new site: decode 2 ms, 3D surface 111 ms (447 k vertices; ~150 ms
+     at 768²), skirts 6 ms, contours 18 / 36 / 49 ms (5 / 1 / 0.5 m), hillshade 7 ms.
+   - an extension: the worker request 68–185 ms (restore 28–37 ms, strip 8–84 ms), then
+     a 50–133 ms long task building the new site's drawing (2D or 3D); undo/redo the same.
+   - entering 3D with the 768 m site: one ~150–200 ms long task on WebGPU (the surface
+     arrays; cached per site after that), 300–600 ms on `?webgl` as before (programs).
+   - **level steps after expansion** (PageUp/Down ×6, C ×8, a sweep over the Levels
+     rows, at opacity 1 and 0.4, and an opacity sweep), Boxes and Models, WebGPU and
+     `?webgl`, on the 766 × 769 site: **no long task and no new pipelines or programs.**
+   At the cap the handle reads "max 768 m" and is disabled; the other axis still grows.
+6. **Integrity, contours, hillshade, site marks, camera reach and the plate** follow the
+   new site with no change: they all read the plan's `SiteTerrain` (`getSiteGround`),
+   `siteReach` is the patch diagonal, and the plate is sized by the plan, not the patch.
+7. **Base64 decoding** (`siteTerrain.ts`) now fills typed arrays in plain loops
+   (`Uint8Array.from(atob(…), fn)` was the slow part at 1.5 M chars); `heightBytes`,
+   `encodeHeightBytes` and `decodeHeightBytes` expose the int16 bytes.
+8. **Open:** a handle can sit under the Levels bar or another bar over the canvas (pan
+   to free it); the 3D walls are drawn over everything (no depth test), which reads as a
+   UI layer. `App.tsx` gained one line (`<SiteExpandHandles />` in the canvas chrome).

@@ -67,11 +67,19 @@ export const AddTerrain = ({ world, task }: { world: LoadedWorld; task: TerrainT
   );
 };
 
-/** On the panel's start: which world to open to add the current plan's ground. */
+/**
+ * On the panel's start: which world to open to add the current plan's ground, or to
+ * extend it (the site's edge handles need the world; the plan doesn't keep it).
+ */
 export const AddTerrainHint = () => {
   const frame = usePlan().importFrame;
-  if (!frame || frame.terrain) return null;
-  return (
+  if (!frame) return null;
+  return frame.terrain ? (
+    <p className={styles.note}>
+      The current plan’s ground came from <strong>{frame.worldName}</strong>: open that world to
+      extend it from the handles at the site’s edges.
+    </p>
+  ) : (
     <p className={styles.note}>
       The current plan was imported from <strong>{frame.worldName}</strong> without its ground: open
       that world to add terrain to it.

@@ -39,6 +39,8 @@ export interface GroundGridOptions {
   coarse: boolean;
   /** Drawn on the terrain's own surface (depth-offset towards the camera). */
   draped?: boolean;
+  /** Fades the lines with the ground they lie on (the terrain's opacity), 0 to 1. */
+  opacity?: number;
 }
 
 /**
@@ -50,6 +52,7 @@ export interface GroundGridOptions {
 export const useGroundGrid = ({
   coarse,
   draped = false,
+  opacity = 1,
 }: GroundGridOptions): GridMaterialHandle => {
   const dpr = useThree((s) => s.viewport.dpr);
   const invalidate = useThree((s) => s.invalidate);
@@ -70,9 +73,9 @@ export const useGroundGrid = ({
   useEffect(() => () => grid.dispose(), [grid]);
 
   const levelAlpha = useMemo(() => {
-    const scale = gridAlphaScale * (draped ? DRAPED_STRENGTH : 1);
+    const scale = gridAlphaScale * (draped ? DRAPED_STRENGTH : 1) * opacity;
     return coarse ? strength3d(scale * COARSE_STRENGTH, COARSE_LEVELS) : strength3d(scale);
-  }, [coarse, draped, gridAlphaScale]);
+  }, [coarse, draped, opacity, gridAlphaScale]);
 
   useLayoutEffect(() => {
     grid.update({ levelAlpha, dpr, color: gridLine });

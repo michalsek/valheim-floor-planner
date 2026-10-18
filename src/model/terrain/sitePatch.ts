@@ -10,9 +10,15 @@ import { planToWorld, type SiteFrame } from './siteTerrain';
 
 /** Ground kept around the build (metres). */
 export const SITE_MARGIN = 64;
-/** A patch side's least and greatest length (metres; vertices are one more). */
+/** A patch side's least and greatest length on import (metres; vertices are one more). */
 export const MIN_SIDE = 128;
 export const MAX_SIDE = 384;
+/**
+ * The greatest a side may grow to when the site is extended from the view
+ * (`siteExtend.ts`), and so the most a stored patch may have: about 1.2 MB of heights
+ * in the plan (1.6 MB base64), which the localStorage autosave still holds.
+ */
+export const MAX_SITE_SIDE = 768;
 
 /** A patch: vertex (0, 0) at world (x0, z0), `cols` × `rows` vertices 1 m apart. */
 export interface PatchRect {

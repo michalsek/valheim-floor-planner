@@ -1,11 +1,13 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useAtomValue } from 'jotai';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { mix, texture, uniform, uv } from 'three/tsl';
 import {
   BufferGeometry,
   Color,
   DataTexture,
   Float32BufferAttribute,
+  type Group,
   LinearFilter,
   LineBasicNodeMaterial,
   MeshBasicNodeMaterial,
@@ -17,7 +19,9 @@ import { hillshade } from '../model/terrain/hillshade';
 import { worldToPlan } from '../model/terrain/siteTerrain';
 import { useThemeTokens, useViewport } from '../store/hooks';
 import { useShownSiteTerrain, type SiteGround } from '../store/siteTerrain';
+import { terrainOpacityAtom } from '../store/terrainOpacity';
 
+import { usePrewarm } from './usePrewarm';
 import { useRelease } from './useRelease';
 
 /** Under the level-below ghosts (−0.2) and everything else; contours just over it. */
@@ -56,8 +60,22 @@ const contourPositions = (ground: SiteGround, { step, except }: ContourSet): Flo
 
 const disposeGeometry = (geometry: BufferGeometry) => geometry.dispose();
 
-/** One interval's contour lines, in the theme's contour colour. */
-const Contours = ({ ground, set }: { ground: SiteGround; set: ContourSet }) => {
+/** A line material's colour and opacity (uniforms). */
+const styleLines = (material: LineBasicNodeMaterial, color: string, opacity: number) => {
+  material.color.set(color);
+  material.opacity = opacity;
+};
+
+/** One interval's contour lines, in the theme's contour colour, faded with the relief. */
+const Contours = ({
+  ground,
+  set,
+  opacity,
+}: {
+  ground: SiteGround;
+  set: ContourSet;
+  opacity: number;
+}) => {
   const invalidate = useThree((s) => s.invalidate);
   const { terrain } = useThemeTokens();
   const geometry = useMemo(() => {
@@ -71,9 +89,9 @@ const Contours = ({ ground, set }: { ground: SiteGround; set: ContourSet }) => {
   useRelease(geometry, disposeGeometry);
   useEffect(() => () => material.dispose(), [material]);
   useLayoutEffect(() => {
-    material.color.set(terrain.contour);
+    styleLines(material, terrain.contour, set.opacity * opacity);
     invalidate();
-  }, [material, terrain.contour, invalidate]);
+  }, [material, terrain.contour, set, opacity, invalidate]);
   return <lineSegments geometry={geometry} material={material} renderOrder={-2} />;
 };
 
@@ -121,61 +139,98 @@ const reliefQuad = ({ grid, frame }: SiteGround): BufferGeometry => {
 };
 
 /**
- * The relief's material: the theme's shade and light colours mixed by the hillshade,
- * then the water colour where the ground is under the sea. A theme switch only sets
- * uniforms.
+ * The relief's materials: the theme's shade and light colours mixed by the hillshade,
+ * then the water colour where the ground is under the sea; solid, and a see-through twin
+ * for an opacity below 1 (an underlay under the canvas shows through it). A theme switch
+ * or the slider only sets uniforms.
  */
-const createReliefMaterial = (map: DataTexture) => {
+const createReliefMaterials = (map: DataTexture) => {
   const shade = uniform(new Color());
   const light = uniform(new Color());
   const water = uniform(new Color());
   const texel = texture(map, uv());
+  const colorNode = mix(mix(shade, light, texel.r), water, texel.g.mul(WATER_MIX));
   const material = new MeshBasicNodeMaterial();
-  material.colorNode = mix(mix(shade, light, texel.r), water, texel.g.mul(WATER_MIX));
-  return { material, shade, light, water };
+  material.colorNode = colorNode;
+  const seeThrough = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  seeThrough.colorNode = colorNode;
+  return { material, seeThrough, shade, light, water };
+};
+
+type ReliefMaterials = ReturnType<typeof createReliefMaterials>;
+
+/** The theme's relief colours and the see-through twin's opacity (uniforms). */
+const styleRelief = (
+  relief: ReliefMaterials,
+  colors: { shade: string; light: string; water: string },
+  opacity: number
+) => {
+  relief.shade.value.set(colors.shade);
+  relief.light.value.set(colors.light);
+  relief.water.value.set(colors.water);
+  relief.seeThrough.opacity = opacity;
 };
 
 const disposeRelief = (resources: {
   map: DataTexture;
   quad: BufferGeometry;
   material: MeshBasicNodeMaterial;
+  seeThrough: MeshBasicNodeMaterial;
 }) => {
   resources.map.dispose();
   resources.quad.dispose();
   resources.material.dispose();
+  resources.seeThrough.dispose();
 };
 
-const Relief = ({ ground }: { ground: SiteGround }) => {
+const Relief = ({ ground, opacity }: { ground: SiteGround; opacity: number }) => {
   const invalidate = useThree((s) => s.invalidate);
   const { terrain } = useThemeTokens();
   const resources = useMemo(() => {
     const map = reliefTexture(ground);
-    return { map, quad: reliefQuad(ground), ...createReliefMaterial(map) };
+    return { map, quad: reliefQuad(ground), ...createReliefMaterials(map) };
   }, [ground]);
   useRelease(resources, disposeRelief);
   useLayoutEffect(() => {
-    resources.shade.value.set(terrain.shade);
-    resources.light.value.set(terrain.light);
-    resources.water.value.set(terrain.water);
+    styleRelief(resources, terrain, opacity);
     invalidate();
-  }, [resources, terrain, invalidate]);
-  return <mesh geometry={resources.quad} material={resources.material} renderOrder={-3} />;
+  }, [resources, terrain, opacity, invalidate]);
+  const root = useRef<Group>(null);
+  usePrewarm(root, resources);
+  return (
+    <group ref={root}>
+      <mesh
+        geometry={resources.quad}
+        material={resources.material}
+        visible={opacity >= 1}
+        renderOrder={-3}
+      />
+      <mesh
+        geometry={resources.quad}
+        material={resources.seeThrough}
+        visible={opacity < 1 && opacity > 0}
+        renderOrder={-3}
+      />
+    </group>
+  );
 };
 
 /**
  * A site's ground in 2D, under the grid: the hillshade (lit from the plan's upper left)
  * with the sea tinted, and contour lines at plan heights (so the 0 line is datum 0),
  * thinning as the view zooms out: 5 m always, 1 m from 3 px/m, 0.5 m from 12 px/m.
+ * Both fade with the terrain's opacity (the slider beside the Terrain toggle).
  */
 export const Terrain2d = () => {
   const ground = useShownSiteTerrain();
   const { zoom } = useViewport();
+  const opacity = useAtomValue(terrainOpacityAtom);
   if (!ground) return null;
   return (
     <>
-      <Relief ground={ground} />
+      <Relief ground={ground} opacity={opacity} />
       {CONTOURS.filter((set) => zoom >= set.minZoom).map((set) => (
-        <Contours key={set.step} ground={ground} set={set} />
+        <Contours key={set.step} ground={ground} set={set} opacity={opacity} />
       ))}
     </>
   );
