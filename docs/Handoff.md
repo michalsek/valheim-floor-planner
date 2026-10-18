@@ -32,7 +32,7 @@ Other reference documents:
   2. An implementation agent builds it.
   3. One combined QA and code-review agent checks it.
   4. The same implementer runs the fix round.
-  5. The orchestrator commits the milestone to `main`. Commit and push are pre-authorised; there is no git remote.
+  5. The orchestrator commits the milestone to `main` (pre-authorised). The repo is meant to be published on GitHub; pushing is the owner's call, so ask before any push. History was rewritten on 2026-10-18 to drop `docs/plans/`, `research/extract/` and `research/valheim-*.json`, which live in the private satellite repo at `private/` (commit there separately; never add `private/` to this repo).
 - **Pause points:**
   - After each visual milestone, pause for the user's review, with screenshots.
   - Weekly usage: since 2026-10-18 the user asked not to gate work on it.
