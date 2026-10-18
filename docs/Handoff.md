@@ -74,6 +74,6 @@ Other reference documents:
 
 Goals A (terrain, M16 Stage 1) and B (level clarity, M15) from the previous handoff are done and reviewed by the user. Options for next:
 - **M16 Stage 2** (`docs/plans/M16.md` §5): terrain flattening built into location prefabs (ruins, dolmens; the only remaining height outliers, within 25 m of a location), Ashlands and Deep North height functions, seed-only sites (pick a spot on a world map without a build).
-- **The roof-tool seating fix:** a roof drawn on a level with no walls under it now rests on lower walls whose tops reach that level. It is uncommitted on branch `claude/xenodochial-bhaskara-b9d105` (its own worktree); review and merge it.
+- ~~The roof-tool seating fix~~: merged into main (roofs drawn at a lower storey's wall tops rest on those walls).
 - **M13 Stage 2:** orthogonal reconstruction of imported builds, and the PlanBuild `.blueprint` export idea.
 - **The `docs/Findings.md` backlog**, including the M16 out-of-scope list (§8.10) and the open items in the M16 pass sections.
