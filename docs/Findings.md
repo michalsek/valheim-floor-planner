@@ -1334,3 +1334,29 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
    (read once, written on set, all in try/catch), used by `realLookAtom` and
    `plateFrostAtom`.
 7. **Not exercised:** Safari and Firefox.
+
+## From M17 pass 1A (snapping engine)
+
+1. **Snap order is the game's Q/E order.** UnityPy over all 398 hammer prefabs: 895 snap
+   points, every one a direct child of the prefab root, so the extractor's level-by-level
+   walk lists them in child order. `woodwall`, `wood_roof_45` and `wood_floor` match the
+   fixture point for point (`$hud_snappoint_top 1, top 2, bottom 1, bottom 2` for the wall).
+2. **Goldens on the import** (`test:world`, aggregates only): 1,117 / 1,118 pieces with
+   snap points share one with a neighbour within 3 cm; `snapPose` brings a nudged piece
+   back within 3 cm for 98.4 % (0.15, 0.05, −0.1 m) and 97.7 % (−0.3, 0.1, 0.25 m), and
+   80.2 % for a pure 0.3 m lift (the duplicate rule now drops the hops onto a taken
+   place; the plan's experiment, without it, had 98–99 % and 79 %).
+3. **Engine cost per pointer move** (Node, the import's 1,140 boxes, a wall ghost, 300
+   rays): `buildHit` 0.4 ms, `basePose` 0.02 ms, `snapPose` 0.02 ms, overlap 0.07 ms;
+   the snap index builds in ~8 ms once per box list (cached).
+4. **Targets within 10 m** are measured per carried piece (its own pivot to the target's
+   bounds), not only from the anchor: for one piece it is the game's rule, and a large
+   carried set still snaps at its far end.
+5. **The floor-on-a-wall-top case** works as in the game only when aimed at the wall's
+   face near its top (the floor is pushed out along that face's normal, its corner then
+   within 0.5 m of the wall's top corner). Aimed down onto the wall top, a 2 × 2 floor
+   centres on the hit, its corners at least 0.85 m from any wall snap point, so it doesn't
+   snap; that is the IL's push-out rule, kept as is.
+6. **`rayTerrain`** marches only the part of the ray over the patch's plan bounds and
+   within its height range (± 1 cm), so a near-horizontal ray stays cheap; crossings from
+   below don't count (the ground is drawn from above only).

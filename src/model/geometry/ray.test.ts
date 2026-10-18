@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeVec3, pickBoxes, rayBox, rayPiece, type Ray3 } from './ray';
+import { normalizeVec3, pickBoxes, rayBox, rayPiece, rayPieceHit, type Ray3 } from './ray';
 
 const down = (x: number, z: number): Ray3 => ({
   origin: { x, y: 10, z },
@@ -65,6 +65,49 @@ describe('tilted boxes and shapes', () => {
     // Beside the low corner the top is near the bottom; the box would have been hit at its top.
     expect(rayPiece(down(0.9, 0.9), corner)).toBeCloseTo(10 - 0.05, 1);
     expect(rayPiece(down(3, 0), corner)).toBeNull();
+  });
+});
+
+describe('rayPieceHit normals', () => {
+  const close = (v: { x: number; y: number; z: number }) =>
+    [v.x, v.y, v.z].map((c) => Math.round(c * 1e6) / 1e6 + 0);
+
+  it('gives each face of a turned box its world normal', () => {
+    // Turned 90° counter-clockwise: local +x points to world −z, local +z to world +x.
+    const box = {
+      center: { x: 0, y: 0, z: 0 },
+      size: { x: 1, y: 1, z: 1 },
+      rotationY: Math.PI / 2,
+    };
+    for (const n of [
+      { x: 0, y: 0, z: -1 },
+      { x: 0, y: 0, z: 1 },
+      { x: 0, y: 1, z: 0 },
+      { x: 0, y: -1, z: 0 },
+      { x: 1, y: 0, z: 0 },
+      { x: -1, y: 0, z: 0 },
+    ]) {
+      const ray = {
+        origin: { x: 5 * n.x, y: 5 * n.y, z: 5 * n.z },
+        dir: { x: -n.x, y: -n.y, z: -n.z },
+      };
+      const hit = rayPieceHit(ray, box);
+      expect(hit?.t).toBeCloseTo(4.5);
+      expect(close(hit!.normal)).toEqual(close(n));
+    }
+  });
+
+  it("gives a ridge's slopes their normals, facing the ray", () => {
+    // 2 m across, 1 m rise: each slope at 45°, low at z ±1, the ridge at z 0.
+    const ridge = {
+      center: { x: 0, y: 0.5, z: 0 },
+      size: { x: 2, y: 1, z: 2 },
+      rotationY: 0,
+      shape: 'ridge' as const,
+    };
+    const s = Math.SQRT1_2;
+    expect(close(rayPieceHit(down(0, -0.5), ridge)!.normal)).toEqual(close({ x: 0, y: s, z: -s }));
+    expect(close(rayPieceHit(down(0, 0.5), ridge)!.normal)).toEqual(close({ x: 0, y: s, z: s }));
   });
 });
 

@@ -7,9 +7,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { testLibrary } from '../../../catalog/testLibrary';
+import { rawPivot, setFromRaw, rawPose } from '../../../model/build/ghostSet';
+import { snapPose } from '../../../model/build/placement';
+import { boxSnapPoints, snapIndex, snapsNear } from '../../../model/build/snapPoints';
 import { rotate } from '../../../model/geometry/propGeometry';
+import { pieceBoxes } from '../../../model/pieceBoxes';
 import { parsePlan, serializePlan } from '../../../model/serialize';
-import type { RawPiece } from '../../../model/types';
+import type { Plan, RawPiece, Vec3 } from '../../../model/types';
 import { describeCluster, groupPieces } from '../../../model/world/clusters';
 import { importCluster } from '../../../model/world/importCluster';
 import { cloudPiece } from '../../../model/world/pieceCloud';
@@ -149,5 +153,73 @@ describe.skipIf(!dir)('a real world save', () => {
     console.info(`Continuity: ${JSON.stringify(all)}; off the grid ${JSON.stringify(diagonal)}`);
     expect(all.along).toBeGreaterThan(10 * all.across);
     expect(diagonal).toEqual({ along: 2, across: 0 });
+  });
+
+  describe('snapping (M17)', () => {
+    let plan!: Plan;
+    beforeAll(() => {
+      const groups = groupPieces(pieces);
+      plan = importCluster(
+        pieces,
+        describeCluster(pieces, groups[0]!, () => null),
+        testLibrary,
+        ''
+      ).plan;
+    });
+    const dist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    const rate = (n: number, of: number) => `${n} / ${of} (${((100 * n) / of).toFixed(1)} %)`;
+
+    it("shares a snap point with a neighbour (the catalogue's snap points match the build)", () => {
+      const boxes = pieceBoxes({ pieces: [], roofPieces: [] }, plan, testLibrary);
+      const index = snapIndex(boxes, testLibrary);
+      const withSnaps = boxes.filter((box) => boxSnapPoints(box, testLibrary).length > 0);
+      const coincident = withSnaps.filter((box) =>
+        boxSnapPoints(box, testLibrary).some((p) =>
+          snapsNear(index, p, 0.03).some((t) => index.boxes[t.box] !== box)
+        )
+      );
+      console.info(`Snap coincidence within 3 cm: ${rate(coincident.length, withSnaps.length)}`);
+      expect(withSnaps.length).toBe(1_118);
+      expect(coincident.length).toBeGreaterThanOrEqual(1_117);
+    });
+
+    it('snaps a nudged piece back onto its place', () => {
+      const raw = Object.values(plan.rawPieces);
+      const boxes = pieceBoxes({ pieces: [], roofPieces: [] }, plan, testLibrary);
+      const index = snapIndex(boxes, testLibrary);
+      const nudges = [
+        { x: 0.15, y: 0.05, z: -0.1 },
+        { x: -0.3, y: 0.1, z: 0.25 },
+        { x: 0, y: 0.3, z: 0 },
+      ];
+      const back = nudges.map((nudge) => {
+        let n = 0;
+        let ok = 0;
+        raw.forEach((piece, i) => {
+          const self = boxes[i]!;
+          if (boxSnapPoints(self, testLibrary).length === 0) return;
+          n++;
+          const pose = rawPose(piece);
+          const base = {
+            ...pose,
+            pivot: {
+              x: pose.pivot.x + nudge.x,
+              y: pose.pivot.y + nudge.y,
+              z: pose.pivot.z + nudge.z,
+            },
+          };
+          const set = setFromRaw([piece], piece.id);
+          const snapped = snapPose(base, set, index, {
+            lib: testLibrary,
+            ignore: (b) => b === self,
+          });
+          if (dist(snapped.pose.pivot, rawPivot(piece)) <= 0.03) ok++;
+        });
+        console.info(`Back within 3 cm from ${JSON.stringify(nudge)}: ${rate(ok, n)}`);
+        return ok / n;
+      });
+      expect(back[0]).toBeGreaterThanOrEqual(0.97);
+      expect(back[1]).toBeGreaterThanOrEqual(0.97);
+    });
   });
 });

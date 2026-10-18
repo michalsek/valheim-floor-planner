@@ -1,7 +1,7 @@
 /** Rays in 3D and their hits on pieces' boxes and shapes (the 3D view's picking). Pure. */
 import type { Vec3 } from '../types';
 
-import { toLocal, toLocalDir, type OrientedBox } from './orient';
+import { boxAxes, toLocal, toLocalDir, type OrientedBox } from './orient';
 import { SHAPE_TRIANGLES } from './shapes';
 
 export interface Ray3 {
@@ -27,17 +27,26 @@ export const normalizeVec3 = (v: Vec3): Vec3 => scaleVec3(v, 1 / Math.hypot(v.x,
 
 export const pointOnRay = (r: Ray3, t: number): Vec3 => addVec3(r.origin, scaleVec3(r.dir, t));
 
+/** A hit on a piece: how far along the ray, and the surface's unit normal there (facing the ray). */
+export interface RayHit {
+  t: number;
+  normal: Vec3;
+}
+
+const AXES = ['x', 'y', 'z'] as const;
+
 /**
- * Where the ray enters the box (distance along it), or null when it misses. A ray that
- * starts inside a box doesn't hit it: front faces only are drawn, so the camera sees
- * out of it. Slab test in the box's own frame.
+ * Where the ray enters the box, and the entry face's world normal; null when it misses.
+ * A ray that starts inside a box doesn't hit it: front faces only are drawn, so the
+ * camera sees out of it. Slab test in the box's own frame.
  */
-export const rayBox = (r: Ray3, box: TurnedBox): number | null => {
+export const rayBoxHit = (r: Ray3, box: TurnedBox): RayHit | null => {
   const origin = toLocal(r.origin, box);
   const dir = toLocalDir(r.dir, box);
   let near = -Infinity;
   let far = Infinity;
-  for (const axis of ['x', 'y', 'z'] as const) {
+  let face = { axis: 0, sign: 1 };
+  for (const [i, axis] of AXES.entries()) {
     const half = box.size[axis] / 2;
     if (Math.abs(dir[axis]) < 1e-12) {
       if (Math.abs(origin[axis]) > half) return null;
@@ -45,11 +54,18 @@ export const rayBox = (r: Ray3, box: TurnedBox): number | null => {
     }
     const t1 = (-half - origin[axis]) / dir[axis];
     const t2 = (half - origin[axis]) / dir[axis];
-    near = Math.max(near, Math.min(t1, t2));
+    if (Math.min(t1, t2) > near) {
+      near = Math.min(t1, t2);
+      face = { axis: i, sign: dir[axis] > 0 ? -1 : 1 };
+    }
     far = Math.min(far, Math.max(t1, t2));
   }
-  return near <= far && near >= 0 ? near : null;
+  if (!(near <= far && near >= 0)) return null;
+  return { t: near, normal: scaleVec3(boxAxes(box)[face.axis]!, face.sign) };
 };
+
+/** Where the ray enters the box (distance along it), or null (see `rayBoxHit`). */
+export const rayBox = (r: Ray3, box: TurnedBox): number | null => rayBoxHit(r, box)?.t ?? null;
 
 /** Möller–Trumbore: the distance along the ray to a triangle, either side; null on a miss. */
 const rayTriangle = (o: Vec3, d: Vec3, tri: Float32Array, at: number): number | null => {
@@ -70,26 +86,43 @@ const rayTriangle = (o: Vec3, d: Vec3, tri: Float32Array, at: number): number | 
 };
 
 /**
- * Where the ray first meets a shaped box's triangles, or null. Tested in the unit box
- * (an affine map keeps distances along the ray).
+ * Where the ray first meets a shaped box's triangles, and that triangle's world normal
+ * (facing the ray); null on a miss. Tested in the unit box (an affine map keeps
+ * distances along the ray); normals go back by the inverse transpose of the scale.
  */
-export const rayShape = (r: Ray3, box: TurnedBox): number | null => {
+export const rayShapeHit = (r: Ray3, box: TurnedBox): RayHit | null => {
   const { size } = box;
   const scale = (v: Vec3): Vec3 => ({ x: v.x / size.x, y: v.y / size.y, z: v.z / size.z });
   const origin = scale(toLocal(r.origin, box));
   const dir = scale(toLocalDir(r.dir, box));
   const tris = SHAPE_TRIANGLES[box.shape ?? 'box'];
-  let best: number | null = null;
+  let best: { t: number; at: number } | null = null;
   for (let at = 0; at < tris.length; at += 9) {
     const t = rayTriangle(origin, dir, tris, at);
-    if (t !== null && (best === null || t < best)) best = t;
+    if (t !== null && (best === null || t < best.t)) best = { t, at };
   }
-  return best;
+  if (best === null) return null;
+  const vertex = (k: number): Vec3 => ({
+    x: tris[best.at + 3 * k]!,
+    y: tris[best.at + 3 * k + 1]!,
+    z: tris[best.at + 3 * k + 2]!,
+  });
+  const a = vertex(0);
+  const unit = crossVec3(subVec3(vertex(1), a), subVec3(vertex(2), a));
+  const [ax, ay, az] = boxAxes(box);
+  const n = scale(unit);
+  const world = normalizeVec3(
+    addVec3(addVec3(scaleVec3(ax, n.x), scaleVec3(ay, n.y)), scaleVec3(az, n.z))
+  );
+  return { t: best.t, normal: dotVec3(world, r.dir) > 0 ? scaleVec3(world, -1) : world };
 };
 
+/** The ray against what the box holds (the box itself, or its shape), with the normal. */
+export const rayPieceHit = (r: Ray3, box: TurnedBox): RayHit | null =>
+  (box.shape ?? 'box') === 'box' ? rayBoxHit(r, box) : rayShapeHit(r, box);
+
 /** The ray against what the box holds: the box itself, or its shape. */
-export const rayPiece = (r: Ray3, box: TurnedBox): number | null =>
-  (box.shape ?? 'box') === 'box' ? rayBox(r, box) : rayShape(r, box);
+export const rayPiece = (r: Ray3, box: TurnedBox): number | null => rayPieceHit(r, box)?.t ?? null;
 
 /** The nearest box the ray enters, and how far along the ray; null when it misses all. */
 export const pickBoxes = <B extends TurnedBox>(
