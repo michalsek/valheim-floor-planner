@@ -9,13 +9,18 @@ import { GhostBoxes } from '../../scene/view3d/GhostBoxes';
 import { PlaneLines } from '../../scene/view3d/PlaneLines';
 import { useThemeTokens } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
+import { workDatumAtom } from '../../store/session';
 
 import { roofPreviewAtom } from './roofState';
 import { ROOF_LABEL_GAP, ROOF_LINE_HEIGHT, roofPreviewLines } from './RoofWorldPreview';
 
-/** The roof a click would add: ghost pieces at their heights, and its outline on the level. */
+/**
+ * The roof a click would add: ghost pieces at their heights (on the walls below when it
+ * rests on a lower level's), and its outline on the work plane.
+ */
 export const RoofPreview3d = () => {
   const preview = useAtomValue(roofPreviewAtom);
+  const datum = useAtomValue(workDatumAtom);
   const { ink } = useThemeTokens();
   const boxes = useMemo(
     () => (preview ? roofPieceBoxes(preview.tiling.pieces, getLibrary()) : []),
@@ -28,7 +33,10 @@ export const RoofPreview3d = () => {
   if (!preview) return null;
   return (
     <>
-      <GhostBoxes boxes={boxes} />
+      {/* The pieces stand at the roof's own elevation; the view lifts previews by the datum. */}
+      <group position-y={-datum}>
+        <GhostBoxes boxes={boxes} />
+      </group>
       <PlaneLines lines={lines} color={ink.accent} />
     </>
   );

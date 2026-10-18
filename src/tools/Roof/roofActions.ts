@@ -6,7 +6,8 @@ import { getLibrary } from '../../store/libraryInstance';
 import { commitCommands } from '../Select/selectActions';
 import type { ToolContext } from '../types';
 
-import { outlineAt, wallTopUnder } from './roofPlacement';
+import { outlineAt } from './roofPlacement';
+import { roofSeat } from './roofSeat';
 import { isRectangle } from './roofState';
 import type { RoofFields } from './RoofSettingsFields';
 
@@ -57,19 +58,24 @@ const insidePoint = (outline: readonly Vec2[]): Vec2 | null => {
 
 /**
  * Re-reads the room under the roof (its building when the roof covered more than the
- * room) and the wall tops around it; roofs don't follow wall edits by themselves.
- * False when there is no room under it.
+ * room) and the wall tops around it, seating it on lower walls that reach its level
+ * (`roofSeat`); roofs don't follow wall edits by themselves. False when there is no
+ * room under it.
  */
 export const refitRoof = (ctx: ToolContext, roof: Roof): boolean => {
-  const plan = levelPlan(ctx.plan.getPlan(), roof.elevation, getLibrary());
+  const all = ctx.plan.getPlan();
+  const walls = Object.values(all.walls);
   const p = insidePoint(roof.outline);
-  const room = p && outlineAt(plan, p, false);
-  if (!p || !room) return false;
+  if (!p) return false;
+  // The rooms of the level whose walls hold it up (a roof drawn at their tops).
+  const plan = levelPlan(all, roofSeat(walls, roof.outline, roof.elevation).elevation, getLibrary());
+  const room = outlineAt(plan, p, false);
+  if (!room) return false;
   const building = ringArea(roof.outline) > ringArea(room) ? outlineAt(plan, p, true) : null;
   const outline = building ?? room;
   const changes: Partial<Roof> = {
     outline,
-    base: wallTopUnder(plan, outline, roof.elevation),
+    ...roofSeat(walls, outline, roof.elevation),
     ...(isRectangle(outline) ? {} : { kind: 'hip' }),
   };
   return patchRoof(ctx, roof, changes, 'Re-fit roof');

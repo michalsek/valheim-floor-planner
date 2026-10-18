@@ -3,11 +3,13 @@ import { atom } from 'jotai';
 import { DEFAULT_ROOF_FAMILY_ID } from '../../catalog';
 import type { RoofPitch } from '../../catalog/roofFamilies';
 import { formatCompact } from '../../format';
+import { sameLevel } from '../../model/elevation';
 import { ringBox } from '../../model/geometry/rings';
 import { roofProblem } from '../../model/roofs/roofCheck';
 import { tileRoof, type RoofTiling } from '../../model/roofs/tileRoof';
 import type { Roof, RoofKind, RoofOverhang, RoofSide, Vec2 } from '../../model/types';
 import { getLibrary } from '../../store/libraryInstance';
+import { workDatumAtom } from '../../store/session';
 
 /** The roof tool's settings (session state: never in history). */
 export interface RoofSettings {
@@ -38,7 +40,9 @@ export const roofSettingsAtom = atom<RoofSettings>({
 /** What a click would roof: a room, a building, or a dragged rectangle (session state). */
 export interface RoofDraft {
   outline: Vec2[];
-  /** The wall tops' height above the level. */
+  /** The level it is stored on: the work level, or the lower one whose walls hold it up. */
+  elevation: number;
+  /** The wall tops' height above that level. */
   base: number;
   source: 'room' | 'building' | 'drag';
 }
@@ -57,17 +61,12 @@ export const pitchFor = (familyId: string, pitch: RoofPitch): RoofPitch => {
 
 export const isRectangle = (outline: readonly Vec2[]): boolean => outline.length === 4;
 
-/** The roof a draft makes with these settings, at `elevation`. */
-export const roofFromDraft = (
-  draft: RoofDraft,
-  settings: RoofSettings,
-  id: string,
-  elevation: number
-): Roof => {
+/** The roof a draft makes with these settings. */
+export const roofFromDraft = (draft: RoofDraft, settings: RoofSettings, id: string): Roof => {
   const { w, d } = ringBox(draft.outline);
   return {
     id,
-    elevation,
+    elevation: draft.elevation,
     base: draft.base,
     outline: draft.outline,
     familyId: settings.familyId,
@@ -82,8 +81,10 @@ export const roofFromDraft = (
 };
 
 export interface RoofPreview {
-  /** At elevation 0: the 3D view lifts previews onto the current level. */
+  /** At its own elevation, as a click would add it. */
   roof: Roof;
+  /** The lower level it rests on when that isn't the work level, else null. */
+  seatedOn: number | null;
   /** Why it can't be built (off the grid), or null. */
   problem: string | null;
   tiling: RoofTiling;
@@ -95,10 +96,11 @@ export const roofPreviewAtom = atom<RoofPreview | null>((get) => {
   const draft = get(roofDraftAtom);
   if (!draft) return null;
   const settings = get(roofSettingsAtom);
-  const roof = roofFromDraft(draft, settings, 'preview', 0);
+  const roof = roofFromDraft(draft, settings, 'preview');
   const problem = roofProblem(roof);
   return {
     roof,
+    seatedOn: sameLevel(roof.elevation, get(workDatumAtom)) ? null : roof.elevation,
     problem,
     tiling: problem ? { pieces: [], warnings: [] } : tileRoof(roof, getLibrary()),
     forcedHip: roof.kind !== settings.kind,

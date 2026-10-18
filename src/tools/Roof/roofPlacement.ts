@@ -1,20 +1,13 @@
 /**
  * Where the roof tool puts a roof: the room (or, with Shift, the building) under the
- * pointer, or a dragged rectangle; and the wall tops it rests on.
+ * pointer, or a dragged rectangle (`roofSeat` says what it rests on).
  */
-import { sameLevel } from '../../model/elevation';
-import { distanceToSegment } from '../../model/geometry/measure';
-import { runSegments, signedArea } from '../../model/geometry/polyline';
+import { signedArea } from '../../model/geometry/polyline';
 import { regionFromRings, regionRings, union } from '../../model/geometry/region';
 import { pointInRing, simplifyRing, type Ring } from '../../model/geometry/rings';
 import type { Room } from '../../model/rooms';
 import type { Plan, Vec2 } from '../../model/types';
 import { getDerived } from '../../store/planHooks';
-
-/** A wall's line passes this close to an outline edge's middle to hold it up (metres). */
-const ON_EDGE = 0.05;
-/** The wall top a roof gets with no walls under it (metres above the level). */
-const DEFAULT_BASE = 2;
 
 const clockwise = (ring: readonly Vec2[]): Ring => {
   const simple = simplifyRing(ring);
@@ -41,23 +34,6 @@ export const outlineAt = (plan: Plan, p: Vec2, building: boolean): Ring | null =
   );
   const ring = regionRings(region).find((r) => signedArea(r) > 0 && pointInRing(p, r));
   return ring ? clockwise(ring) : clockwise(room.grid);
-};
-
-/**
- * The height of the tallest wall top along the outline above the level (the walls the
- * roof rests on); any wall's on the level without such walls, else 2 m.
- */
-export const wallTopUnder = (plan: Plan, outline: readonly Vec2[], elevation: number): number => {
-  const walls = Object.values(plan.walls).filter((w) => sameLevel(w.elevation, elevation));
-  const mids = outline.map((a, i) => {
-    const b = outline[(i + 1) % outline.length]!;
-    return { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
-  });
-  const under = walls.filter((w) =>
-    runSegments(w).some((s) => mids.some((m) => distanceToSegment(m, s.a, s.b) < ON_EDGE))
-  );
-  const heights = (under.length > 0 ? under : walls).map((w) => w.height);
-  return heights.length > 0 ? Math.max(...heights) : DEFAULT_BASE;
 };
 
 /** A rectangle from two corners, clockwise; null when it is narrower than 2 m. */
