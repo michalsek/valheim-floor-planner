@@ -119,6 +119,16 @@ export const rawOutlineArea = (piece: RawPiece, lib: RawShapeLib): number =>
 export const isRawRoof = (piece: RawPiece, lib: RawShapeLib): boolean =>
   level(piece) && rawRoofDef(lib, piece.prefab) !== undefined;
 
+/**
+ * Whether the piece covers a roof (a roof family's straight, ridge or corner piece, at
+ * any tilt): hidden with the Roofs toggle, as a derived roof's cells are. Gable walls,
+ * the Roof Cross among them, stay.
+ */
+export const isRawRoofCover = (piece: RawPiece, lib: RawShapeLib): boolean => {
+  const role = rawRoofDef(lib, piece.prefab)?.role;
+  return role !== undefined && role !== 'gableTri' && role !== 'gablePeak';
+};
+
 /** A raw piece's box; its model goes at the pivot, turned the game's way. */
 export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
   const item = { kind: 'raw', id: piece.id } as const;
@@ -136,6 +146,7 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
     ...withoutZeros(bodyOf(piece, lib, item, hit)),
     prefab: piece.prefab,
     ...(level(piece) ? {} : { modelTurn: { x: frame.tiltX, y: frame.rotationY, z: frame.rollZ } }),
+    ...(isRawRoofCover(piece, lib) ? { roofCover: true as const } : {}),
   };
 };
 

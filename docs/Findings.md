@@ -981,3 +981,26 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 11. From the plan's out-of-scope list, still open: a 2D preview of the hovered level, an
     adjustable cut height and a clip-plane cut with caps, hiding whole lower-level items,
     level names, a "y" readout, a camera-following walls cut-away.
+
+## From the M15 QA follow-ups (roof models, raw roofs and the Roofs toggle)
+
+1. **The "roof model floats above its walls" case is not a model or pivot bug.** In the
+   QA's hand-built house, the roof was drawn on level +4 (the wall tops of the +2
+   storey). The roof tool only looks at walls on the work level, found none, and gave the
+   roof the 2 m default base, so its eave sat at 6 m on walls that top out at 4 m. Boxes
+   were 2 m up too (Integrity: "37 pieces would collapse … edges don't rest on a wall").
+   The QA's Boxes shot was taken from high above, so the gap didn't show. With the roof
+   on +2 (base 2), Models and Boxes both sit on the walls. Measured pivots: the eave
+   snap line is at 3.5 m, 0.5 m below the 4 m wall top, which is right for a 1 m eave
+   at 26°. Not fixed: when no walls on the work level are under the outline, the roof
+   tool could seat the roof on lower walls whose tops reach the work level (their
+   elevation, base = their height), because `base` must stay above 0.
+2. **Imported roof covers follow the Roofs toggle** (`isRawRoofCover`, `rawBoxes.ts`).
+   This covers a roof family's straight, ridge and corner pieces at any tilt. In 3D they
+   are dropped with derived roof covers (`roofCover`), so the 3D view and 3D Pick agree
+   through `getShownBoxes`. In 2D their outlines are hidden and tools can't pick them
+   (`levelView`). The Roofs button now also shows for a plan with only imported roofs;
+   before, a pure import had no button at all. Gable walls stay shown, as they do for
+   derived roofs, and that includes the Roof Cross (`wood_wall_roof_top*`, listed as
+   "Wood Roof Cross"). So an import with roofs hidden keeps its crosses at the gable
+   apexes.

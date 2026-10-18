@@ -2,8 +2,10 @@ import { useAtom } from 'jotai';
 
 import { ToggleButton } from '../../controls/ToggleButton';
 import { formatNumber, formatZoom } from '../../format';
+import { isRawRoofCover } from '../../model/rawBoxes';
 import type { Plan } from '../../model/types';
 import { useCursor, useRendererBackend, useViewMode, useViewport } from '../../store/hooks';
+import { getLibrary } from '../../store/libraryInstance';
 import { usePlanSelector } from '../../store/planHooks';
 import { roofsVisibleAtom, showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
 
@@ -16,7 +18,9 @@ import { ViewToggle } from './ViewToggle';
 import { WorldButton } from '../WorldPanel/WorldButton';
 
 const hasUnderlay = (plan: Plan) => plan.underlay !== null;
-const hasRoofs = (plan: Plan) => Object.keys(plan.roofs).length > 0;
+const hasRoofs = (plan: Plan) =>
+  Object.keys(plan.roofs).length > 0 ||
+  Object.values(plan.rawPieces).some((piece) => isRawRoofCover(piece, getLibrary()));
 
 /** Show every ring, roofs (when there are any), and the underlay (when there is one). */
 const LayerToggles = () => {

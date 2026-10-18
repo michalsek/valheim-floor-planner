@@ -1,9 +1,12 @@
+import { useAtomValue } from 'jotai';
+
 import { materialVar } from '../catalog/materialColors';
-import { isRawRoof, rawOutline } from '../model/rawBoxes';
+import { isRawRoof, isRawRoofCover, rawOutline } from '../model/rawBoxes';
 import { rawDef } from '../model/rawPieces';
 import type { Plan, RawPiece } from '../model/types';
 import { getLibrary } from '../store/libraryInstance';
 import { useGhostPlan, useLevelPlan } from '../store/planHooks';
+import { roofsVisibleAtom } from '../store/session';
 
 import { footprintStyle } from './footprintStyle';
 import styles from './Footprints.module.css';
@@ -34,13 +37,20 @@ const RawFootprint = ({ piece }: { piece: RawPiece }) => {
   );
 };
 
-const Footprints = ({ plan }: { plan: Pick<Plan, 'rawPieces'> }) => (
-  <>
-    {inDrawOrder(plan).map((piece) => (
-      <RawFootprint key={piece.id} piece={piece} />
-    ))}
-  </>
-);
+/** The plan's raw pieces; roof covers only while roofs are shown. */
+const Footprints = ({ plan }: { plan: Pick<Plan, 'rawPieces'> }) => {
+  const roofsVisible = useAtomValue(roofsVisibleAtom);
+  const lib = getLibrary();
+  return (
+    <>
+      {inDrawOrder(plan)
+        .filter((piece) => roofsVisible || !isRawRoofCover(piece, lib))
+        .map((piece) => (
+          <RawFootprint key={piece.id} piece={piece} />
+        ))}
+    </>
+  );
+};
 
 /**
  * The current level's raw pieces (an imported build) as their outlines from above;

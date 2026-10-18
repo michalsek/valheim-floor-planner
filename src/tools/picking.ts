@@ -20,6 +20,7 @@ import { boxCorners } from '../model/geometry/orient';
 import { ITEM_KINDS } from '../model/itemKinds';
 import { cutAway, ghostPlan, levelPlan } from '../model/levels';
 import type { PieceBox } from '../model/pieceBoxes';
+import { isRawRoofCover } from '../model/rawBoxes';
 import { handleWallId, type SelectionItem } from '../model/selection';
 import type { Plan, Vec2, Vec3, WallId } from '../model/types';
 import { wallExtents } from '../model/wallGraph';
@@ -57,17 +58,27 @@ export const dragThresholdPx = (ctx: ToolContext): number =>
 
 const roofless = new WeakMap<Plan, Plan>();
 
-/** The plan without its roofs (kept per plan, so its derived data is too). */
+/**
+ * The plan without its roofs and imported roof covers (kept per plan, so its derived
+ * data is too).
+ */
 const withoutRoofs = (plan: Plan): Plan => {
-  if (Object.keys(plan.roofs).length === 0) return plan;
   let view = roofless.get(plan);
-  if (!view) roofless.set(plan, (view = { ...plan, roofs: {} }));
+  if (!view) {
+    const lib = getLibrary();
+    const raw = Object.values(plan.rawPieces);
+    const kept = raw.filter((piece) => !isRawRoofCover(piece, lib));
+    const bare = Object.keys(plan.roofs).length === 0 && kept.length === raw.length;
+    const rawPieces = bare ? plan.rawPieces : Object.fromEntries(kept.map((p) => [p.id, p]));
+    view = bare ? plan : { ...plan, roofs: {}, rawPieces };
+    roofless.set(plan, view);
+  }
   return view;
 };
 
 /**
  * The committed plan as the current level sees it: what tools pick and edit. Hidden
- * roofs aren't in it.
+ * roofs (and imported roof covers) aren't in it.
  */
 export const levelView = (ctx: ToolContext): Plan => {
   const view = levelPlan(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary());
