@@ -1,3 +1,4 @@
+import type { Atom } from 'jotai';
 import type { ComponentType } from 'react';
 
 import type { Vec2 } from '../model/types';
@@ -66,6 +67,13 @@ export interface Tool {
   onDoubleClick?(e: ToolPointerEvent, ctx: ToolContext): void;
   /** Receives every key first (modified ones too); returns true when handled. */
   onKeyDown?(e: KeyboardEvent, ctx: ToolContext): boolean;
+  /**
+   * A wheel step over the canvas, before the view's zoom or orbit hears it; returns true
+   * to consume it. Ctrl/⌘ + wheel and pinches (zoom) never reach it.
+   */
+  onWheel?(e: WheelEvent, ctx: ToolContext): boolean;
+  /** While true, the 3D snap cross and drop line are hidden (the tool's ghost is the cursor). */
+  hidesCursor?: Atom<boolean>;
   /** Overlay content in screen CSS px. */
   Preview?: ComponentType;
   /** Overlay content in world metres (strokes need `vector-effect="non-scaling-stroke"`). */

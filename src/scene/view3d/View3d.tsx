@@ -1,15 +1,20 @@
 import { useThree } from '@react-three/fiber';
-import { useAtomValue } from 'jotai';
+import { atom, useAtomValue } from 'jotai';
 import { useEffect, useMemo } from 'react';
 
+import { useActiveToolId } from '../../store/hooks';
+import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayPlan } from '../../store/planHooks';
 import { realLookAtom } from '../../store/modelView';
 import { workDatumAtom } from '../../store/session';
 import { useShownSiteTerrain } from '../../store/siteTerrain';
+import { keptPrefabsAtom } from '../../tools/Build/buildState';
+import { getTool } from '../../tools/toolbox';
 import { ToolPreview3d } from '../../tools/ToolPreview';
 
 import { Dimensions3d } from './Dimensions3d';
 import { DropLine3d } from './DropLine3d';
+import { withKeptPrefabs } from './GhostModel';
 import { Ground } from './Ground';
 import { releaseModels } from './assets/useModels';
 import { LevelPlate } from './LevelPlate';
@@ -21,6 +26,8 @@ import { SnapCursor3d } from './SnapCursor3d';
 import { Terrain3d } from './Terrain3d';
 import { useLevelShading } from './useLevelShading';
 import { useViewCamera } from './useViewCamera';
+
+const NEVER = atom(false);
 
 /**
  * The 3D view of the plan: a perspective camera with orbit controls, lights and ground
@@ -44,6 +51,14 @@ export const View3d = () => {
   }, [realLook, gl]);
 
   const { boxes, retainBoxes, bounds: planBounds, colorOf, tintOf } = useLevelShading(plan);
+  // The Build ghost's recent prefabs stay loaded with the plan's models.
+  const kept = useAtomValue(keptPrefabsAtom);
+  const retainModels = useMemo(
+    () => withKeptPrefabs(retainBoxes, kept, getLibrary()),
+    [retainBoxes, kept]
+  );
+  const { hidesCursor } = getTool(useActiveToolId());
+  const cursorHidden = useAtomValue(hidesCursor ?? NEVER);
   const site = useShownSiteTerrain();
   // The camera fit and the shadows also hold the ground under the plan.
   const bounds = useMemo(() => withGround(planBounds, site), [planBounds, site]);
@@ -56,7 +71,7 @@ export const View3d = () => {
       {site ? <Terrain3d ground={site} /> : <Ground />}
       <LevelPlate bounds={bounds} />
       {realLook ? (
-        <ModelPieces boxes={boxes} retainBoxes={retainBoxes} colorOf={colorOf} tintOf={tintOf} />
+        <ModelPieces boxes={boxes} retainBoxes={retainModels} colorOf={colorOf} tintOf={tintOf} />
       ) : (
         <BoxPieces boxes={boxes} retainBoxes={retainBoxes} colorOf={colorOf} />
       )}
@@ -64,8 +79,8 @@ export const View3d = () => {
       {/* Drawn on the work plane: the previews are built at y = 0 and lifted here. */}
       <group position-y={datum}>
         <ToolPreview3d />
-        <SnapCursor3d />
-        <DropLine3d />
+        {!cursorHidden && <SnapCursor3d />}
+        {!cursorHidden && <DropLine3d />}
       </group>
     </>
   );

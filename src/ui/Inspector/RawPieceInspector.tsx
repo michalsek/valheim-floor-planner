@@ -15,11 +15,13 @@ import styles from './Inspector.module.css';
 import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
+import { PieceActions } from './PieceActions';
 import { PieceCost } from './PieceCost';
 
 /**
- * An imported game piece kept as it is: names and prefab, yaw (turned about its
- * footprint's centre), its height on the level, collider size and cost.
+ * A single game piece placed freely (imported, built or exploded): names and prefab, yaw
+ * (turned about its footprint's centre), its height on the level, collider size and
+ * cost. Its Mirror and Repeat actions are the Inspector's `PieceActions`.
  */
 export const RawPieceInspector = ({ id }: { id: RawPieceId }) => {
   const ctx = useToolContext();
@@ -41,7 +43,7 @@ export const RawPieceInspector = ({ id }: { id: RawPieceId }) => {
       <InspectorTitle title={def?.name ?? piece.prefab} />
       <p className={styles.subtitle}>
         {def && def.namePl !== def.name && `${def.namePl} · `}
-        <code>{piece.prefab}</code> · imported as is
+        <code>{piece.prefab}</code>
       </p>
       <div className={styles.fields}>
         <Field label="Rotation" suffix="°">
@@ -62,6 +64,7 @@ export const RawPieceInspector = ({ id }: { id: RawPieceId }) => {
         <ElevationField item={{ kind: 'raw', id }} />
       </div>
       <ItemWarnings item={{ kind: 'raw', id }} />
+      <PieceActions />
       <Section title="Piece">
         <Row
           label="Pivot height"

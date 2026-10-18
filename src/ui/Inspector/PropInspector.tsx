@@ -17,6 +17,7 @@ import styles from './Inspector.module.css';
 import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
+import { PieceActions } from './PieceActions';
 import { PieceCost } from './PieceCost';
 
 /** "28 m (20 + 2 × 4)", or "Ward 32 m". */
@@ -88,6 +89,7 @@ export const PropInspector = ({ id }: { id: PropId }) => {
         )}
       </div>
       <ItemWarnings item={{ kind: 'prop', id }} />
+      <PieceActions />
       {def?.approximate && (
         <p className={styles.warning}>
           Approximate footprint: the game data has no collider for this piece.

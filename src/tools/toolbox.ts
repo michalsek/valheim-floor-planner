@@ -1,6 +1,7 @@
 import { activeToolIdAtom } from '../store/session';
 import { setViewMode } from '../store/view3d';
 
+import { buildTool } from './Build/buildTool';
 import { dimensionTool } from './Dimension/dimensionTool';
 import { floorTool } from './Floor/floorTool';
 import { openingTool } from './Opening/openingTool';
@@ -21,6 +22,7 @@ const TOOLS_BY_ID: Record<ToolId, Tool> = {
   roof: roofTool,
   opening: openingTool,
   prop: propTool,
+  build: buildTool,
   ruler: rulerTool,
   dimension: dimensionTool,
   underlay: underlayTool,

@@ -1499,3 +1499,133 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 8. **Open:** a handle can sit under the Levels bar or another bar over the canvas (pan
    to free it); the 3D walls are drawn over everything (no depth test), which reads as a
    UI layer. `App.tsx` gained one line (`<SiteExpandHandles />` in the canvas chrome).
+
+## From M17 pass 2B (Build palette, Explode / Mirror / Repeat in the Inspector)
+
+1. **Palette** (`ui/BuildPalette/`): over the canvas edge like the catalogue (284 px, three
+   tile columns), in both views while Build is active. Tabs: Recent, then the seven
+   categories (arrow keys move between them when one has focus). Material chips are one
+   at a time (click again for any). The search runs over every category, so no tab shows
+   as selected while it has text, and exact names come first ("wood wall" lists Wood Wall
+   before Wood Wall 1x1). Enter arms the first result and leaves the box; Esc clears, then
+   leaves. A tile's tooltip: EN, PL, prefab, size · material, cost. The first tab is Recent
+   when it has pieces, else Building; tab, search and chip last for the session.
+2. **Recent** (`store/buildRecents.ts`, `valheimFloorPlanner.buildRecents.v1`): the last 12
+   prefabs armed from the palette, newest first (checked across a reload). Arming from
+   elsewhere (pass 3's Mod+D carry) doesn't add to it.
+3. **Glyphs** (`pieceGlyph.ts`, cached per prefab): the piece's `rawBox` at yaw 0 (box, roof
+   shape or beam) as front-facing triangles grouped into planar faces, painted back to
+   front in three tones mixed from the material colour (`color-mix`, so a theme switch
+   needs no re-render), with only face outlines stroked. The view is from the −z side:
+   from +z a 45° roof slab is edge-on (a test checks 26° / 45° / 67°). Each glyph fills its
+   tile, so sizes are not to scale; the label gives the size. Pieces without snap points
+   (bed, stations) have no size label (`pieceSizeLabel` is null).
+4. **Bars clear of the side panels:** `App.tsx` puts the tool options bar and the 3D view
+   bar in a box that starts at the panel's edge while Prop or Build is active (Build's
+   two-line options bar covered the search box). The widths (260 / 284 px) are repeated
+   from the panels' CSS.
+5. **Inspector actions** (`PieceActions.tsx`, `RepeatSection.tsx`): under the fields of the
+   wall, floor, roof, prop and raw inspectors, and under the title for several items.
+   - **Explode** shows for walls, floors, roofs and props ("Explode", "Explode 3 items");
+     with other items selected too it says "The rest stays as it is" (a selected opening
+     goes with its wall). Hidden for raw-only and opening-only selections. The new
+     pieces are selected; a station's tooltip says it loses its ring.
+   - **Mirror X / Z and Repeat** show for raw-only selections; a mixed one says to explode
+     the rest first. How many pieces can't be mirrored exactly is shown before mirroring
+     (22 prefabs are symmetric across neither axis: the roof corners and the black marble
+     triangles and corners).
+   - **Repeat:** count (2–50, the selection included), way (along / across / up),
+     direction (+ / −) and step (the snap extent that way; a typed step holds until the
+     way changes, Reset goes back). While open, the copies preview through
+     `editPreviewAtom`; another preview (a Select drag, a click on the canvas) closes it.
+     Apply is one entry and selects the row. The fields scroll into view on opening.
+6. **Checked** (headless Chrome 155, WebGPU, light and dark):
+   - a 6 × 8 m wood house (door, floor, 45° thatch gable roof with wood gable walls, a
+     stair prop): Explode 4 items gives 51 raw pieces as one entry, "Explode 4 items (51
+     pieces)"; the bill of materials is identical, Integrity stays "all held up", the
+     Models view is unchanged; undo and redo. One wall: "Explode wall (14 pieces)";
+   - Mirror X of three walls and a stair: "Mirror X (4 pieces)", the stair keeps its yaw
+     (climbs the mirrored way); undo restores every pivot;
+   - Repeat a wall ×5: four copies 2 m apart, "Repeat 1 piece ×5", undo; Up gives a 2 m
+     step; Enter in the count field leaves it (keys reach the tool again);
+   - 1,200 raw pieces selected: `PieceActions` takes 0.5 ms (the ~110 ms long task is
+     dev-mode React drawing the selection overlay).
+   - Not checked on the world import (raw-only selections were checked on synthetic
+     plans). Tested on a scratchpad copy of the tree, stubbing 2A's files not yet written.
+7. **Open, for other owners:**
+   - **Mirror's line is the middle of the boxes' bounds** (`mirror.ts`), so a wall's
+     half-thickness at one end shifts the set off the lattice: three walls with a corner
+     wall at x = 4 mirror to x = 0.15 … 4.15. The snap points' bounds (as `mirrorCentre`
+     uses per piece) would keep it on the lattice.
+   - An exploded door is drawn as its whole collider box in Boxes mode (a wall's door is a
+     thin panel), so the doorway reads as closed there; Models are unchanged.
+   - Exploding the walls under a drawn roof adds "4 roof edges are not resting on a wall"
+     (the roof's check reads drawn walls only).
+
+## From M17 pass 2A (Build tool and ghost)
+
+1. **Tool** (`tools/Build/`, id `build`, key H, after Item): place (click, stays armed,
+   one entry "Place Wood Wall"), Ctrl/⌘ + click removes a raw piece or prop ("Remove …",
+   one entry; over a wall, floor or roof the label and bar say "Explode it to remove
+   single pieces"), wheel 22.5° a notch (up clockwise, `buildWheel.ts`: 100 px or one
+   line/page event per notch, trackpad deltas carried), R / Shift+R, Q / E (auto → 1 … n →
+   auto, `stepManual`), Shift or Alt free, Esc disarms. A press with no work-plane point
+   (terrain only) places through `onPointerMiss`.
+2. **Infrastructure:** `Tool.onWheel` (a native capture, non-passive wheel listener on
+   `ToolHost`'s container; Ctrl/⌘ + wheel and pinches never reach it) and
+   `Tool.hidesCursor` (an atom: the 3D snap cross and drop line hide while a ghost or a
+   removal target shows; the 2D cross stays, `App.tsx` isn't 2A's). `modifiersAtom` gained
+   `shift` and `mod` (Ctrl or ⌘), set from keys and from every pointer event, cleared on
+   blur. `picking.ts` exports `drawnBoxes({ get }, plan)`. `useModels.ts` gained
+   `useModelResources()` (read-only access to the shared model resources).
+3. **The ghost is derived** (`buildGhost.ts`: `buildGhostAtom`, `buildRemovalAtom`) from
+   the pointer, camera, level, view and build state, against `buildTargets.ts`
+   (`committedPlanAtom` follows the plan store while mounted; the drawn box list is kept
+   per committed plan and view, so the snap index is built once per commit). The derived
+   atom lives in its own file rather than `buildState.ts`, which 2B imports. In 2D the ray
+   is straight down onto the work plane only and targets are the current level plus the
+   level below (`ghostPlan`); in 3D the drawn boxes and the shown terrain. Support is the
+   live `ghostSupport` once the committed result is fresh ("checking…" until then).
+4. **Rendering:** Boxes mode uses `GhostBoxes` in the state colour; Models mode uses
+   `scene/view3d/GhostModel.tsx`: its own instanced meshes over the shared model
+   materials (45 % tint), mounted for the last 8 armed prefabs (`keptPrefabsAtom`); View3d
+   adds a stand-in box per kept prefab the plan doesn't use to the models' retain list, so
+   `useModels` keeps those models and mounts their (empty) meshes. Edges (12 per box) are
+   drawn at full strength where seen and at 35 % through pieces, rewritten in place per
+   move; amber over a deep overlap, red when blocked. Snap dots, the filled manual dot,
+   the accent ring on the snapped pair and the label are SVG (3D overlay, 2D screen
+   layer). Blocked suppresses the overlap line (it overlaps its own duplicate).
+5. **Checked on an empty plan** (headless Chrome 155, WebGPU unless noted): four walls end
+   to end snap into a run; four notches turn the ghost 90° and a corner snaps at the run's
+   end; a second course snaps on the wall tops; the floor cantilever off a wall top (aimed
+   at the wall face near its top, as pass 1A note 5 says) reads **71.1, 41.2, 23.9, 13.9,
+   then "Would collapse" at 8** in the ghost label, and the committed result after each
+   click is the same to 0.1 (pass 1B measured 71.4 / 41.4 / 24.0 / 13.9 on its own
+   geometry). Q/E cycles 1/4 … 4/4 → auto; Shift shows "free"; Ctrl + hover highlights
+   and labels the piece, Ctrl + click removes it, undo restores; 2D snaps to a neighbour's
+   end; a duplicate is "Already placed here" and the click does nothing; two stone walls
+   1 m into each other show "Overlaps Stone Wall 4x2 by 1 m" in amber. A theme switch
+   recolours the ghost mid-placement.
+6. **Duplicate in 3D:** clicking the same spot twice in 3D does not give "Already placed
+   here": the second ray hits the piece just placed, so the ghost is pushed out beside it
+   (and the snap that would land on it is dropped, IL rule). Blocking shows when the base
+   pose itself lands on a piece (2D, or aiming past a piece). A manual snap point on the
+   plate sinks the piece (its top point on the hit), as the IL places it.
+7. **Rebuild on the import** (Cut at +4, terrain on; aim found by a search over points on
+   the deleted piece's box, then Q/E where auto didn't land): 2 log beams 2.2 cm, 2 floor
+   tiles ≤ 0.1 cm, a 2 m pole 0.0 cm, a 45° thatch roof 0.0 cm (manual snap point 2), all
+   at the same yaw and level. A 4 m log pole didn't land within 3 cm from any of the
+   searched aims (best 1.0 m): its original matches its neighbours through a snap point
+   my aims never put within 0.5 m of a target; by hand it needs aiming at that joint.
+8. **Perf on the import** (1,131–1,140 pieces, terrain, Cut at +4, dev build, M4 Pro): the
+   ghost atom chain (ray over the drawn boxes, terrain ray, snap, support, overlap) costs
+   **0.17–0.28 ms per move**. A real 150-move sweep: Boxes 2.8–3.3 ms of script per move
+   with a ghost vs 2.5–2.8 armed-less; Models 4.0–4.6 vs 3.5–3.7 (the baseline is the
+   frame render, not Build). **No long tasks** in any sweep. Arming 12 prefabs in Models:
+   WebGPU +1 pipeline for the first ghost and +4 for the first thatch material, then
+   none; `?webgl` +1 program (one 73 ms long task) for the first ghost, then none.
+   Production-build numbers not measured.
+9. **Open:** the label can sit under the Levels bar or past the canvas edge (as other
+   labels); with Ctrl held the ghost hides (it shows the removal target instead); the
+   options-bar hint "Hidden pieces don't snap" shows whenever nothing snaps and the view
+   hides pieces (always in Cut on a multi-level plan), even over open ground.

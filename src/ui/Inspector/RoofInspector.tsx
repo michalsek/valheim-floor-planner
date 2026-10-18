@@ -17,6 +17,7 @@ import styles from './Inspector.module.css';
 import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
+import { PieceActions } from './PieceActions';
 import { PieceCost } from './PieceCost';
 
 /**
@@ -67,6 +68,7 @@ export const RoofInspector = ({ id }: { id: RoofId }) => {
         </Button>
       </div>
       <ItemWarnings item={{ kind: 'roof', id }} />
+      <PieceActions />
       <Section title="Roof">
         <Row label="Outline" value={`${formatSize(w, d)} m`} />
         {cells.length > 0 && (

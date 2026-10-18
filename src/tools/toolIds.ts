@@ -9,6 +9,7 @@ export const TOOL_IDS = [
   'roof',
   'opening',
   'prop',
+  'build',
   'dimension',
   'ruler',
   'underlay',

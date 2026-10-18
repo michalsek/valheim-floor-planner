@@ -17,6 +17,7 @@ import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { FloorInspector } from './FloorInspector';
 import { OpeningInspector } from './OpeningInspector';
+import { PieceActions } from './PieceActions';
 import { PropInspector } from './PropInspector';
 import { RawPieceInspector } from './RawPieceInspector';
 import { RoofInspector } from './RoofInspector';
@@ -57,7 +58,10 @@ const ItemInspector = ({ item }: { item: SelectionItem }) => {
   return <Kind id={item.id} />;
 };
 
-/** Details and edits for the selection; nothing when the selection is empty. */
+/**
+ * Details and edits for the selection (several items get the piece actions: Explode,
+ * Mirror, Repeat); nothing when the selection is empty.
+ */
 export const Inspector = () => {
   const selection = useAtomValue(selectionAtom);
   const ctx = useToolContext();
@@ -68,7 +72,10 @@ export const Inspector = () => {
       {selection.length === 1 ? (
         <ItemInspector item={primary} />
       ) : (
-        <InspectorTitle title={`${selection.length} items selected`} />
+        <>
+          <InspectorTitle title={`${selection.length} items selected`} />
+          <PieceActions />
+        </>
       )}
       <div className={styles.footer}>
         <button

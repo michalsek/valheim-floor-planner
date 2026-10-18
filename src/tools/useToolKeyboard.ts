@@ -27,6 +27,13 @@ import type { ToolContext } from './types';
 
 const KEY_ZOOM_FACTOR = 1.25;
 
+/** Keys only tracked while held (they bind nothing alone): Shift, and Ctrl / ⌘. */
+const HELD_KEYS: Readonly<Record<string, 'shift' | 'mod' | undefined>> = {
+  Shift: 'shift',
+  Control: 'mod',
+  Meta: 'mod',
+};
+
 interface KeyBinding {
   /** `KeyboardEvent.key` values, lower-case. */
   keys?: readonly string[];
@@ -135,7 +142,7 @@ const isEditableTarget = (target: EventTarget | null): boolean =>
 
 /**
  * Window-level keyboard handling. Order: file keys (Mod+S, Mod+O), then, outside
- * text fields, modifiers (Space, Alt), the active tool (every key, modified ones
+ * text fields, modifiers (Space, Alt, Shift, Ctrl / ⌘), the active tool (every key, modified ones
  * included) and `KEYMAP`.
  */
 export const useToolKeyboard = (): void => {
@@ -161,6 +168,11 @@ export const useToolKeyboard = (): void => {
         setModifier(ctx, e.key === 'Alt' ? 'alt' : 'space', true);
         return;
       }
+      const held = HELD_KEYS[e.key];
+      if (held) {
+        setModifier(ctx, held, true);
+        return;
+      }
       if (getTool(ctx.get(activeToolIdAtom)).onKeyDown?.(e, ctx)) {
         e.preventDefault();
         return;
@@ -175,6 +187,8 @@ export const useToolKeyboard = (): void => {
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === ' ') setModifier(ctx, 'space', false);
       if (e.key === 'Alt') setModifier(ctx, 'alt', false);
+      const held = HELD_KEYS[e.key];
+      if (held) setModifier(ctx, held, false);
     };
 
     // Keys released while the window is in the background never reach us.

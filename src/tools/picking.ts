@@ -34,6 +34,7 @@ import {
   projection3dAtom,
   roofsVisibleAtom,
   workDatumAtom,
+  type SessionAccess,
 } from '../store/session';
 import { viewModeAtom } from '../store/view3d';
 import { project3d, screenRay, workPlanePoint, type Projection3d } from '../viewport/projection3d';
@@ -247,12 +248,15 @@ const itemTop = (plan: Plan, item: SelectionItem): number | null => {
   return tops.length > 0 ? Math.max(...tops) : ITEM_KINDS[item.kind].elevation(plan, item.id);
 };
 
-/** The boxes the 3D view draws: the shown ones on the view mode's levels. */
-const drawnBoxes = (ctx: ToolContext, plan: Plan): readonly PieceBox[] =>
-  boxesInView(getShownBoxes(plan, ctx.get(roofsVisibleAtom)), plan, getLibrary(), {
-    mode: ctx.get(levelViewModeAtom),
-    datum: ctx.get(workDatumAtom),
-    hovered: ctx.get(levelHoverAtom),
+/**
+ * The boxes the 3D view draws: the shown ones on the view mode's levels. Takes only
+ * `get`, so derived atoms can use it too.
+ */
+export const drawnBoxes = ({ get }: Pick<SessionAccess, 'get'>, plan: Plan): readonly PieceBox[] =>
+  boxesInView(getShownBoxes(plan, get(roofsVisibleAtom)), plan, getLibrary(), {
+    mode: get(levelViewModeAtom),
+    datum: get(workDatumAtom),
+    hovered: get(levelHoverAtom),
   });
 
 /**

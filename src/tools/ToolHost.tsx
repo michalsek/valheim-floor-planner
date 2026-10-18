@@ -165,6 +165,20 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     [store, ctx, toolEvent, activeTool]
   );
 
+  // The tool hears the wheel first (capture phase, before the 2D zoom and the orbit
+  // controls on the canvas) and may consume it. Zooms (Ctrl/⌘ + wheel, pinches) pass.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey || !activeTool().onWheel?.(e, ctx)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => el.removeEventListener('wheel', onWheel, { capture: true });
+  }, [ctx, activeTool]);
+
   // A gesture must not survive the window losing focus (the release may never arrive).
   useEffect(() => {
     const onBlur = () => endGesture(true);
@@ -172,11 +186,16 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener('blur', onBlur);
   }, [endGesture]);
 
-  /** Records the pointer (and Alt, which may change while the window is unfocused). */
+  /**
+   * Records the pointer (and Alt, Shift and Ctrl / ⌘, which may change while the window
+   * is unfocused).
+   */
   const trackPointer = (e: HostPointerEvent): ScreenPoint => {
     const screen = localPoint(e.currentTarget, e);
     ctx.set(pointerScreenAtom, screen);
     setModifier(ctx, 'alt', e.altKey);
+    setModifier(ctx, 'shift', e.shiftKey);
+    setModifier(ctx, 'mod', e.ctrlKey || e.metaKey);
     return screen;
   };
 

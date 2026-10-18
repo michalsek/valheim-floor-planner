@@ -42,6 +42,10 @@ export type RendererBackend = 'pending' | 'WebGPU' | 'WebGL2';
 export interface Modifiers {
   alt: boolean;
   space: boolean;
+  /** Shift held: the Build tool places freely. */
+  shift: boolean;
+  /** Ctrl (or ⌘) held: the Build tool removes. */
+  mod: boolean;
 }
 
 export interface Cursor {
@@ -54,7 +58,8 @@ export interface Cursor {
 export const viewportAtom = atom<Viewport>(DEFAULT_VIEWPORT);
 export const viewportSizeAtom = atom<Size>({ width: 0, height: 0 });
 export const snapStepAtom = atom<SnapStep>(0.5);
-export const modifiersAtom = atom<Modifiers>({ alt: false, space: false });
+const NO_MODIFIERS: Modifiers = { alt: false, space: false, shift: false, mod: false };
+export const modifiersAtom = atom<Modifiers>(NO_MODIFIERS);
 /** Pointer position relative to the canvas, or null when the pointer is outside it. */
 export const pointerScreenAtom = atom<ScreenPoint | null>(null);
 export const activeToolIdAtom = atom<ToolId>('select');
@@ -191,8 +196,8 @@ export const setModifier = (store: SessionAccess, key: keyof Modifiers, value: b
 };
 
 export const resetModifiers = (store: SessionAccess): void => {
-  setModifier(store, 'alt', false);
-  setModifier(store, 'space', false);
+  for (const key of Object.keys(NO_MODIFIERS) as (keyof Modifiers)[])
+    setModifier(store, key, false);
 };
 
 /** A cursor the active tool asks for over what it hovers (e.g. `move`); null for its default. */

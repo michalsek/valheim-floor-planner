@@ -10,6 +10,7 @@ import styles from './Inspector.module.css';
 import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
+import { PieceActions } from './PieceActions';
 import { PieceCost } from './PieceCost';
 
 /** A floor: family (undoable), size, area, thickness, tiles and their cost. */
@@ -37,6 +38,7 @@ export const FloorInspector = ({ id }: { id: FloorId }) => {
         <ElevationField item={{ kind: 'floor', id }} />
       </div>
       <ItemWarnings item={{ kind: 'floor', id }} />
+      <PieceActions />
       <Section title="Floor">
         <Row label="Size" value={`${formatSize(info.size.x, info.size.z)} m`} />
         <Row label="Area" value={formatArea(info.area)} />

@@ -47,6 +47,13 @@ const resourcesFor = (gl: WebGPURenderer): ModelResources => {
   return resources;
 };
 
+/**
+ * The renderer's model resources, to draw models another `useModels` keeps loaded (the
+ * Build ghost's): it never retains or frees anything itself.
+ */
+export const useModelResources = (): ModelResources =>
+  resourcesFor(useThree((s) => s.gl) as unknown as WebGPURenderer);
+
 /** Frees every model resource of the renderer (the 3D view went back to boxes). */
 export const releaseModels = (gl: object): void => shared.get(gl)?.dispose();
 

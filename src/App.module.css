@@ -46,3 +46,24 @@
 .status {
   grid-area: status;
 }
+
+/* The centred bars' area: the canvas, less a side panel's width while one is open. */
+.bars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bars > * {
+  pointer-events: auto;
+}
+
+.clearCatalogue {
+  /* The catalogue's width (CatalogBrowser.module.css). */
+  left: 260px;
+}
+
+.clearPalette {
+  /* The palette's width (BuildPalette.module.css). */
+  left: 284px;
+}

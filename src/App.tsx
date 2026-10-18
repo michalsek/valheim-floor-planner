@@ -24,11 +24,13 @@ import { SnapCursor } from './overlay/SnapCursor';
 import { UnderlayLayer } from './overlay/UnderlayLayer';
 import { WallLines } from './overlay/WallLines';
 import { PlanCanvas } from './scene/PlanCanvas';
-import { useViewMode } from './store/hooks';
+import { useActiveToolId, useViewMode } from './store/hooks';
 import { sessionStore } from './store/session';
+import type { ToolId } from './tools/toolIds';
 import { ToolHost } from './tools/ToolHost';
 import { ToolOverlay3d, ToolPreview, ToolWorldPreview } from './tools/ToolPreview';
 import { BomPanel } from './ui/BomPanel/BomPanel';
+import { BuildPalette } from './ui/BuildPalette/BuildPalette';
 import { CatalogBrowser } from './ui/CatalogBrowser/CatalogBrowser';
 import { Inspector } from './ui/Inspector/Inspector';
 import { LevelsBar } from './ui/LevelsBar/LevelsBar';
@@ -91,19 +93,32 @@ const CanvasLayers = () => {
   );
 };
 
+/** The tools with a side panel over the canvas edge, and the class keeping bars clear of it. */
+const PANEL_CLEARANCE: Partial<Record<ToolId, string | undefined>> = {
+  prop: styles.clearCatalogue,
+  build: styles.clearPalette,
+};
+
 /**
  * Bars over the canvas, outside ToolHost so clicks on them never reach the tool. The
- * catalogue overlays the canvas edge, so the view doesn't jump when it opens.
+ * catalogue and the Build palette overlay the canvas edge, so the view doesn't jump when
+ * they open; the centred bars move over to stay clear of them.
  */
-const CanvasChrome = () => (
-  <>
-    <SiteExpandHandles />
-    <CatalogBrowser />
-    <ToolOptionsBar />
-    <LevelsBar />
-    {useViewMode() === '3d' && <ViewBar />}
-  </>
-);
+const CanvasChrome = () => {
+  const clearance = PANEL_CLEARANCE[useActiveToolId()];
+  return (
+    <>
+      <SiteExpandHandles />
+      <CatalogBrowser />
+      <BuildPalette />
+      <div className={clearance ? `${styles.bars} ${clearance}` : styles.bars}>
+        <ToolOptionsBar />
+        {useViewMode() === '3d' && <ViewBar />}
+      </div>
+      <LevelsBar />
+    </>
+  );
+};
 
 /** The canvas area; it takes the game folder when models wait for it. */
 const CanvasArea = ({ children }: { children: ReactNode }) => {

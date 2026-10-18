@@ -12,6 +12,7 @@ import styles from './Inspector.module.css';
 import { ElevationField } from './ElevationField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
+import { PieceActions } from './PieceActions';
 import { PieceCost } from './PieceCost';
 
 /** The history label for a settings change from `WallSettingsFields`. */
@@ -57,6 +58,7 @@ export const WallInspector = ({ id }: { id: WallId }) => {
         <ElevationField item={{ kind: 'wall', id }} />
       </div>
       <ItemWarnings item={{ kind: 'wall', id }} />
+      <PieceActions />
       <Section title={wall.closed ? 'Loop' : 'Run'}>
         {segs.map((seg, i) => (
           <Row key={i} label={`Segment ${i + 1}`} value={formatMetres(seg.length)} />
