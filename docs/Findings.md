@@ -1719,3 +1719,55 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 8. **Open:** the release recomputes the sink depth from the release event, so letting go
    of Shift a moment before the button snaps to the coarse step; the sink handle can sit
    off screen when the camera is close under a tall selection (zoom out).
+
+## WASD fly camera (3D)
+
+1. **Behaviour.** Editor-style fly mode: while the right mouse button is held on the 3D
+   canvas, W/A/S/D move forward/left/back/right (forward follows the view, so it climbs
+   or sinks with it; A/D stay level), Q/E move straight down/up, Shift is ×4 and the
+   wheel scales the speed (×1.25 per notch, 1/8 … 8, kept while the 3D view is open).
+   Keys go by position (`KeyboardEvent.code`), so AZERTY's Z/Q/S/D fly the same. Plain
+   keys without the button keep their meanings (tool hotkeys, Build's Q/E). The hint in
+   the 3D view bar says "hold right + WASD / QE to fly".
+2. **Orbit until a key, then look.** A right drag orbits as before until a movement key
+   is pressed during the hold; from then until the release it is first-person look (the
+   view turns in place). OrbitControls still does the turning; `flyControls.pin` (from
+   `afterMove`) puts the eye back and moves the target along the new view direction.
+   Looking brings the target to 5 m ahead (`FLY_PIVOT`, never further than it was), so
+   the depth planes suit an interior (near 5 cm) and orbiting after a flight turns about
+   a nearby point. Orbit damping is off while looking (look follows the mouse directly);
+   a residual orbit swing at the moment the key is pressed lands as one look step.
+   Shift/Ctrl/⌘ at the press keep OrbitControls' pan: the keys still move, the view
+   is never pinned. Shift pressed before the button therefore pans; Shift during the
+   hold is "faster".
+3. **Speed.** Base speed per hold = 0.5 × the orbit distance at the press, within
+   4–40 m/s: 4 m/s inside a house (and after any flight, as the pivot is 5 m), 40 m/s
+   from a site-wide fit. The velocity eases towards the keys' velocity
+   (`1 − e^(−12·dt)`, ~0.1 s), so starts and stops are smooth and frame-rate
+   independent; frame gaps count as at most 0.1 s. The canvas renders on demand, so
+   each moving frame asks for the next.
+4. **Keys never leak.** Keys and the wheel are taken in the window's capture phase only
+   during a hold (before `useToolKeyboard` and ToolHost's wheel, which turns the Build
+   ghost); text fields are left alone. A key pressed during the hold stays taken until
+   its keyup, so its auto-repeat after the release never switches tools. The hold ends on
+   the right release, a move without the right button (a release we never heard), pointer
+   cancel, window blur and the page being hidden; held keys are dropped and the camera
+   glides to a stop. Dragging past the canvas edge keeps flying (pointer capture). Known
+   leak: ToolHost's pointer moves still copy Shift into the modifiers during the hold
+   (harmless: the tool hears nothing during a camera gesture).
+5. **Floor and terrain.** Moves keep the camera above the rig's safety floor (the
+   translation is lifted, the eye stays finite); the camera may fly under the plate and
+   the terrain as before. Placements while looking (Home, 0, `+`/`−`) move the eye with
+   them (`flyControls.sync`).
+6. **Checked** (headless Chrome 155, WebGPU and `?webgl`, Boxes and Models): a hand-built
+   two-storey wood house: in through the door, turning in place, up through the open half
+   of the upper floor to the +4 storey; speeds measured 4 / 16 / 7.8 m/s (normal / Shift / three wheel
+   notches up), the orbit distance unchanged by the wheel; blur mid-flight stops it;
+   repeats after the release reach no tool; a plain right drag still orbits. Build tool:
+   Q/E/W and the wheel during a hold left the snap index and yaw alone; afterwards E
+   cycled the snap and the wheel turned the ghost. On the test world with terrain: flying
+   from a fit (40 m/s), down through the terrain with Shift + Q until the safety floor
+   held, back up, and in Models.
+7. **Not checked:** a real mouse and trackpad (a two-finger click is button 2, so it
+   should start a hold), Safari, and the feel at a headed window's frame rate (headless
+   throttles rAF to ~20 Hz; the maths is dt-based).

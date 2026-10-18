@@ -21,8 +21,8 @@ export const ViewBar = () => {
         Reset
       </Button>
       <span className={styles.hint}>
-        Left click / drag uses the tool · right drag orbits · middle, Shift+right or Space+drag pans
-        · wheel zooms · 3 for 2D
+        Left click / drag uses the tool · right drag orbits · hold right + WASD / QE to fly ·
+        middle, Shift+right or Space+drag pans · wheel zooms · 3 for 2D
       </span>
     </div>
   );

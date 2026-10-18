@@ -32,6 +32,7 @@ import {
   frameWidth,
   type CameraPlacement,
 } from './orbitMath';
+import { createFlyControls } from './flyControls';
 import { fitClipPlanes, VIEW_FOV } from './useViewCamera';
 
 /** Radius used for depth planes when the plan is empty. */
@@ -74,6 +75,7 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
   let canvas: Size = { width: 1, height: 1 };
   /** A safety limit far below anything drawn: the camera and its target stay above it. */
   let floor = DEFAULT_CAMERA_FLOOR;
+  const fly = createFlyControls(camera, controls, () => floor);
 
   /** The camera as plain data, for the cursor, picking and the 3D overlay. */
   const projection = (size: Size): Projection3d => {
@@ -104,6 +106,7 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
    * Call after every camera move.
    */
   const afterMove = () => {
+    fly.pin();
     if (camera.position.y < floor) camera.position.y = floor;
     const distance = camera.position.distanceTo(controls.target);
     // Pan speed scales with the distance to the target; keep a floor for close-ups.
@@ -139,6 +142,7 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
   const place = ({ position, target }: CameraPlacement) => {
     camera.position.set(position.x, position.y, position.z);
     controls.target.set(target.x, target.y, target.z);
+    fly.sync();
     controls.update();
     afterMove();
     publish();
@@ -146,6 +150,7 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
 
   return {
     controls,
+    fly,
     afterMove,
     publish,
     place,
@@ -226,7 +231,8 @@ const frame2dView = (session: SessionAccess, aspect: number): CameraPlacement =>
 
 /**
  * Orbit controls on the canvas for the 3D camera: damped orbit, ground pan and zoom
- * to the cursor. Answers fit, reset and dolly requests, keeps the camera for the next
+ * to the cursor, and fly mode on right drag + W/A/S/D/Q/E (`flyControls`). Answers fit,
+ * reset and dolly requests, keeps the camera for the next
  * time 3D opens (the first time, it fits the plan), and publishes it as
  * `projection3dAtom` after every move and resize.
  */
@@ -320,6 +326,7 @@ export const OrbitRig = ({
     };
     gl.domElement.addEventListener('wheel', onWheel, { capture: true, passive: false });
     controls.connect(gl.domElement);
+    const disconnectFly = rig.fly.connect(gl.domElement, invalidate);
     controls.addEventListener('change', onChange);
     // Published so the ground can follow the orbit target.
     setThree({ controls });
@@ -328,15 +335,18 @@ export const OrbitRig = ({
     return () => {
       stopButtons();
       stopPresses();
+      disconnectFly();
       gl.domElement.removeEventListener('wheel', onWheel, { capture: true });
       controls.removeEventListener('change', onChange);
       controls.disconnect();
       setThree({ controls: null });
     };
-  }, [rig, gl, store, setThree]);
+  }, [rig, gl, store, setThree, invalidate]);
 
-  // Damping: `update` fires `change` (and so another frame) until the motion settles.
-  useFrame(() => {
+  // Fly moves, then damping: `update` fires `change` (and so another frame) until the
+  // motion settles.
+  useFrame((_, delta) => {
+    rig.fly.step(delta);
     rig.controls.update();
   });
 
