@@ -1111,3 +1111,121 @@ Out-of-scope issues and improvement ideas noted by agents during the v1 build.
 11. **Side notes from the IL, not modelled:** the support distance is the smaller of
     COM-to-COM and COM-to-the-other-pivot (each + 0.1 m) unless a piece forces the COM
     form.
+
+## From M16 Stage 1 pass 2A (terrain pipeline, import UX)
+
+1. **Pipeline.** `install/terrainJob.ts` is the worker's job as a plain function (the
+   gated test runs it in Node): the biome gate, the rivers (kept, pregenerated, or the
+   Deep North pass added), the patch, the save's comps, the self-check.
+   `terrain.worker.ts` / `terrainClient.ts` run it in one worker per request (an
+   `AbortSignal` terminates it). `siteGeneration.ts` picks the job's inputs (the comps of
+   the patch's zones, the locations within `CHECK_RADIUS`) and turns the result into a
+   `SiteTerrain` (plan heights, notices). `terrainCache.ts` keeps the rivers per
+   `riverCacheName` folder as `r<GENERATOR_REVISION>.bin`, with its own `index.json` for
+   the 6 most recently used worlds; `GENERATOR_REVISION = 1` lives there.
+2. **`DEEP_NORTH_MARGIN` (600 m) decision:** the Deep North pass runs when any point of
+   the patch grown by the margin, sampled every 50 m, is Deep North. Without that pass the
+   self-check also leaves out locations within the margin of the Deep North, since their
+   rivers would be missing. A warm restore renders the cells of the patch **and** of the
+   check locations.
+3. **Timings.** Headless Chrome 155 (M4 Pro), the 190 × 200 site: cold (no river cache)
+   **281 ms** for the whole request, of which pregeneration 243 ms; warm **75 ms**
+   (restore 28 ms, patch 21 ms, comps 3 ms, check 1 ms). Each request leaves a
+   `performance.measure('terrain')` with the phases in `detail`. In Node (vitest) the same
+   job is slower: cold 1.26 s, warm 154 ms. The only request during an import is the
+   worker's own script (same origin).
+4. **`test:world`** now also runs `terrain/realTerrain.test.ts`: 119 / 157 / 2 037 with the
+   Python reference's lake, river and stream hashes; locations 9 402 of 12 165 checked,
+   max 1.16 mm; vegetation in every 4th zone without comps (168 zones), > 30 m from a
+   location: 12 848 objects, max 0.19 mm; the site's self-check 605 locations, max 0.46 mm;
+   1 584 vertices changed by comps.
+5. **Floors on the composed ground:** 237 floor tiles (221 `wood_floor`, 16 1×1), 122
+   grounded. At every tile's centre its top is ≥ 0.098 m above the ground. Over the whole
+   footprint, 4 tiles at the pad's edge have the ground rising up to 0.155 m above their
+   top along an edge (the hillside meets them), so a few centimetres of ground may poke
+   through there in 3D. The test asserts the centre (as the spike's pivot check did).
+6. **UX.**
+   - The World panel's import row: **Import as a new plan** with **With terrain** (on by
+     default; disabled with "No terrain: …" for an old `.db`, another generator version,
+     or Ashlands / Deep North under the site). The confirm comes first; then "Generating
+     terrain… rivers (first time for this world)" (or ground, your terrain edits,
+     checking) with **Skip terrain**, which imports without it. Still one
+     `plan.replace` ("Import from …"). A failure to make the ground leaves the plan as it
+     was and says why; unticking imports without.
+   - **Terrain…** in the status strip for an import frame without terrain opens the
+     panel; the panel's start says which world to open, and an open world that matches
+     (name, a piece within 100 m of `origin`) shows the banner **Add terrain to the
+     current plan** (one undoable "Add terrain", Cancel while it runs). There is no
+     "Remove terrain" button; undo covers it.
+   - The **Terrain** toggle (beside Roofs and Underlay) carries "!" when there are
+     notices; its title lists them. The legacy-edit notice says the game still applies
+     them live and to run `optterrain` (Findings 1B, 2). On the import, 8 locations are
+     within 32 m of the patch (one notice).
+   - The readout "ground +3.8 m" (plan height, 0.1 m) sits beside the cursor
+     coordinates while terrain is shown, "ground —" off the patch.
+   - The World panel's privacy note now says the browser keeps the seed, terrain edits and
+     locations, and a plan the ground but never the seed.
+7. **E2E (headless, fresh profile, port 5237):** cold import with terrain, a second
+   import hitting the river cache, Undo / Redo of the import, reload (the autosave holds
+   the terrain, ~276 KB), Skip during the rivers phase (imports without, then
+   **Terrain…** → Add terrain → Undo / Redo). The saved-file round trip is covered by
+   `parsePlan(serializePlan(plan))` in `test:world`, not clicked through File → Open.
+8. **Not done:** int16 clamping beyond ±327.67 m has no notice field in `SiteNotices`, so
+   it clamps silently (impossible within a 384 m patch in practice); a TerrainComp of
+   another data version fails the whole terrain (reported as the import's error).
+
+## From M16 Stage 1 pass 2B (terrain rendering)
+
+1. **Where things landed.** 3D: `scene/view3d/terrainGeometry.ts` (surface, skirt, sea
+   quad), `terrainColors.ts` (biome tints blended between zone corners with the
+   heightmap's smoothstep weights, rock from 40° to 55°, sand from 0.5 m above to 1 m
+   under the sea), `Terrain3d.tsx`, `useGroundGrid.ts` (shared with `Ground`),
+   `siteBounds.ts` (`withGround`, `siteReach`). `usePlateShown` (in `useLevelShading.ts`)
+   is the one rule for "plate drawn": off the ground, or at any level over shown terrain.
+   2D: `scene/Terrain2d.tsx` under `GridPlane`, `overlay/SiteMarks.tsx` mounted inside
+   `Overlay` (the 2D overlay only; under every other world-layer mark). Tokens
+   `--terrain-shade`, `--terrain-light`, `--contour`, `--water` → `ThemeTokens.terrain`.
+2. **Deviations from §8.1.**
+   - **The draped grid is always the coarse one** (10 m lines only), also at datum 0: with
+     terrain the plate is drawn at every level, so the ground is never the work plane, and
+     a full draped grid would cross the plate's grid wherever the ground passed through 0.
+     Draped, it is also at 0.6 of the flat ground's strength (`DRAPED_STRENGTH`): the dark
+     theme's light lines were loud on lit green ground.
+   - `MeshLambertNodeMaterial` (as the pieces), not Standard.
+   - Normals come from the height grid (central differences, as `hillshade`), turned into
+     the plan, not `computeVertexNormals`; positions use the frame's affine map. The
+     surface arrays are cached per site (`WeakMap`), so re-entering 3D only uploads them.
+     A 385 × 377 patch builds in ~30 ms cold (it was ~45 ms plus a 15 ms normal pass).
+   - The sea's colour in 3D is `--water` too (one token for both views).
+   - `OrbitRig` takes `reach` (the patch diagonal), so the depth planes hold the whole
+     patch when zoomed in on the build; the fit and the sun use the plan bounds grown to
+     the ground's height range under them.
+3. **Constants after the real-world pass:** `SKIRT = 4` m; skirt earth `#8a7058` (darker
+   read as a black slab on the side away from the sun); water opacity 0.55; draped grid
+   polygon offset (−1, −4) on both backends, no z-fighting seen and floors still cover it;
+   no terrain shadow acne at the M14 `normalBias 0.03`, so nothing was changed there. 2D:
+   relief at y −0.3 (under the −0.2 ghosts), water mixed at 0.6, contours 0.5 / 1 / 5 m
+   from 12 / 3 / 0 px/m at 0.25 / 0.45 / 0.7 as planned. Theme: dark shade `#1a1b1e` →
+   light `#4b4f55`, contour `#a89470`, water `#3d6f9a`; light `#a3a9b0` → `#f4f6f8`,
+   `#7a5a32`, `#6fa3cf`.
+4. **Perf** (headless Chrome 155, M4 Pro, the import with terrain; longtask observer plus
+   counting `linkProgram` / `createRenderPipeline*`): PageUp/PageDown ×6, C ×4 and two
+   sweeps over all six Levels rows, in Boxes and Models, on WebGPU and `?webgl`: **no long
+   task and no new programs or pipelines.** Entering 3D on WebGPU: Boxes no long task,
+   Models ~130–150 ms with or without terrain (the models' own cost). On a synthetic
+   385 × 377 patch, WebGPU entering 3D was 142 ms before the cache and grid normals, then
+   0–70 ms. `?webgl` entering 3D is 300–650 ms with or without terrain (program linking
+   dominates; the run-to-run spread is larger than any terrain cost).
+5. **The 4 edge floor tiles** with the hillside up to 0.155 m above their top (2A, 5): not
+   visible at normal zoom, top-down or low; at most a sliver of green at a tile's outer
+   edge. Acceptable.
+6. **Level 0 on the import** shows mostly ground: the pad is ~4 m above the datum, so with
+   the cut on the build is cut away and the plate at 0 is underground except near the
+   water. Expected, and the landing level is +4 anyway.
+7. **Open (not owned by 2B):** `overlay/LevelTags3d.tsx` still tags the plate only off
+   datum 0, so the plate at 0 over terrain has no "+0 m" tag (it could use
+   `usePlateShown`). The orbit's lowest camera height is still y = 0.05, so a low orbit
+   can go inside a hill. The opaque 2D relief hides an underlay under the patch. Ground
+   outside the shadow camera's plan bounds is unshadowed, as planned.
+8. **Synthetic site** for work before the import existed: a scratchpad script built a v5
+   plan from pass 1's generator with a made-up seed (not committed).

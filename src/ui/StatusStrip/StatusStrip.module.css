@@ -148,3 +148,14 @@
 .modelError {
   color: var(--danger);
 }
+
+.ground {
+  min-width: 96px;
+  color: var(--text);
+}
+
+.notice {
+  margin-left: 3px;
+  color: var(--warning);
+  font-weight: 600;
+}

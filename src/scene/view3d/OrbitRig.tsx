@@ -227,9 +227,12 @@ const frame2dView = (session: SessionAccess, aspect: number): CameraPlacement =>
 export const OrbitRig = ({
   camera,
   bounds,
+  reach = 0,
 }: {
   camera: PerspectiveCamera;
   bounds: Bounds3 | null;
+  /** How far beyond the bounds the scene goes (a site's ground): the depth planes hold it. */
+  reach?: number;
 }) => {
   const store = useStore();
   const gl = useThree((s) => s.gl);
@@ -249,8 +252,8 @@ export const OrbitRig = ({
   const [firstRequest] = useState(() => store.get(orbitRequestAtom)?.n ?? 0);
 
   useLayoutEffect(() => {
-    rig.setRadius(bounds ? boundsRadius(bounds) : EMPTY_RADIUS);
-  }, [rig, bounds]);
+    rig.setRadius(Math.max(bounds ? boundsRadius(bounds) : EMPTY_RADIUS, reach));
+  }, [rig, bounds, reach]);
 
   // Before the mount effect below, so the first placement is published at this size.
   useLayoutEffect(() => {

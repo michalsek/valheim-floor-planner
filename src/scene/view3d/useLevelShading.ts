@@ -15,6 +15,7 @@ import type { Plan } from '../../model/types';
 import { useThemeTokens } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { getShownBoxes } from '../../store/planHooks';
+import { useShownSiteTerrain } from '../../store/siteTerrain';
 import { hoverAtom, selectionAtom } from '../../store/selection';
 import {
   cutAwayAtom,
@@ -58,6 +59,16 @@ export const usePreviewLevel = (): number | null => {
   return hovered === null || sameLevel(hovered, datum) ? null : hovered;
 };
 
+/**
+ * Whether the level plate is drawn: off the ground, and at every level (0 included)
+ * over shown terrain, where the ground is no longer the work plane.
+ */
+export const usePlateShown = (): boolean => {
+  const datum = useAtomValue(workDatumAtom);
+  const site = useShownSiteTerrain();
+  return datum !== 0 || site !== null;
+};
+
 const boundsCache = new WeakMap<readonly PieceBox[], Bounds3 | null>();
 
 const boundsOf = (boxes: readonly PieceBox[]): Bounds3 | null => {
@@ -89,6 +100,7 @@ export const useLevelShading = (plan: Plan): LevelShading => {
   const datum = useAtomValue(workDatumAtom);
   const cut = useAtomValue(cutAwayAtom);
   const preview = usePreviewLevel();
+  const plate = usePlateShown();
   const tokens = useThemeTokens();
   const selection = useAtomValue(selectionAtom);
   const hover = useAtomValue(hoverAtom);
@@ -105,16 +117,16 @@ export const useLevelShading = (plan: Plan): LevelShading => {
 
   // Above the level is faded (shown with the cut off); below it too while there is no
   // plate (at datum 0), else the plate's frosting fades it. The previewed level isn't.
-  const faded = useMemo(() => {
-    const plate = datum !== 0;
-    return (box: PieceBox) => {
+  const faded = useMemo(
+    () => (box: PieceBox) => {
       const level = levelOf(box);
       if (sameLevel(level, datum) || (preview !== null && sameLevel(level, preview))) {
         return false;
       }
       return level > datum || !plate;
-    };
-  }, [levelOf, datum, preview]);
+    },
+    [levelOf, datum, preview, plate]
+  );
   const previewed = useMemo(
     () => (preview === null ? null : (box: PieceBox) => sameLevel(levelOf(box), preview)),
     [levelOf, preview]

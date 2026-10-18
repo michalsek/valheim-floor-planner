@@ -42,8 +42,19 @@ export interface ThemeTokens {
   /** The level below in 2D (its slabs; the overlay reads the same `--ghost`). */
   ghost: string;
   support: SupportColors;
+  terrain: TerrainColors;
   /** The 3D view's tool drawing: lines, the cursor, valid and invalid ghosts. */
   ink: ToolInk;
+}
+
+/** A site's ground (M16): the 2D hillshade's two ends, contour lines and water (2D and 3D). */
+export interface TerrainColors {
+  /** Ground facing away from the light. */
+  shade: string;
+  /** Ground facing the light. */
+  light: string;
+  contour: string;
+  water: string;
 }
 
 /** Overlay colours the 3D view draws with (the same tokens as the 2D overlay's CSS). */
@@ -87,6 +98,12 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
     mid: '#e6c74a',
     low: '#e0613f',
     broken: '#e04fd8',
+  },
+  terrain: {
+    shade: '#1a1b1e',
+    light: '#4b4f55',
+    contour: '#a89470',
+    water: '#3d6f9a',
   },
   ink: {
     neutral: '#f3f5f8',
@@ -149,6 +166,12 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
       mid: color('--support-mid', def.support.mid),
       low: color('--support-low', def.support.low),
       broken: color('--support-broken', def.support.broken),
+    },
+    terrain: {
+      shade: color('--terrain-shade', def.terrain.shade),
+      light: color('--terrain-light', def.terrain.light),
+      contour: color('--contour', def.terrain.contour),
+      water: color('--water', def.terrain.water),
     },
     ink: {
       neutral: color('--ink', def.ink.neutral),

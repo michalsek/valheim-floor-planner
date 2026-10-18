@@ -17,7 +17,7 @@ export const WORLD_DRAG_HINT =
   "Chrome's folder dialog can't open ~/Library. In Finder choose Go → Go to Folder…, paste the path, then drag a world's folder (or the whole worlds folder) onto this panel. A world from a server is the same folder, copied from its save directory.";
 
 export const WORLD_PRIVACY =
-  'Only the built pieces are kept: which piece, where, and how it is turned. Who placed them (player IDs) and the world’s player list are never read or stored.';
+  'Only the built pieces are kept (which piece, where, and how it is turned), and in this browser what the ground needs: the seed, your terrain edits and where the world’s locations are. Who placed them (player IDs) and the world’s player list are never read or stored. A plan keeps the ground itself, never the seed.';
 
 const WORLD_ERRORS: Partial<Record<GameDataErrorCode, string>> = {
   notWorld:

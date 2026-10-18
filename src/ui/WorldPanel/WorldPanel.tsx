@@ -25,6 +25,7 @@ import type { CachedWorld } from '../../install/worldCache';
 import { useFileDrop } from '../shared/useFileDrop';
 import { useFolderInput } from '../shared/useFolderInput';
 
+import { AddTerrainHint } from './AddTerrain';
 import { WorldOverview } from './WorldOverview';
 import {
   WORLD_DRAG_HINT,
@@ -82,6 +83,7 @@ const Start = ({ recent }: { recent: readonly CachedWorld[] }) => {
   return (
     <>
       <p className={styles.text}>{WORLD_INTRO}</p>
+      <AddTerrainHint />
       <div className={styles.dropZone}>
         <p>Drop a world folder here</p>
         <button type="button" className={styles.button} onClick={choose}>

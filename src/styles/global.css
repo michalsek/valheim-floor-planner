@@ -3,7 +3,7 @@
  * `store/theme.ts` keeps it in sync; dark is also the default without the attribute.
  * Scene colours (grid, floors, walls) are read from here by `theme/themeTokens.ts`,
  * so `--grid-line`, `--floor-base`, `--canvas`, `--selection`, `--ghost`, `--mat-*`,
- * `--prop-*` and `--support-*` must stay
+ * `--prop-*`, `--support-*`, `--terrain-*`, `--contour` and `--water` must stay
  * `#rgb` / `#rrggbb` hex, and `--grid-alpha-scale` / `--floor-material-share` /
  * `--floor-opacity` / `--shadow-alpha` plain numbers.
  */
@@ -73,6 +73,12 @@
   --support-low: #e0613f;
   --support-broken: #e04fd8;
 
+  /* A site's ground: hillshade from shade (facing away) to light, contours, water. */
+  --terrain-shade: #1a1b1e;
+  --terrain-light: #4b4f55;
+  --contour: #a89470;
+  --water: #3d6f9a;
+
   /* 3D view: ground shadow darkness. */
   --shadow-alpha: 0.45;
 }
@@ -135,6 +141,11 @@
   --support-mid: #c9a21a;
   --support-low: #c8431f;
   --support-broken: #b81fb0;
+
+  --terrain-shade: #a3a9b0;
+  --terrain-light: #f4f6f8;
+  --contour: #7a5a32;
+  --water: #6fa3cf;
 
   --shadow-alpha: 0.28;
 }

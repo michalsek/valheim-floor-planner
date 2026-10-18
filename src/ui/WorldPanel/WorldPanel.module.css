@@ -310,3 +310,37 @@
     grid-template-columns: 1fr;
   }
 }
+
+.importActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.terrainOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.off {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.progress {
+  margin: 0 0 8px;
+}
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}

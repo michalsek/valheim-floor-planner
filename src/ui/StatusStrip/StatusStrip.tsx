@@ -1,18 +1,21 @@
 import { useAtom } from 'jotai';
 
 import { ToggleButton } from '../../controls/ToggleButton';
-import { formatNumber, formatZoom } from '../../format';
+import { formatLevel, formatNumber, formatZoom } from '../../format';
 import { isRawRoofCover } from '../../model/rawBoxes';
+import { groundAt } from '../../model/terrain/siteTerrain';
 import type { Plan } from '../../model/types';
 import { useCursor, useRendererBackend, useViewMode, useViewport } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { usePlanSelector } from '../../store/planHooks';
 import { roofsVisibleAtom, showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
+import { useShownSiteTerrain } from '../../store/siteTerrain';
 
 import { InstallMenu } from './InstallMenu';
 import { ModelToggle } from './ModelToggle';
 import { SnapStepPicker } from './SnapStepPicker';
 import styles from './StatusStrip.module.css';
+import { TerrainToggle } from './TerrainToggle';
 import { ThemePicker } from './ThemePicker';
 import { ViewToggle } from './ViewToggle';
 import { WorldButton } from '../WorldPanel/WorldButton';
@@ -22,7 +25,10 @@ const hasRoofs = (plan: Plan) =>
   Object.keys(plan.roofs).length > 0 ||
   Object.values(plan.rawPieces).some((piece) => isRawRoofCover(piece, getLibrary()));
 
-/** Show every ring, roofs (when there are any), and the underlay (when there is one). */
+/**
+ * Show every ring, roofs (when there are any), the underlay (when there is one) and the
+ * imported site's terrain.
+ */
 const LayerToggles = () => {
   const [showAll, setShowAll] = useAtom(showAllRadiiAtom);
   const [roofsVisible, setRoofsVisible] = useAtom(roofsVisibleAtom);
@@ -56,13 +62,27 @@ const LayerToggles = () => {
           Underlay
         </ToggleButton>
       )}
+      <TerrainToggle />
     </>
   );
 };
 
-/** The cursor on the plan (the work plane in 3D), the 2D zoom and the snap step. */
+/**
+ * The plan height of the shown terrain under the cursor ("ground +0.6 m", "ground —" off
+ * the patch); null without shown terrain.
+ */
+const useGroundReadout = (): string | null => {
+  const cursor = useCursor();
+  const site = useShownSiteTerrain();
+  if (!site) return null;
+  const h = cursor && groundAt(site.grid, site.frame, cursor.raw);
+  return `ground ${h === null ? '—' : formatLevel(Math.round(h * 10) / 10)}`;
+};
+
+/** The cursor on the plan (the work plane in 3D), the ground there, the 2D zoom, the snap step. */
 const PlanReadouts = ({ is2d }: { is2d: boolean }) => {
   const cursor = useCursor();
+  const ground = useGroundReadout();
   const { zoom } = useViewport();
   return (
     <>
@@ -71,6 +91,11 @@ const PlanReadouts = ({ is2d }: { is2d: boolean }) => {
           ? `x ${formatNumber(cursor.snapped.x)}  z ${formatNumber(cursor.snapped.z)} m`
           : '—'}
       </span>
+      {ground && (
+        <span className={styles.ground} title="The terrain's height under the cursor (plan height)">
+          {ground}
+        </span>
+      )}
       {is2d && <span>{formatZoom(zoom)}</span>}
       <SnapStepPicker />
     </>

@@ -13,7 +13,7 @@ import { strength3d } from '../grid/gridLevels';
 import { plateRect } from './plateRect';
 import { Collapsed } from './Collapsed';
 import { PlaneLines } from './PlaneLines';
-import { usePreviewLevel } from './useLevelShading';
+import { usePlateShown, usePreviewLevel } from './useLevelShading';
 
 /** How much of the canvas colour the plate lays over what is below it. */
 const PLATE_FROST = 0.4;
@@ -37,7 +37,7 @@ const createFill = () =>
     side: DoubleSide,
   });
 
-/** The grid, frosted fill and edge of the plate at the current level (off the ground). */
+/** The grid, frosted fill and edge of the plate at the current level. */
 const Plate = ({ rect }: { rect: WorldBox }) => {
   const dpr = useThree((s) => s.viewport.dpr);
   const invalidate = useThree((s) => s.invalidate);
@@ -89,21 +89,22 @@ const Plate = ({ rect }: { rect: WorldBox }) => {
 };
 
 /**
- * The work plane made visible in 3D: off the ground, a frosted plate at the current
- * level over the plan (its grid, a canvas-coloured fill that what is below shows
+ * The work plane made visible in 3D: off the ground (and at every level over shown
+ * terrain, `usePlateShown`), a frosted plate at the current level over the plan (its grid, a canvas-coloured fill that what is below shows
  * through, an accent edge); and a dashed outline at the level the Levels bar
  * previews. Their tags are `LevelTags3d`.
  */
 export const LevelPlate = ({ bounds }: { bounds: Bounds3 | null }) => {
   const datum = useAtomValue(workDatumAtom);
   const preview = usePreviewLevel();
+  const shown = usePlateShown();
   const { ink } = useThemeTokens();
   const rect = useMemo(() => plateRect(bounds), [bounds]);
   const outline = useMemo(() => [boxOutline(rect)], [rect]);
   return (
     <>
       <group position-y={datum}>
-        <Collapsed shown={datum !== 0}>
+        <Collapsed shown={shown}>
           <Plate rect={rect} />
         </Collapsed>
       </group>

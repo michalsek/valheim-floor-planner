@@ -1,13 +1,28 @@
 /**
- * Importing a world build: its pieces as a new plan (an undoable `plan.replace`), on its
- * main floor (`ImportedBuild.level`), fitted in view.
+ * Importing a world build: its pieces as a new plan, on its main floor
+ * (`ImportedBuild.level`), fitted in view, optionally with the ground under it (M16).
+ * Either way it is one `plan.replace`, so one undo step. Adding terrain later to a plan
+ * imported without it is one `site.setTerrain` ("Add terrain").
+ *
+ * The terrain is made in a worker (`generateSiteTerrain`). Each import or add takes a
+ * token; a result that arrives after a newer one started is dropped.
  */
-import type { WorldPieces } from '../gameData/valheim/world/worldPieces';
+import type { WorldCluster } from '../model/world/clusters';
 import { clampElevation, roundElevation } from '../model/elevation';
 import { planBounds } from '../model/planBounds';
 import { isPlanEmpty } from '../model/selection';
-import type { WorldCluster } from '../model/world/clusters';
+import type { PatchRect } from '../model/terrain/sitePatch';
+import type { Plan, SiteTerrain } from '../model/types';
 import { importCluster } from '../model/world/importCluster';
+import {
+  generateSiteTerrain,
+  siteRect,
+  terrainAvailability,
+  type SiteGeneration,
+  type TerrainAvailability,
+  type TerrainSource,
+} from '../install/siteGeneration';
+import type { TerrainPhase } from '../install/terrainJob';
 
 import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
@@ -17,33 +32,125 @@ import { resetOrbit } from './view3d';
 
 type ImportContext = SessionAccess & { plan: PlanStore };
 
-/**
- * Replaces the plan with the build (asking first unless the plan is empty): 'done',
- * 'kept' when the user said no, or why it can't be imported.
- */
-export const importBuild = (
-  ctx: ImportContext,
-  world: { name: string; pieces: WorldPieces },
+/** A build made into a plan, ready to import, and whether its ground can be made. */
+export interface PreparedBuild {
+  plan: Plan;
+  level: number;
+  rect: PatchRect | null;
+  terrain: TerrainAvailability;
+}
+
+export type ImportResult = 'done' | 'kept' | 'cancelled' | { error: string };
+
+export interface TerrainOptions {
+  onPhase(phase: TerrainPhase): void;
+  /** Cancels everything (the panel closed). */
+  signal: AbortSignal;
+  /** Stops making the ground; the import goes on without it ("Skip terrain"). */
+  skip?: AbortSignal;
+}
+
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
+/** The build as a plan (or why it can't be one), and its site's availability. */
+export const prepareBuild = (
+  world: TerrainSource,
   cluster: WorldCluster
-): 'done' | 'kept' | { error: string } => {
+): PreparedBuild | { error: string } => {
+  try {
+    const { plan, level } = importCluster(world.pieces, cluster, getLibrary(), world.name);
+    const rect = siteRect(plan, getLibrary());
+    const terrain: TerrainAvailability = rect
+      ? terrainAvailability(world, rect)
+      : { ok: false, reason: 'The build has no extent.' };
+    return { plan, level, rect, terrain };
+  } catch (error) {
+    return { error: messageOf(error) };
+  }
+};
+
+let token = 0;
+
+/** The ground for `plan`'s frame, or null when skipped; throws an `AbortError` when cancelled. */
+const makeTerrain = async (
+  world: TerrainSource,
+  plan: Plan,
+  rect: PatchRect,
+  opts: TerrainOptions
+): Promise<SiteGeneration | null> => {
+  const signal = opts.skip ? AbortSignal.any([opts.signal, opts.skip]) : opts.signal;
+  try {
+    return await generateSiteTerrain(world, plan.importFrame!, rect, opts.onPhase, signal);
+  } catch (error) {
+    if (isAbort(error) && opts.skip?.aborted && !opts.signal.aborted) return null;
+    throw error;
+  }
+};
+
+/**
+ * Replaces the plan with the build (asking first unless the plan is empty), with its
+ * ground when `opts` is given and it can be made.
+ */
+export const importBuild = async (
+  ctx: ImportContext,
+  world: TerrainSource,
+  build: PreparedBuild,
+  opts: TerrainOptions | null
+): Promise<ImportResult> => {
   if (
     !isPlanEmpty(ctx.plan.getPlan()) &&
     !window.confirm('Replace the current plan with this build? You can undo this.')
   ) {
     return 'kept';
   }
-  let imported;
-  try {
-    imported = importCluster(world.pieces, cluster, getLibrary(), world.name);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
+  const mine = ++token;
+  let terrain: SiteTerrain | null = null;
+  if (opts && build.rect && build.terrain.ok) {
+    try {
+      terrain = (await makeTerrain(world, build.plan, build.rect, opts))?.terrain ?? null;
+    } catch (error) {
+      if (isAbort(error)) return 'cancelled';
+      return { error: `The ground couldn’t be made: ${messageOf(error)}` };
+    }
   }
-  const { plan, level } = imported;
+  if (mine !== token || opts?.signal.aborted) return 'cancelled';
+  const plan: Plan = { ...build.plan, importFrame: { ...build.plan.importFrame!, terrain } };
   ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Import from ${world.name}` });
   ctx.set(selectionAtom, []);
   ctx.set(hoverAtom, null);
-  ctx.set(workDatumAtom, roundElevation(clampElevation(level)));
+  ctx.set(workDatumAtom, roundElevation(clampElevation(build.level)));
   fitViewTo(ctx, planBounds(plan, getLibrary()));
   resetOrbit(ctx);
   return 'done';
+};
+
+/** Adds the ground to the current plan's import (one undoable "Add terrain"). */
+export const addTerrain = async (
+  ctx: ImportContext,
+  world: TerrainSource,
+  opts: TerrainOptions
+): Promise<ImportResult> => {
+  const plan = ctx.plan.getPlan();
+  const rect = siteRect(plan, getLibrary());
+  if (!plan.importFrame || !rect) return { error: 'The plan has no imported build.' };
+  const available = terrainAvailability(world, rect);
+  if (!available.ok) return { error: available.reason };
+  const mine = ++token;
+  let made: SiteGeneration | null;
+  try {
+    made = await makeTerrain(world, plan, rect, opts);
+  } catch (error) {
+    if (isAbort(error)) return 'cancelled';
+    return { error: `The ground couldn’t be made: ${messageOf(error)}` };
+  }
+  // A newer request, or the plan changed under it (another import, an undo).
+  if (!made || mine !== token || ctx.plan.getPlan().importFrame !== plan.importFrame) {
+    return 'cancelled';
+  }
+  const result = ctx.plan.dispatch(
+    { type: 'site.setTerrain', terrain: made.terrain },
+    { label: 'Add terrain' }
+  );
+  return result.ok ? 'done' : { error: result.error.message };
 };

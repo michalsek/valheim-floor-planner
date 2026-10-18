@@ -12,6 +12,7 @@ import { useViewport, useViewportSize } from '../store/hooks';
 import { overlayTransform } from '../viewport/viewportMath';
 
 import styles from './Overlay.module.css';
+import { SiteMarks } from './SiteMarks';
 
 export interface OverlayProps {
   /** Content in world metres. */
@@ -27,6 +28,8 @@ export const Overlay = ({ world, children }: OverlayProps) => {
   return (
     <svg className={styles.overlay} aria-hidden>
       <g data-layer="world" transform={overlayTransform(viewport, size)}>
+        {/* Under everything drawn on the plan: the site's patch edge and location rings. */}
+        <SiteMarks />
         {world}
       </g>
       <g data-layer="screen">{children}</g>

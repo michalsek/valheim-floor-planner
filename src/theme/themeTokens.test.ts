@@ -22,6 +22,8 @@ describe('readThemeTokens', () => {
         '--prop-crafting': '#b8761a',
         '--shadow-alpha': '0.3',
         '--ghost': '#7D8794',
+        '--contour': '#7a5a32',
+        '--water': '#6FA3CF',
       })
     );
     expect(tokens.gridLine).toBe('#3b4350');
@@ -37,6 +39,11 @@ describe('readThemeTokens', () => {
     expect(tokens.propGroups.ships).toBe(DEFAULT_THEME_TOKENS.propGroups.ships);
     expect(tokens.shadowAlpha).toBe(0.3);
     expect(tokens.ghost).toBe('#7d8794');
+    expect(tokens.terrain).toEqual({
+      ...DEFAULT_THEME_TOKENS.terrain,
+      contour: '#7a5a32',
+      water: '#6fa3cf',
+    });
   });
 
   it('keeps the defaults for missing or invalid values', () => {
