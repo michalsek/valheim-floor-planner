@@ -30,7 +30,7 @@ const cloud: PieceCloud = {
 };
 const cluster = describeCluster(cloud, [0, 1, 2, 3], () => null);
 const imported = (grid: 'world' | 'build') =>
-  importCluster(cloud, cluster, testLibrary, 'Fixture', grid).plan;
+  importCluster(cloud, cluster, testLibrary, 'Fixture', grid);
 
 const reframed = (plan: Plan, grid: 'world' | 'build'): Plan =>
   applyCommands(plan, [{ type: 'site.reframe', ...reframePlan(plan, testLibrary, grid) }]);
@@ -55,7 +55,7 @@ describe('re-framing an import', () => {
     const build = reframed(world, 'build');
     expect(layout(build)).toEqual(layout(imported('build')));
     expect(layout(reframed(build, 'world'))).toEqual(layout(world));
-    // The datum and levels stay, so the terrain (heights above the datum) does too.
+    // The datum and the heights stay, so the terrain (heights above the datum) does too.
     expect(build.importFrame!.origin.y).toBe(world.importFrame!.origin.y);
   });
 

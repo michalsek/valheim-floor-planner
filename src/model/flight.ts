@@ -2,15 +2,14 @@
  * Stair and ladder flights: as many pieces as it takes to climb a rise, each one up
  * and along from the last. Pure.
  */
-import type { Library } from '../catalog/library';
 import type { PropDef } from '../catalog/propDefs';
 
+import type { StoreyStop } from './cut';
 import { roundElevation } from './elevation';
 import { rotate } from './geometry/propGeometry';
-import { levelAbove } from './levels';
-import type { Plan, Prop, Vec2 } from './types';
+import type { Prop, Vec2 } from './types';
 
-/** A flight's rise when there is no level above to climb to (metres). */
+/** A flight's rise when there is no storey above to climb to (metres). */
 export const DEFAULT_RISE = 2;
 
 export type Flight = NonNullable<PropDef['flight']>;
@@ -38,12 +37,12 @@ export const flightSteps = (flight: Flight, start: FlightStep, rise: number): Fl
   }));
 };
 
-/** How far up the next level above `elevation` is (`levelAbove`); `DEFAULT_RISE` with none. */
-export const riseToNextLevel = (
-  plan: Plan,
-  elevation: number,
-  lib: Pick<Library, 'propDefs'>
-): number => {
-  const next = levelAbove(plan, elevation, lib);
-  return next === null ? DEFAULT_RISE : roundElevation(next - elevation);
+/**
+ * How far up the next storey's floor above `elevation` is: the walking surface (`top`)
+ * of the first stop over it, since a stop sits at its floor's bottom; `DEFAULT_RISE`
+ * with none.
+ */
+export const riseToNextStop = (stops: readonly StoreyStop[], elevation: number): number => {
+  const next = stops.find((s) => s.top > elevation + 1e-3);
+  return next ? roundElevation(next.top - elevation) : DEFAULT_RISE;
 };

@@ -152,7 +152,7 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
   it('imports the build with its ground: floors on it, none under it', async () => {
     const groups = groupPieces(world.pieces);
     const cluster = describeCluster(world.pieces, groups[0]!, () => null);
-    const { plan: bare } = importCluster(world.pieces, cluster, testLibrary, world.name);
+    const bare = importCluster(world.pieces, cluster, testLibrary, world.name);
     const rect = siteRect(bare, testLibrary)!;
     expect(terrainAvailability(world, rect)).toEqual({ ok: true });
 

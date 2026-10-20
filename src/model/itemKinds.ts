@@ -3,7 +3,6 @@
  * The mapped type makes a missing kind a compile error: adding a kind means a
  * `SelectionItem` member, an entry here, and its own files.
  */
-import type { Library } from '../catalog/library';
 import { propRect } from '../catalog/propDefs';
 
 import type { PlanCommand } from './commands';
@@ -12,6 +11,8 @@ import { dimensionLine } from './geometry/dimension';
 import { addVec } from './geometry/polyline';
 import { propBoxTest, propCorners } from './geometry/propGeometry';
 import { roundElevation } from './elevation';
+import { round6 } from './geometry/round';
+import type { BoxLib } from './pieceBoxes';
 import { MAX_PROPS } from './props';
 import { convexBoxTest } from './geometry/convex';
 import { rawOutline } from './rawBoxes';
@@ -19,20 +20,15 @@ import { MAX_RAW_PIECES } from './rawPieces';
 import type { SelectionKind } from './selection';
 import type { Plan, Vec2 } from './types';
 
-/** The catalogue data item kinds read. */
-export type KindLib = Pick<Library, 'propDefs' | 'catalog' | 'roofFamilies' | 'gableWallSets'>;
-
-/** The plan records holding objects that carry their own elevation. */
-export type LevelledRecord = 'props' | 'dimensions' | 'rawPieces';
+/** The catalogue data item kinds read: what their boxes are made from. */
+export type KindLib = BoxLib;
 
 export interface ItemKind {
   /** How one item is named in history labels ("Move item"). */
   noun: string;
   /** The plan record holding the kind's objects, by id. */
   collection(plan: Plan): Readonly<Record<string, unknown>>;
-  /** The record holding the kind's objects, each with its own elevation (a level). */
-  levelled: LevelledRecord;
-  /** The elevation an item stands at; null when it is gone. */
+  /** The absolute height an item stands at (a raw piece: its pivot's y); null when it is gone. */
   elevation(plan: Plan, id: string): number | null;
   /** Commands raising (or lowering) it by `dy`. */
   raise(plan: Plan, id: string, dy: number): PlanCommand[];
@@ -76,7 +72,6 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   dimension: {
     noun: 'dimension',
     collection: (plan) => plan.dimensions,
-    levelled: 'dimensions',
     elevation: (plan, id) => plan.dimensions[id]?.elevation ?? null,
     raise: (plan, id, dy) => {
       const changes = raised(plan.dimensions[id], dy);
@@ -106,7 +101,6 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   prop: {
     noun: 'item',
     collection: (plan) => plan.props,
-    levelled: 'props',
     elevation: (plan, id) => plan.props[id]?.elevation ?? null,
     raise: (plan, id, dy) => {
       const changes = raised(plan.props[id], dy);
@@ -137,11 +131,12 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
   raw: {
     noun: 'piece',
     collection: (plan) => plan.rawPieces,
-    levelled: 'rawPieces',
-    elevation: (plan, id) => plan.rawPieces[id]?.elevation ?? null,
+    elevation: (plan, id) => plan.rawPieces[id]?.position.y ?? null,
     raise: (plan, id, dy) => {
-      const changes = raised(plan.rawPieces[id], dy);
-      return changes ? [{ type: 'raw.patch', id, changes }] : [];
+      const piece = plan.rawPieces[id];
+      if (!piece) return [];
+      const position = { ...piece.position, y: round6(piece.position.y + dy) };
+      return [{ type: 'raw.patch', id, changes: { position } }];
     },
     lines: rawLines,
     highlight: rawLines,
@@ -167,9 +162,3 @@ export const ITEM_KINDS: { readonly [K in SelectionKind]: ItemKind } = {
 };
 
 export const SELECTION_KINDS = Object.keys(ITEM_KINDS) as SelectionKind[];
-
-/** The kinds with their plan records (each object carries its own elevation). */
-export const LEVELLED_KINDS = SELECTION_KINDS.map((kind) => ({
-  kind,
-  record: ITEM_KINDS[kind].levelled,
-}));

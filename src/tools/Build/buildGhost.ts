@@ -1,6 +1,6 @@
 /**
  * The Build tool's ghost (M17 §3, §5, §6), derived from the pointer, the camera and the
- * build state, so it follows camera moves, level steps and commits without pointer
+ * build state, so it follows camera moves, cut changes and commits without pointer
  * events: ray → hit (grid on the ground) → base pose → snap → blocked, deep overlap and
  * the live support preview. Ctrl/⌘ swaps it for what a click would remove.
  */
@@ -21,13 +21,11 @@ import { basePose, blockedBy, snapPose, type SnapPair } from '../../model/build/
 import { boxBounds, boxesNear } from '../../model/build/snapPoints';
 import type { Bounds3 } from '../../model/geometry/bounds3';
 import { pickBoxes, type Ray3 } from '../../model/geometry/ray';
-import { levelPlan } from '../../model/levels';
 import type { PieceBox } from '../../model/pieceBoxes';
 import type { Plan } from '../../model/types';
 import { ghostSupport } from '../../model/support/ghostSupport';
 import type { BoxSupport } from '../../model/support/planSupport';
 import { getLibrary } from '../../store/libraryInstance';
-import { getPieceBoxes } from '../../store/planHooks';
 import {
   modifiersAtom,
   pointerScreenAtom,
@@ -35,7 +33,7 @@ import {
   snapStepAtom,
   viewportAtom,
   viewportSizeAtom,
-  workDatumAtom,
+  workPlaneAtom,
 } from '../../store/session';
 import { committedSupportIndex, latestSupportAtom } from '../../store/supportSync';
 import { viewModeAtom } from '../../store/view3d';
@@ -96,7 +94,7 @@ const pointerRay = (
     };
   }
   const p = screenToWorld(get(viewportAtom), get(viewportSizeAtom), screen);
-  const y = get(workDatumAtom) + RAY_2D_HEIGHT;
+  const y = get(workPlaneAtom) + RAY_2D_HEIGHT;
   return { ray: { origin: { x: p.x, y, z: p.z }, dir: { x: 0, y: -1, z: 0 } }, maxT: Infinity };
 };
 
@@ -106,7 +104,7 @@ const sceneOf = (get: Getter, targets: BuildTargets, maxT: number): BuildScene =
   return {
     boxes: in3d ? targets.boxes : [],
     terrain: targets.terrain,
-    datum: get(workDatumAtom),
+    datum: get(workPlaneAtom),
     maxT,
   };
 };
@@ -225,19 +223,14 @@ export interface BuildRemoval {
 }
 
 /**
- * While Ctrl/⌘ is held, the piece a click would remove: in 3D the nearest drawn piece
- * under the pointer, in 2D the current level's topmost piece under the cursor.
+ * While Ctrl/⌘ is held, the piece a click would remove: the nearest drawn piece under the
+ * pointer (in 2D, along a ray straight down: the topmost one shown).
  */
 export const buildRemovalAtom = atom<BuildRemoval | null>((get) => {
   if (!get(removeModeAtom)) return null;
   const pointer = pointerRay(get, get(pointerScreenAtom));
   if (!pointer) return null;
-  const targets = get(buildTargetsAtom);
-  const boxes =
-    get(viewModeAtom) === '3d'
-      ? targets.boxes
-      : getPieceBoxes(levelPlan(targets.plan, get(workDatumAtom), getLibrary()));
-  const found = pickBoxes(pointer.ray, boxes);
+  const found = pickBoxes(pointer.ray, get(buildTargetsAtom).boxes);
   if (!found || found.t > pointer.maxT) return null;
   return { box: found.box };
 });

@@ -13,6 +13,7 @@ import { startSelectionSync } from './store/selection';
 import { startSupportSync } from './store/supportSync';
 import { autosaveStatusAtom, sessionStore } from './store/session';
 import { startThemeSync } from './store/theme';
+import { startWorkPlaneSync } from './store/workPlane';
 import { InstallGate } from './ui/InstallGate/InstallGate';
 import { useInstall } from './ui/shared/useInstall';
 
@@ -44,6 +45,8 @@ const start = async () => {
 
   // Before the first render, so the selection is pruned before React reads it.
   startSelectionSync(planStore, sessionStore);
+  const stopWorkPlaneSync = startWorkPlaneSync(planStore, sessionStore);
+  import.meta.hot?.dispose(stopWorkPlaneSync);
   // Support is worked out when idle, only while something shows it.
   const stopSupportSync = startSupportSync(planStore, sessionStore);
   import.meta.hot?.dispose(stopSupportSync);

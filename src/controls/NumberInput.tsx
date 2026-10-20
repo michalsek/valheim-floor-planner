@@ -12,7 +12,8 @@ interface NumberInputProps {
 
 /**
  * A number field that commits on Enter or blur; Esc and invalid input revert. Mount
- * it keyed by `value`, so an undone change shows.
+ * it keyed by `value`, so an undone change shows. After a commit the field shows `value`
+ * again until the new one arrives, so a refused or clamped entry doesn't linger.
  */
 export const NumberInput = ({ label, value, step, onCommit }: NumberInputProps) => {
   const [draft, setDraft] = useState(String(value));
@@ -22,9 +23,8 @@ export const NumberInput = ({ label, value, step, onCommit }: NumberInputProps) 
     const next = Number(draft);
     if (!reverting.current && draft.trim() !== '' && Number.isFinite(next) && next !== value) {
       onCommit(next);
-    } else {
-      setDraft(String(value));
     }
+    setDraft(String(value));
     reverting.current = false;
   };
 

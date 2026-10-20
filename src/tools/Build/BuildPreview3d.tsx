@@ -17,7 +17,7 @@ import {
 } from '../../scene/view3d/lineObjects';
 import { useRelease } from '../../scene/useRelease';
 import { realLookAtom } from '../../store/modelView';
-import { workDatumAtom } from '../../store/session';
+import { workPlaneAtom } from '../../store/session';
 
 import { useGhostShades, useRemovalShades, type GhostShades } from './buildColors';
 import { buildGhostAtom, buildRemovalAtom } from './buildGhost';
@@ -130,18 +130,18 @@ const Ghost = ({ boxes, shades }: { boxes: readonly PieceBox[]; shades: GhostSha
 /**
  * The Build ghost where a click would place it (M17 §2.5), or the piece Ctrl/⌘ + click
  * would remove. Mounted while the tool is armed, so its meshes outlive pointer leaves.
- * The ghost has absolute heights: it is drawn under the view's lift by the datum.
+ * The ghost has absolute heights: it is drawn under the view's lift by the work plane.
  */
 export const BuildPreview3d = () => {
   const armed = useAtomValue(armedSetAtom);
   const ghost = useAtomValue(buildGhostAtom);
   const removal = useAtomValue(buildRemovalAtom);
-  const datum = useAtomValue(workDatumAtom);
+  const plane = useAtomValue(workPlaneAtom);
   const shades = useGhostShades(ghost);
   const removalShades = useRemovalShades(removal);
   const removed = useMemo(() => (removal ? [removal.box] : NONE), [removal]);
   return (
-    <group position-y={-datum}>
+    <group position-y={-plane}>
       {armed && <Ghost boxes={ghost?.boxes ?? NONE} shades={shades} />}
       {removalShades && (
         <>

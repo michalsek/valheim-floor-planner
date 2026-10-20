@@ -1,28 +1,25 @@
 /**
- * Which boxes the 3D view draws and how it shades them by level: hidden roofs left
- * out, the levels of the view mode (`boxesInView`), pieces faded off the current level,
- * the level the Levels bar previews tinted, and the selection and hover over that.
+ * Which boxes the 3D view draws and how it shades them (interim; pass 3 replaces it with
+ * cut shading): hidden roofs left out, the cut (`cutBoxes`), or with ghosts on everything
+ * with the pieces above the cut faded, and the selection and hover over that.
  */
 import { useAtomValue } from 'jotai';
 import { useMemo } from 'react';
 
-import { isLevelConnector } from '../../catalog/propDefs';
-import { sameLevel } from '../../model/elevation';
+import { aboveCut, cutBoxes } from '../../model/cut';
 import type { Bounds3 } from '../../model/geometry/bounds3';
-import { boxesInView, levelIndex } from '../../model/levels';
 import { boxesBounds, type PieceBox } from '../../model/pieceBoxes';
 import type { Plan } from '../../model/types';
 import { useThemeTokens } from '../../store/hooks';
-import { getLibrary } from '../../store/libraryInstance';
 import { getShownBoxes } from '../../store/planHooks';
 import { useShownSiteTerrain } from '../../store/siteTerrain';
 import { hoverAtom, selectionAtom } from '../../store/selection';
 import {
-  levelHoverAtom,
-  levelViewModeAtom,
+  cutGhostAtom,
+  cutHeightAtom,
   roofsVisibleAtom,
   supportViewAtom,
-  workDatumAtom,
+  workPlaneAtom,
 } from '../../store/session';
 import { useSupport } from '../../store/supportSync';
 
@@ -33,40 +30,31 @@ import {
   supportTinter,
   tintWithHighlight,
   tintWithLevel,
-  tintWithLevelHover,
   withHighlight,
   withLevel,
-  withLevelHover,
   type PieceColorer,
   type PieceTinter,
 } from './pieceColors';
 
 export interface LevelShading {
-  /** What is drawn: the shown boxes of the view mode's levels. */
+  /** What is drawn: the shown boxes below the cut (all of them with ghosts on). */
   boxes: readonly PieceBox[];
-  /** Every shown box, on any level: the models to keep loaded. */
+  /** Every shown box, cut or not: the models to keep loaded. */
   retainBoxes: readonly PieceBox[];
-  /** The bounds of `retainBoxes`, so the camera and shadows don't move with the level. */
+  /** The bounds of `retainBoxes`, so the camera and shadows don't move with the cut. */
   bounds: Bounds3 | null;
   colorOf: PieceColorer;
   tintOf: PieceTinter;
 }
 
-/** The level hovered in the Levels bar, unless it is the current one. */
-export const usePreviewLevel = (): number | null => {
-  const datum = useAtomValue(workDatumAtom);
-  const hovered = useAtomValue(levelHoverAtom);
-  return hovered === null || sameLevel(hovered, datum) ? null : hovered;
-};
-
 /**
- * Whether the level plate is drawn: off the ground, and at every level (0 included)
+ * Whether the level plate is drawn: off the ground, and at every height (0 included)
  * over shown terrain, where the ground is no longer the work plane.
  */
 export const usePlateShown = (): boolean => {
-  const datum = useAtomValue(workDatumAtom);
+  const plane = useAtomValue(workPlaneAtom);
   const site = useShownSiteTerrain();
-  return datum !== 0 || site !== null;
+  return plane !== 0 || site !== null;
 };
 
 const boundsCache = new WeakMap<readonly PieceBox[], Bounds3 | null>();
@@ -78,8 +66,8 @@ const boundsOf = (boxes: readonly PieceBox[]): Bounds3 | null => {
 };
 
 /**
- * `plan`'s boxes the 3D view shows on any level (`getShownBoxes`), and their bounds:
- * what the camera, the shadows and the level plate fit.
+ * `plan`'s boxes the 3D view can show, before the cut (`getShownBoxes`), and their
+ * bounds: what the camera, the shadows and the level plate fit.
  */
 export const useShownBoxes = (
   plan: Plan
@@ -88,62 +76,48 @@ export const useShownBoxes = (
   return { boxes, bounds: boundsOf(boxes) };
 };
 
-/** Each box's level (a stair piece's is its flight's). */
-const useLevelOf = (plan: Plan): ((box: PieceBox) => number) =>
-  useMemo(() => {
-    const { levelOf } = levelIndex(plan, getLibrary());
-    return (box) => levelOf(box.elevation, isLevelConnector(box.group));
-  }, [plan]);
+const NONE: readonly PieceBox[] = [];
+const NOT_FADED = () => false;
+const fadedCache = new WeakMap<readonly PieceBox[], (box: PieceBox) => boolean>();
+
+/** Whether a box is one of `above` (the ghosts); kept per list, so memos downstream hold. */
+const fadedBy = (above: readonly PieceBox[]): ((box: PieceBox) => boolean) => {
+  if (above.length === 0) return NOT_FADED;
+  let faded = fadedCache.get(above);
+  if (!faded) {
+    const keys = new Set(above.map((box) => box.key));
+    fadedCache.set(above, (faded = (box) => keys.has(box.key)));
+  }
+  return faded;
+};
 
 /** `plan`'s boxes as the 3D view draws and shades them. */
 export const useLevelShading = (plan: Plan): LevelShading => {
-  const datum = useAtomValue(workDatumAtom);
-  const mode = useAtomValue(levelViewModeAtom);
-  const preview = usePreviewLevel();
-  const plate = usePlateShown();
+  const h = useAtomValue(cutHeightAtom);
+  const ghosts = useAtomValue(cutGhostAtom);
   const tokens = useThemeTokens();
   const selection = useAtomValue(selectionAtom);
   const hover = useAtomValue(hoverAtom);
   const supportView = useAtomValue(supportViewAtom);
   const { support } = useSupport();
-  const levelOf = useLevelOf(plan);
 
   const { boxes: retainBoxes, bounds } = useShownBoxes(plan);
-  const boxes = useMemo(
-    () => boxesInView(retainBoxes, plan, getLibrary(), { mode, datum, hovered: preview }),
-    [mode, retainBoxes, plan, datum, preview]
-  );
+  const boxes = ghosts ? retainBoxes : cutBoxes(retainBoxes, h);
 
-  // One rule for every mode: above the level is faded (drawn in `above` and `all`), so
-  // the current level stands out; below it too while there is no plate (at datum 0),
-  // else the plate's frosting fades it. The previewed level isn't.
-  const faded = useMemo(
-    () => (box: PieceBox) => {
-      const level = levelOf(box);
-      if (sameLevel(level, datum) || (preview !== null && sameLevel(level, preview))) {
-        return false;
-      }
-      return level > datum || !plate;
-    },
-    [levelOf, datum, preview, plate]
-  );
-  const previewed = useMemo(
-    () => (preview === null ? null : (box: PieceBox) => sameLevel(levelOf(box), preview)),
-    [levelOf, preview]
-  );
+  // With ghosts on, what the cut hides is drawn faded (and never picked: tools see
+  // `cutBoxes` only).
+  const faded = fadedBy(ghosts ? aboveCut(retainBoxes, h) : NONE);
 
   const highlight = supportView ? tokens.ink.neutral : tokens.selection;
   const colorOf = useMemo(() => {
     const plain = materialColorer(tokens);
     const base = supportView ? supportColorer(support, tokens, plain) : plain;
-    const levelled = withLevelHover(withLevel(base, faded, tokens), previewed, highlight);
-    return withHighlight(levelled, selection, hover, highlight);
-  }, [tokens, supportView, support, faded, previewed, selection, hover, highlight]);
+    return withHighlight(withLevel(base, faded, tokens), selection, hover, highlight);
+  }, [tokens, supportView, support, faded, selection, hover, highlight]);
   const tintOf = useMemo(() => {
     const base = supportView ? supportTinter(support, tokens) : plainTinter;
-    const levelled = tintWithLevelHover(tintWithLevel(base, faded, tokens), previewed, highlight);
-    return tintWithHighlight(levelled, selection, hover, highlight);
-  }, [tokens, supportView, support, faded, previewed, selection, hover, highlight]);
+    return tintWithHighlight(tintWithLevel(base, faded, tokens), selection, hover, highlight);
+  }, [tokens, supportView, support, faded, selection, hover, highlight]);
 
   return { boxes, retainBoxes, bounds, colorOf, tintOf };
 };

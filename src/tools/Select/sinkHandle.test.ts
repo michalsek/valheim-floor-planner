@@ -11,7 +11,6 @@ const wall = (id: string, x: number, y = 1): RawPiece => ({
   prefab: 'woodwall',
   position: { x, y, z: 0 },
   rotation: { yaw: 0, pitch: 0, roll: 0 },
-  elevation: 0,
 });
 
 const planOf = (...pieces: RawPiece[]): Plan => ({

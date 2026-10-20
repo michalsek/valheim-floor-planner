@@ -16,7 +16,6 @@ import {
   activeToolIdAtom,
   cursorAtom,
   cursorStyleAtom,
-  levelPickAtom,
   modifiersAtom,
   panViewport,
   pointerScreenAtom,
@@ -30,7 +29,6 @@ import { localPoint } from '../viewport/localPoint';
 import { useViewportControls } from '../viewport/useViewportControls';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
-import { pickLevel } from './levelActions';
 import { dragThresholdPx, surfacePlanPoint } from './picking';
 import { MIDDLE_BUTTON, PRIMARY_BUTTON } from './pointerButtons';
 import { useToolContext } from './toolContext';
@@ -93,7 +91,6 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
   const is3d = useViewMode() === '3d';
   const { space } = useModifiers();
   const toolCursor = useAtomValue(cursorStyleAtom);
-  const levelPick = useAtomValue(levelPickAtom);
 
   useViewportControls(containerRef);
   useToolKeyboard();
@@ -215,11 +212,6 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       return;
     }
     if (is3d) ctx.set(toolPressAtom, (n) => n + 1);
-    if (levelPick && e.button === PRIMARY_BUTTON && !panKey) {
-      // The Levels bar's Pick: this click only picks a level.
-      pickLevel(ctx, screen, ctx.get(cursorAtom)?.raw ?? null);
-      return;
-    }
     e.currentTarget.setPointerCapture(e.pointerId);
     if (e.button === MIDDLE_BUTTON || panKey) {
       gestureRef.current = { kind: 'pan', pointerId: e.pointerId, last: screen };
@@ -296,13 +288,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     if (event) activeTool().onDoubleClick?.(event, ctx);
   };
 
-  const cursor = isPanning
-    ? 'grabbing'
-    : space
-      ? 'grab'
-      : levelPick
-        ? 'cell'
-        : (toolCursor ?? tool.cursor);
+  const cursor = isPanning ? 'grabbing' : space ? 'grab' : (toolCursor ?? tool.cursor);
 
   return (
     <div

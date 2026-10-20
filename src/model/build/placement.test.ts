@@ -18,7 +18,6 @@ const raw = (prefab: string, at: Vec3, yaw = 0): RawPiece => ({
   prefab,
   position: at,
   rotation: { yaw, pitch: 0, roll: 0 },
-  elevation: 0,
 });
 
 const indexOf = (pieces: RawPiece[], lib = testLibrary) =>

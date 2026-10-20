@@ -10,8 +10,8 @@ import type { Vec2 } from '../../model/types';
 import type { DimensionTone } from '../../overlay/DimensionLine';
 import { useDimensionTone } from '../../overlay/useDimensionTone';
 import { useThemeTokens } from '../../store/hooks';
-import { useDisplayPlan } from '../../store/planHooks';
-import { workDatumAtom } from '../../store/session';
+import { useCutPlan } from '../../store/planHooks';
+import { workPlaneAtom } from '../../store/session';
 import type { ThemeTokens } from '../../theme/themeTokens';
 
 import { PlaneLines } from './PlaneLines';
@@ -70,13 +70,13 @@ export const DimensionLines3d = ({
 };
 
 /**
- * The plan's pinned dimensions, each on its own level's plane (labels:
- * `PinnedDimensionLabels3d`).
+ * The pinned dimensions below the cut, each on its own plane, faded off the work plane
+ * (labels: `PinnedDimensionLabels3d`).
  */
 export const Dimensions3d = () => {
-  const { dimensions } = useDisplayPlan();
+  const { dimensions } = useCutPlan();
   const toneOf = useDimensionTone();
-  const datum = useAtomValue(workDatumAtom);
+  const plane = useAtomValue(workPlaneAtom);
   return (
     <>
       {Object.values(dimensions).map(({ id, a, b, offset, elevation }) => (
@@ -86,7 +86,7 @@ export const Dimensions3d = () => {
             b={b}
             offset={offset}
             tone={toneOf(id)}
-            offLevel={!sameLevel(elevation, datum)}
+            offLevel={!sameLevel(elevation, plane)}
           />
         </group>
       ))}

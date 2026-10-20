@@ -5,14 +5,14 @@
 import { itemsLabel } from '../../model/selection';
 import type { Vec3 } from '../../model/types';
 import { editPreviewAtom, selectionAtom } from '../../store/selection';
-import { elevationStepAtom, projection3dAtom } from '../../store/session';
+import { cutStepAtom, projection3dAtom } from '../../store/session';
 import { viewModeAtom } from '../../store/view3d';
 import { project3d, type Projection3d } from '../../viewport/projection3d';
 import type { ScreenPoint } from '../../viewport/viewportMath';
 import { dragThresholdPx } from '../picking';
 import type { ToolContext, ToolPointerEvent } from '../types';
 
-import { commitCommands } from './selectActions';
+import { commitCommands } from '../commitCommands';
 import type { SelectGesture } from './selectState';
 import { FINE_STEP, handleTop, sinkCommands, sinkTargets } from './sinkHandle';
 
@@ -79,7 +79,7 @@ export const dragSink = (
     return { ...g, depth: g.targets[0]?.depth ?? g.depth };
   }
   const metres = -dy / g.pxPerMetre;
-  const step = e.shiftKey ? FINE_STEP : ctx.get(elevationStepAtom);
+  const step = e.shiftKey ? FINE_STEP : ctx.get(cutStepAtom);
   const { cmds, depth } = sinkCommands(ctx.plan.getPlan(), g.targets, metres, step);
   ctx.set(editPreviewAtom, cmds.length > 0 ? cmds : null);
   return { ...g, depth };

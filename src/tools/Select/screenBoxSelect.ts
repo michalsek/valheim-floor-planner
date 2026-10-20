@@ -23,7 +23,10 @@ export const screenRectFrom = (a: ScreenPoint, b: ScreenPoint): ScreenRect => ({
 
 const keyOf = (item: SelectionItem): string => `${item.kind}:${item.id}`;
 
-/** Each item's points in 3D: its boxes' corners, or (with no boxes) its drawn lines on its level. */
+/**
+ * Each item's points in 3D: its boxes' corners, or (with no boxes) its drawn lines at its
+ * elevation.
+ */
 const itemPoints = (
   plan: Plan,
   boxes: readonly PieceBox[],

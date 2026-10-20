@@ -88,7 +88,7 @@ const rawTier: Tier = (plan, p, tol, { rawLib }) => {
   for (const piece of Object.values(plan.rawPieces)) {
     if (!pointInConvex(p, rawOutline(piece, rawLib), tol)) continue;
     const area = rawOutlineArea(piece, rawLib);
-    const top = piece.elevation + piece.position.y;
+    const top = piece.position.y;
     if (!best || area < best.area - 1e-9 || (area < best.area + 1e-9 && top > best.top)) {
       best = { hit: { kind: 'raw', id: piece.id, area }, area, top };
     }

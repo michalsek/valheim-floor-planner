@@ -3,8 +3,8 @@
  * ghost set about the grabbed piece, placed by the Build tool's rules (ray, push-out,
  * snap, duplicate rule) against everything else; the wheel and R turn it about the
  * grabbed piece's pivot; Shift (pressed once the drag is going) or Alt places freely.
- * The pieces are previewed where they would go through `editPreviewAtom`, each keeping
- * its own level (elevation), and the release commits them as one entry.
+ * The pieces are previewed where they would go through `editPreviewAtom`, at the absolute
+ * heights placed, and the release commits them as one entry.
  */
 import { rawPose, setFromRaw, type GhostSet } from '../../model/build/ghostSet';
 import { ROTATION_STEP } from '../../model/build/placement';
@@ -24,8 +24,6 @@ export interface Carry {
   ids: readonly RawPieceId[];
   /** Their box keys, left out of hits, snaps and support. */
   exclude: ReadonlySet<string>;
-  /** Each piece's elevation, kept by the move (set order). */
-  elevations: readonly number[];
   /** The grabbed piece's yaw when picked up, and the turn added since (degrees). */
   yaw: number;
   turn: number;
@@ -64,7 +62,6 @@ export const startCarry = (
     set: setFromRaw(pieces, grabbed),
     ids: ordered.map((piece) => piece.id),
     exclude: new Set(ordered.map((piece) => `raw:${piece.id}`)),
-    elevations: ordered.map((piece) => piece.elevation),
     yaw: rawPose(anchor).yaw,
     turn: 0,
     shiftHeld,
@@ -74,17 +71,13 @@ export const startCarry = (
   };
 };
 
-/** The pieces moved to the ghost, each on its own level. */
+/** The pieces moved to the ghost, at the pivots placed (absolute). */
 const carryCommands = (carry: Carry, ghost: BuildGhost): PlanCommand[] =>
-  ghost.placed.map((placed, i) => {
-    const elevation = carry.elevations[i]!;
-    const y = Math.round((placed.pivot.y - elevation) * 1e6) / 1e6 + 0;
-    return {
-      type: 'raw.patch',
-      id: carry.ids[i]!,
-      changes: { position: { x: placed.pivot.x, y, z: placed.pivot.z }, rotation: placed.rotation },
-    };
-  });
+  ghost.placed.map((placed, i) => ({
+    type: 'raw.patch',
+    id: carry.ids[i]!,
+    changes: { position: { ...placed.pivot }, rotation: placed.rotation },
+  }));
 
 /**
  * The carry with the pointer at `screen`: its ghost and the preview. A blocked pose (it

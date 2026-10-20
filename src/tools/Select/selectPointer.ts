@@ -10,12 +10,13 @@ import { isSelected, itemsLabel, toggleItem, unionItems } from '../../model/sele
 import { snapValue } from '../../model/geometry/snap';
 import type { Vec2 } from '../../model/types';
 import { editPreviewAtom, hoverAtom, selectionAtom } from '../../store/selection';
-import { cursorStyleAtom, snapStepAtom, workDatumAtom } from '../../store/session';
+import { cursorStyleAtom, snapStepAtom, workPlaneAtom } from '../../store/session';
 import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from '../types';
 
-import { anchoredDelta, anchorOf, commitCommands } from './selectActions';
+import { anchoredDelta, anchorOf } from './selectActions';
+import { commitCommands } from '../commitCommands';
 import { commitSink, dragSink, overSinkHandle, pressSinkHandle } from './sinkPointer';
 import { carryTo, startCarry } from './snapMove';
 import {
@@ -59,7 +60,7 @@ export const cancelGesture = (ctx: ToolContext): boolean => {
 const grabOf = (ctx: ToolContext, e: ToolPointerEvent, y: number): Grab => {
   const on = onPlaneAt(ctx, e, y);
   if (on) return { y, world: on.world, snapped: on.snapped };
-  return { y: ctx.get(workDatumAtom), world: e.world, snapped: e.snapped };
+  return { y: ctx.get(workPlaneAtom), world: e.world, snapped: e.snapped };
 };
 
 export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {

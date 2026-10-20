@@ -12,7 +12,7 @@ export const armedPrefabAtom = atom<string | null>(null);
 export const propRotationAtom = atom<number>(0);
 /**
  * How high a stair or ladder flight climbs, as set in the options; null for the gap to
- * the next level up (`riseToNextLevel`).
+ * the next storey's floor (`riseToNextStop`).
  */
 export const flightRiseAtom = atom<number | null>(null);
 

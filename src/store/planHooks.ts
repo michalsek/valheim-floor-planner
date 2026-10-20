@@ -2,7 +2,7 @@ import { useAtomValue } from 'jotai';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { derivePlan, type Derived } from '../model/derivePlan';
-import { ghostPlan, levelPlan } from '../model/levels';
+import { cutPlan, storeyStops, type StoreyStop } from '../model/cut';
 import { pieceBoxes, type PieceBox } from '../model/pieceBoxes';
 import type { Plan } from '../model/types';
 
@@ -11,7 +11,7 @@ import { getLibrary } from './libraryInstance';
 import { planStore } from './planInstance';
 import type { HistoryLabels } from './planStore';
 import { editPreviewAtom } from './selection';
-import { workDatumAtom } from './session';
+import { cutHeightAtom } from './session';
 
 const subscribe = (onChange: () => void) => planStore.subscribe(onChange);
 
@@ -74,10 +74,7 @@ export const getDerived = (plan: Plan): Derived => {
 
 const boxesCache = new WeakMap<Plan, PieceBox[]>();
 
-/**
- * The plan's pieces and props as 3D boxes, each at its own elevation (not the work
- * datum). Memoised per plan object.
- */
+/** The plan's pieces and props as 3D boxes, at their absolute heights. Memoised per plan object. */
 export const getPieceBoxes = (plan: Plan): PieceBox[] => {
   let boxes = boxesCache.get(plan);
   if (!boxes) {
@@ -90,8 +87,8 @@ export const getPieceBoxes = (plan: Plan): PieceBox[] => {
 const roofless = new WeakMap<readonly PieceBox[], readonly PieceBox[]>();
 
 /**
- * The plan's boxes the 3D view shows (and Pick hits) on any level, before the level view
- * mode's filter: without roof covers while roofs are hidden; gable walls stay.
+ * The plan's boxes the views can show, before the cut: without the imported roof covers
+ * while roofs are hidden; gable walls stay.
  */
 export const getShownBoxes = (plan: Plan, roofsVisible: boolean): readonly PieceBox[] => {
   const all = getPieceBoxes(plan);
@@ -130,10 +127,13 @@ export const useDisplayPlan = (): Plan => getDisplayPlan(usePlan(), useAtomValue
 /** Derived data for `useDisplayPlan` (the BOM panel keeps the committed plan's). */
 export const useDisplayDerived = (): Derived => getDerived(useDisplayPlan());
 
-/** The displayed plan as the current level (the work datum) sees it: what 2D draws. */
-export const useLevelPlan = (): Plan =>
-  levelPlan(useDisplayPlan(), useAtomValue(workDatumAtom), getLibrary());
+/** The plan as the cut at `h` shows it (`cutPlan`); `plan` itself at All. */
+export const getCutPlan = (plan: Plan, h: number | null): Plan =>
+  h === null ? plan : cutPlan(plan, getPieceBoxes(plan), h);
 
-/** What the current level shows faintly from below (2D). */
-export const useGhostPlan = (): Plan =>
-  ghostPlan(useDisplayPlan(), useAtomValue(workDatumAtom), getLibrary());
+/** The plan's storey stops (cached per boxes array). */
+export const getStoreyStops = (plan: Plan): readonly StoreyStop[] =>
+  storeyStops(getPieceBoxes(plan), getLibrary());
+
+/** The displayed plan as the cut shows it: what 2D draws and tools pick. */
+export const useCutPlan = (): Plan => getCutPlan(useDisplayPlan(), useAtomValue(cutHeightAtom));

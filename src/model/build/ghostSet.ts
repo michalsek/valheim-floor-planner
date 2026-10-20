@@ -54,11 +54,7 @@ export const singlePiece = (prefab: string): GhostSet => ({
 });
 
 /** A raw piece's absolute pivot. */
-export const rawPivot = (piece: RawPiece): Vec3 => ({
-  x: piece.position.x,
-  y: piece.elevation + piece.position.y,
-  z: piece.position.z,
-});
+export const rawPivot = (piece: RawPiece): Vec3 => ({ ...piece.position });
 
 /** The pose that puts a set made from `anchor` (`setFromRaw`) back where it was. */
 export const rawPose = (anchor: RawPiece): Pose => ({
@@ -105,22 +101,16 @@ export const placeSet = (set: GhostSet, pose: Pose): PlacedGhost[] =>
     };
   });
 
-/** The set at `pose` as raw pieces (no id yet) on the level `datum`. */
-export const setPieces = (set: GhostSet, pose: Pose, datum: number): Omit<RawPiece, 'id'>[] =>
-  placeSet(set, pose).map(({ prefab, pivot, rotation }) => ({
-    prefab,
-    position: { x: pivot.x, y: round6(pivot.y - datum), z: pivot.z },
-    rotation,
-    elevation: datum,
-  }));
+/** The set at `pose` as raw pieces (no id yet), at their absolute pivots. */
+export const setPieces = (set: GhostSet, pose: Pose): Omit<RawPiece, 'id'>[] =>
+  placeSet(set, pose).map(({ prefab, pivot, rotation }) => ({ prefab, position: pivot, rotation }));
 
-/** A placed piece as a raw piece on its own pivot's level (for its box). */
+/** A placed piece as a raw piece (for its box). */
 const asRaw = ({ prefab, pivot, rotation }: PlacedGhost, i: number): RawPiece => ({
   id: `ghost${i}`,
   prefab,
-  position: { x: pivot.x, y: 0, z: pivot.z },
+  position: pivot,
   rotation,
-  elevation: pivot.y,
 });
 
 /** The set's boxes at `pose` (keys `raw:ghost<i>`, in set order). */

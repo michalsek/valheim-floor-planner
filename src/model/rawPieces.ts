@@ -8,13 +8,19 @@ import type { Library } from '../catalog/library';
 import type { PieceDef } from '../catalog/pieceDefs';
 import { APPROX_RECT, type LocalRect } from '../catalog/propDefs';
 
-import { elevationProblem } from './elevation';
+import { MAX_ELEVATION, MIN_ELEVATION } from './elevation';
 import type { RawPiece } from './types';
 
 /** Raw pieces per plan: a large base is a few thousand. */
 export const MAX_RAW_PIECES = 20_000;
-/** How far a piece may sit above or below its level (metres). */
-export const MAX_RAW_HEIGHT = 256;
+/** How far a version 6 piece could sit above or below its elevation (metres). */
+const MAX_RAW_HEIGHT = 256;
+/**
+ * The range of a piece's height (its pivot's absolute y): every piece of a version 6
+ * plan (at most `MAX_RAW_HEIGHT` off an elevation in range) loads.
+ */
+export const MIN_RAW_Y = MIN_ELEVATION - MAX_RAW_HEIGHT;
+export const MAX_RAW_Y = MAX_ELEVATION + MAX_RAW_HEIGHT;
 
 type CatalogLib = Pick<Library, 'catalog'>;
 
@@ -25,10 +31,10 @@ export const rawPieceProblem = (piece: RawPiece): string | null => {
   const { position: p, rotation: r } = piece;
   if (piece.prefab.length === 0) return 'a piece needs a prefab';
   if (!finite(p.x, p.y, p.z)) return 'a piece needs a finite position';
-  if (Math.abs(p.y) > MAX_RAW_HEIGHT)
-    return `a piece sits at most ${MAX_RAW_HEIGHT} m off its level`;
+  if (p.y < MIN_RAW_Y || p.y > MAX_RAW_Y)
+    return `a piece's height must be from −${-MIN_RAW_Y} to ${MAX_RAW_Y} m`;
   if (!finite(r.yaw, r.pitch, r.roll)) return 'a piece needs a finite rotation';
-  return elevationProblem(piece.elevation);
+  return null;
 };
 
 /** The collider's footprint in the prefab's local plan (a 1 × 1 stand-in without one). */

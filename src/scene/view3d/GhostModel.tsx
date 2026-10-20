@@ -172,7 +172,6 @@ export const withKeptPrefabs = (
         prefab,
         position: { x: 0, y: 0, z: 0 },
         rotation: { yaw: 0, pitch: 0, roll: 0 },
-        elevation: 0,
       },
       lib
     )

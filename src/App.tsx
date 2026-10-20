@@ -5,7 +5,6 @@ import styles from './App.module.css';
 import { captureDrop } from './install/dropFolder';
 import { dropWorldOnPlanner } from './install/loadWorld';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
-import { LevelGhosts } from './overlay/LevelGhosts';
 import { LevelTags3d } from './overlay/LevelTags3d';
 import { Overlay } from './overlay/Overlay';
 import { Overlay3d } from './overlay/Overlay3d';
@@ -42,7 +41,6 @@ const PlanOverlay = () => (
   <Overlay
     world={
       <>
-        <LevelGhosts />
         <RawFootprints />
         <PropFootprints />
         <SelectionHighlight />

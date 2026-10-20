@@ -1,28 +1,19 @@
 /**
  * What the Build tool builds against (M17 §3.1, §3.4): the committed plan's pieces as
- * the view shows them, with their snap index. In 3D, the drawn boxes (the level view
- * mode's levels, roofs as toggled) and the shown ground; in 2D, the current level and
- * the level below (what 2D draws), on the work plane only. Hidden pieces are neither hit
- * nor snapped to. The lists are kept per committed plan and view, so the snap index
- * (cached per list) is built once per commit.
+ * the views draw them (below the cut, roofs as toggled), with their snap index, and in 3D
+ * the shown ground. Hidden pieces are neither hit nor snapped to. The lists are kept per
+ * committed plan and cut, so the snap index (cached per list) is built once per commit.
  */
 import { atom, type Getter } from 'jotai';
 
 import { snapIndex, type SnapIndex } from '../../model/build/snapPoints';
-import { ghostPlan, levelPlan } from '../../model/levels';
 import type { PieceBox } from '../../model/pieceBoxes';
 import type { SiteFrame, TerrainGrid } from '../../model/terrain/siteTerrain';
 import type { Plan } from '../../model/types';
 import { getLibrary } from '../../store/libraryInstance';
 import { getPieceBoxes, getShownBoxes } from '../../store/planHooks';
 import { planStore } from '../../store/planInstance';
-import {
-  levelHoverAtom,
-  levelViewModeAtom,
-  roofsVisibleAtom,
-  terrainShownAtom,
-  workDatumAtom,
-} from '../../store/session';
+import { cutHeightAtom, roofsVisibleAtom, terrainShownAtom } from '../../store/session';
 import { getSiteGround } from '../../store/siteTerrain';
 import { viewModeAtom } from '../../store/view3d';
 import { drawnBoxes } from '../picking';
@@ -46,7 +37,7 @@ export interface BuildTargets {
   index: SnapIndex;
   /** The ground the ray lands on: 3D with the terrain shown; null otherwise. */
   terrain: { grid: TerrainGrid; frame: SiteFrame } | null;
-  /** Some pieces of the plan are hidden (by the level view mode or the Roofs toggle). */
+  /** Some pieces of the plan are hidden (by the cut or the Roofs toggle). */
   hidden: boolean;
 }
 
@@ -63,25 +54,16 @@ const memoList = () => {
 };
 
 const drawn = memoList();
-const flat = memoList();
 
-const targets3d = (get: Getter, plan: Plan): readonly PieceBox[] => {
+const targetBoxes = (get: Getter, plan: Plan): readonly PieceBox[] => {
   const shown = getShownBoxes(plan, get(roofsVisibleAtom));
-  const key = [shown, get(levelViewModeAtom), get(workDatumAtom), get(levelHoverAtom)];
-  return drawn(key, () => drawnBoxes({ get }, plan));
-};
-
-const targets2d = (get: Getter, plan: Plan): readonly PieceBox[] => {
-  const datum = get(workDatumAtom);
-  const level = getPieceBoxes(levelPlan(plan, datum, getLibrary()));
-  const below = getPieceBoxes(ghostPlan(plan, datum, getLibrary()));
-  return flat([level, below], () => [...level, ...below]);
+  return drawn([shown, get(cutHeightAtom)], () => drawnBoxes({ get }, plan));
 };
 
 const kept = memoList();
 
 /**
- * The Build targets for the current view and level of `plan`, less the boxes whose keys
+ * The Build targets for the current view and cut of `plan`, less the boxes whose keys
  * are in `exclude` (the pieces being carried: they are neither hit nor snapped to).
  */
 export const buildTargets = (
@@ -90,7 +72,7 @@ export const buildTargets = (
   exclude: ReadonlySet<string> | null = null
 ): BuildTargets => {
   const in3d = get(viewModeAtom) === '3d';
-  const shown = in3d ? targets3d(get, plan) : targets2d(get, plan);
+  const shown = targetBoxes(get, plan);
   const boxes = exclude
     ? kept([shown, exclude], () => shown.filter((b) => !exclude.has(b.key)))
     : shown;
@@ -100,11 +82,11 @@ export const buildTargets = (
     boxes,
     index: snapIndex(boxes, getLibrary()),
     terrain: site && { grid: site.grid, frame: site.frame },
-    hidden: in3d && shown.length < getPieceBoxes(plan).length,
+    hidden: shown.length < getPieceBoxes(plan).length,
   };
 };
 
-/** The Build tool's targets for the current view and level. */
+/** The Build tool's targets for the current view and cut. */
 export const buildTargetsAtom = atom<BuildTargets>((get) =>
   buildTargets(get, get(committedPlanAtom))
 );

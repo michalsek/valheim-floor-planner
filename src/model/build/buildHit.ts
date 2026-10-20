@@ -1,6 +1,6 @@
 /**
  * What the Build tool's ray lands on (M17 §3.1): the nearest of the drawn pieces, the
- * shown ground and the work plane (the level plate). Pieces give their face's or
+ * shown ground and the work plane (`workPlaneOf`). Pieces give their face's or
  * triangle's normal; the ground and the plate give straight up, as the game does for
  * the ground. Pure.
  */
@@ -29,7 +29,7 @@ export interface BuildScene {
   boxes: readonly PieceBox[];
   /** The shown ground; null without one (or hidden). */
   terrain: { grid: TerrainGrid; frame: SiteFrame } | null;
-  /** The work plane's height (the current level's datum). */
+  /** The work plane's height (`workPlaneOf`). */
   datum: number;
   /** How far along the ray anything counts (metres); unlimited by default. */
   maxT?: number;

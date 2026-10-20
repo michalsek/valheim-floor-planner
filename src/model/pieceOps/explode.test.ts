@@ -31,7 +31,6 @@ const plan: Plan = {
       prefab: 'woodwall',
       position: { x: 10, y: 0, z: 0 },
       rotation: { yaw: 0, pitch: 0, roll: 0 },
-      elevation: 0,
     },
   },
   dimensions: { m: { id: 'm', a: { x: 0, z: -2 }, b: { x: 6, z: -2 }, offset: 0, elevation: 0 } },

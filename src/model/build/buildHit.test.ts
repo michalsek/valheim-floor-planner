@@ -21,7 +21,6 @@ const pole = rawBox(
     prefab: 'wood_pole2',
     position: { x: 5, y: 2, z: -5 },
     rotation: { yaw: 0, pitch: 0, roll: 0 },
-    elevation: 0,
   },
   testLibrary
 );

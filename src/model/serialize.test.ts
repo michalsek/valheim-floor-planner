@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { applyCommands, type PlanCommand } from './commands';
 import { MAX_PROPS } from './props';
+import { rawBox } from './rawBoxes';
+import type { RawShapeLib } from './rawShapes';
 import { planFileText, readPlanJson } from './planFile';
 import { legacyItems, parsePlan } from './serialize';
 import { encodeHeights } from './terrain/siteTerrain';
@@ -26,7 +28,7 @@ const terrain: SiteTerrain = {
 };
 
 const plan: Plan = {
-  version: 6,
+  version: 7,
   name: 'Longhouse',
   dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: -1.5, elevation: 0 } },
   props: {
@@ -43,9 +45,8 @@ const plan: Plan = {
     w: {
       id: 'w',
       prefab: 'wood_roof_45',
-      position: { x: 3.5, y: 2.25, z: -1 },
+      position: { x: 3.5, y: 6.25, z: -1 },
       rotation: { yaw: 337.5, pitch: 0, roll: 0 },
-      elevation: 4,
     },
   },
   underlay: {
@@ -99,6 +100,24 @@ const withProp = (prop: Record<string, unknown>) => ({
  */
 const stored = (): ReturnType<typeof JSON.parse> => structuredClone(plan);
 
+/** No game data: a raw piece's box is a stand-in about its pivot. */
+const noData: RawShapeLib = {
+  catalog: { pieces: new Map() } as unknown as RawShapeLib['catalog'],
+  roofFamilies: new Map(),
+  gableWallSets: new Map(),
+};
+
+/** The plan as version `version` (4 to 6) stored it: its raw piece 2.25 m over elevation 4. */
+const v6 = (version = 6): ReturnType<typeof JSON.parse> => {
+  const old = stored();
+  old.version = version;
+  Object.assign(old.rawPieces.w, {
+    elevation: 4,
+    position: { ...old.rawPieces.w.position, y: 2.25 },
+  });
+  return old;
+};
+
 describe('serialize', () => {
   it('round-trips a plan through a file, its heights packed', async () => {
     const text = await planFileText(plan);
@@ -108,8 +127,7 @@ describe('serialize', () => {
   });
 
   it('reads a version 5 file’s base64 heights', async () => {
-    const v5 = stored();
-    v5.version = 5;
+    const v5 = v6(5);
     v5.importFrame.terrain.heights = Buffer.from(terrain.heights.buffer).toString('base64');
     expect(await readPlanJson(JSON.parse(JSON.stringify(v5)))).toEqual(plan);
   });
@@ -126,8 +144,8 @@ describe('serialize', () => {
   });
 
   it('loads a version 4 import frame without terrain', () => {
-    const loaded = parsePlan({ ...stored(), version: 4 });
-    expect(loaded.version).toBe(6);
+    const loaded = parsePlan(v6(4));
+    expect(loaded.version).toBe(7);
     expect(loaded.importFrame).toEqual({ ...plan.importFrame, terrain: null });
     expect(loaded.rawPieces).toEqual(plan.rawPieces);
   });
@@ -138,16 +156,16 @@ describe('serialize', () => {
     expect(parsePlan(saved).importFrame?.terrain?.notices.unreadEdits).toBe(0);
   });
 
-  it('loads a version 3 file (before world imports) without raw pieces, as version 6', () => {
+  it('loads a version 3 file (before world imports) without raw pieces, as version 7', () => {
     const loaded = parsePlan({ ...stored(), version: 3 });
-    expect(loaded.version).toBe(6);
+    expect(loaded.version).toBe(7);
     expect(loaded.rawPieces).toEqual({});
     expect(loaded.importFrame).toBeNull();
     expect(loaded.props).toEqual(plan.props);
   });
 
   it.each([6, 1])('loads a version %i file without its drawn items, and counts them', (version) => {
-    const raw = { ...stored(), ...structuredClone(drawn), version };
+    const raw = { ...v6(), ...structuredClone(drawn), version };
     const loaded = parsePlan(raw);
     expect(Object.keys(loaded)).toEqual(Object.keys(plan));
     expect(loaded.props.p).toBeDefined();
@@ -161,7 +179,21 @@ describe('serialize', () => {
     expect(legacyItems('plan')).toBeNull();
   });
 
-  it('loads a version 1 file with every elevation at 0, and saves it as version 6', () => {
+  it.each([
+    [0.1, 0.2],
+    [4, 2.25],
+    [-0.5, 1e-7],
+    [127.9, -255.3],
+  ])('loads a version 6 piece at elevation %d, y %d at their exact sum', (e, y) => {
+    const old = v6();
+    Object.assign(old.rawPieces.w, { elevation: e, position: { ...old.rawPieces.w.position, y } });
+    const piece = parsePlan(old).rawPieces.w!;
+    expect(Object.is(piece.position.y, e + y)).toBe(true);
+    expect(piece).not.toHaveProperty('elevation');
+    expect(rawBox(piece, noData).pivot.y).toBe(e + y);
+  });
+
+  it('loads a version 1 file with every elevation at 0, and saves it as version 7', () => {
     const v1 = stored();
     v1.version = 1;
     for (const kind of ['props', 'dimensions']) {
@@ -170,7 +202,7 @@ describe('serialize', () => {
       }
     }
     const loaded = parsePlan(v1);
-    expect(loaded.version).toBe(6);
+    expect(loaded.version).toBe(7);
     expect(loaded.props.p?.elevation).toBe(0);
     expect(loaded.dimensions.d?.elevation).toBe(0);
   });
@@ -187,10 +219,11 @@ describe('serialize', () => {
   it.each([
     null,
     [],
-    { version: 7 },
+    { version: 8 },
+    { version: 7, rawPieces: { w: { ...plan.rawPieces.w, position: { x: 0, y: 400, z: 0 } } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, elevation: 200 } } },
-    { version: 4, rawPieces: { w: { ...plan.rawPieces.w, position: { x: 0, y: 300, z: 0 } } } },
-    { version: 4, rawPieces: { w: { ...plan.rawPieces.w, rotation: { yaw: 0 } } } },
+    { version: 4, rawPieces: { w: { ...v6().rawPieces.w, position: { x: 0, y: 400, z: 0 } } } },
+    { version: 4, rawPieces: { w: { ...v6().rawPieces.w, rotation: { yaw: 0 } } } },
     { version: 4, importFrame: { ...plan.importFrame, worldName: 7 } },
     { version: 6, importFrame: { ...plan.importFrame, terrain: { ...terrain, cols: 4 } } },
     { version: 6, importFrame: { ...plan.importFrame, terrain: { ...terrain, x0: 0.5 } } },
@@ -242,7 +275,7 @@ describe('commands accept only what loads', () => {
     ['an empty prefab', { type: 'prop.insert', prop: { ...bench, id: 'q', prefab: '' } }],
     ['an elevation out of range', { type: 'prop.patch', id: 'p', changes: { elevation: -20 } }],
     [
-      'a piece far off its level',
+      'a piece below the height range',
       { type: 'raw.patch', id: 'w', changes: { position: { x: 0, y: -300, z: 0 } } },
     ],
     [

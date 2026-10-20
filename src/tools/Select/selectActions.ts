@@ -6,32 +6,27 @@ import {
   translateCommands,
 } from '../../model/editCommands';
 import { setFromRaw } from '../../model/build/ghostSet';
+import { raiseCommands, type CutDirection } from '../../model/cut';
 import { newId } from '../../model/newId';
-import { itemsAt } from '../../model/levels';
 import { snapAnchorAt } from '../../model/geometry/propGeometry';
 import { snapToGrid } from '../../model/geometry/snap';
-import { itemsLabel, type Selection, type SelectionItem } from '../../model/selection';
+import {
+  allItems,
+  itemExists,
+  itemsLabel,
+  type Selection,
+  type SelectionItem,
+} from '../../model/selection';
 import type { Plan, Vec2 } from '../../model/types';
-import type { PlanCommand } from '../../model/commands';
 import { getLibrary } from '../../store/libraryInstance';
 import { selectionAtom } from '../../store/selection';
-import { snapStepAtom, workDatumAtom } from '../../store/session';
+import { cutStepAtom, snapStepAtom } from '../../store/session';
 import { armCopiesAtom } from '../Build/buildState';
+import { commitCommands } from '../commitCommands';
+import { cutView } from '../picking';
 import type { ToolContext } from '../types';
 
 import { isRawOnly } from './snapMove';
-
-/** Commits `cmds` as one history entry; true when it worked (or there was nothing to do). */
-export const commitCommands = (
-  ctx: ToolContext,
-  label: string,
-  cmds: readonly PlanCommand[]
-): boolean => {
-  if (cmds.length === 0) return true;
-  const result = ctx.plan.transact(label, (dispatch) => cmds.forEach(dispatch));
-  if (!result.ok) console.warn(`${label} failed.`, result.error);
-  return result.ok;
-};
 
 export const clearSelection = (ctx: ToolContext): boolean => {
   if (ctx.get(selectionAtom).length === 0) return false;
@@ -39,13 +34,15 @@ export const clearSelection = (ctx: ToolContext): boolean => {
   return true;
 };
 
-/** Everything on the current level. */
+/** Everything shown (below the cut). */
 export const selectAll = (ctx: ToolContext): void => {
-  ctx.set(selectionAtom, itemsAt(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary()));
+  ctx.set(selectionAtom, allItems(cutView(ctx)));
 };
 
+/** Deletes the selected items the cut shows (never a hidden one), as one entry. */
 export const deleteSelection = (ctx: ToolContext): boolean => {
-  const items = ctx.get(selectionAtom);
+  const view = cutView(ctx);
+  const items = ctx.get(selectionAtom).filter((item) => itemExists(view, item));
   if (items.length === 0) return false;
   const cmds = removeCommands(ctx.plan.getPlan(), items);
   commitCommands(ctx, itemsLabel('Delete', items), cmds);
@@ -124,4 +121,12 @@ export const carryCopies = (ctx: ToolContext): boolean => {
   const pieces = items.map((item) => plan.rawPieces[item.id]!);
   ctx.set(armCopiesAtom, setFromRaw(pieces, first.id), first.rotation.yaw);
   return true;
+};
+
+/** Moves the selection one step up or down (Mod+PageUp / PageDown), as one entry. */
+export const raiseSelection = (ctx: ToolContext, dir: CutDirection): boolean => {
+  const step = dir * ctx.get(cutStepAtom);
+  const cmds = raiseCommands(ctx.plan.getPlan(), ctx.get(selectionAtom), step);
+  if (cmds.length === 0) return false;
+  return commitCommands(ctx, dir > 0 ? 'Move up' : 'Move down', cmds);
 };

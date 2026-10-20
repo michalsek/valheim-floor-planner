@@ -28,8 +28,6 @@
   --selection: #ff5ad2;
   --pinned: #9fb4ff;
   --info: #7cc4ff;
-  /* The level below in 2D: neutral, so only the current level is in colour. */
-  --ghost: #8a929c;
   --warning: #f0a070;
   --warning-soft: rgb(240 160 112 / 0.12);
   --danger: #ff8475;
@@ -97,7 +95,6 @@
   --selection: #c2179b;
   --pinned: #3a52c0;
   --info: #1b66aa;
-  --ghost: #7d8794;
   --warning: #a8460f;
   --warning-soft: rgb(168 70 15 / 0.1);
   --danger: #b82a1e;

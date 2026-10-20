@@ -13,7 +13,6 @@ const wall: RawPiece = {
   prefab: 'woodwall',
   position: { x: 1, y: 1, z: 0 },
   rotation: { yaw: 90, pitch: 0, roll: 0 },
-  elevation: 0,
 };
 const plan: Plan = { ...emptyPlan(), rawPieces: { w: wall } };
 const items = [{ kind: 'raw', id: 'w' }] as const;

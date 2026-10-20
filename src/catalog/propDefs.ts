@@ -31,13 +31,6 @@ export const GROUP_LABELS: Record<PropGroup, string> = {
  */
 export const LOAD_BEARING_GROUPS: ReadonlySet<PropGroup> = new Set(['stairs', 'structure']);
 
-/**
- * Stairs and ladders connect levels rather than make them: a flight's upper pieces
- * belong to the level it starts from.
- */
-export const isLevelConnector = (group: PropGroup | null | undefined): boolean =>
-  group === 'stairs';
-
 /** A footprint in the prefab's local space (metres, relative to its pivot). */
 export interface LocalRect {
   minX: number;

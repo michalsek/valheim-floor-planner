@@ -2,8 +2,8 @@
  * Re-framing an imported plan: turning its grid between the world's axes and its
  * build's (`frameGrid.ts`) after the import. Every raw piece stays where it is in the
  * world; only the frame (origin and yaw) and so the pieces' plan positions and yaws
- * change. The datum (`origin.y`) and the levels stay, so the terrain, stored on the
- * world's vertex grid in heights above the datum, needs no change.
+ * change. The datum (`origin.y`) and the pieces' heights stay, so the terrain, stored on
+ * the world's vertex grid in heights above the datum, needs no change.
  *
  * Only a plan of raw pieces can be re-framed: props, dimensions and an underlay are
  * laid out along the plan's axes, so turning them by a build's 22.5° would take them

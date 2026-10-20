@@ -2,22 +2,21 @@
 import { useAtomValue } from 'jotai';
 import { useMemo } from 'react';
 
-import { flightSteps, riseToNextLevel, type FlightStep } from '../../model/flight';
-import { getLibrary } from '../../store/libraryInstance';
-import { usePlan } from '../../store/planHooks';
-import { workDatumAtom } from '../../store/session';
+import { flightSteps, riseToNextStop, type FlightStep } from '../../model/flight';
+import { getStoreyStops, usePlan } from '../../store/planHooks';
+import { workPlaneAtom } from '../../store/session';
 import type { ToolContext } from '../types';
 
 import { flightRiseAtom, propGhostAtom, type PropGhost } from './propState';
 
-/** The flight's rise: as set, or up to the next level. */
+/** The flight's rise: as set, or up to the next storey's floor. */
 export const flightRise = (ctx: ToolContext): number =>
   ctx.get(flightRiseAtom) ??
-  riseToNextLevel(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary());
+  riseToNextStop(getStoreyStops(ctx.plan.getPlan()), ctx.get(workPlaneAtom));
 
 export const useFlightRise = (): number => {
   const set = useAtomValue(flightRiseAtom);
-  const auto = riseToNextLevel(usePlan(), useAtomValue(workDatumAtom), getLibrary());
+  const auto = riseToNextStop(getStoreyStops(usePlan()), useAtomValue(workPlaneAtom));
   return set ?? auto;
 };
 
@@ -30,7 +29,7 @@ export const ghostSteps = (ghost: PropGhost, elevation: number, rise: number): F
   return ghost.def.flight ? flightSteps(ghost.def.flight, start, rise) : [start];
 };
 
-/** The ghost's pieces relative to the work datum (previews are lifted to it). */
+/** The ghost's pieces relative to the work plane (previews are lifted to it). */
 export const useGhostSteps = (): FlightStep[] => {
   const ghost = useAtomValue(propGhostAtom);
   const rise = useFlightRise();

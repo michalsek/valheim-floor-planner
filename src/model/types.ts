@@ -15,7 +15,7 @@ export interface Dimension {
   b: Vec2;
   /** Signed distance along `sideNormal(b − a, 'right')`. */
   offset: number;
-  /** The level it is drawn on (metres). */
+  /** The height it is drawn at (metres, absolute). */
   elevation: number;
 }
 
@@ -33,7 +33,7 @@ export interface Prop {
   rotation: number;
   /** Station upgrades (extensions) counted towards the build radius. */
   upgrades: number;
-  /** The level it stands on (metres). */
+  /** The height of the surface it stands on (metres, absolute). */
   elevation: number;
 }
 
@@ -46,7 +46,7 @@ export type RawPieceId = string;
 export interface RawPiece {
   id: RawPieceId;
   prefab: string;
-  /** The prefab's pivot on the plan; `y` is its height above `elevation` (metres). */
+  /** The prefab's pivot on the plan; `y` is its absolute height above the plan's 0 (metres). */
   position: Vec3;
   /**
    * Degrees. `yaw` turns clockwise on screen, like `Prop.rotation`, in [0, 360) (as the
@@ -54,8 +54,6 @@ export interface RawPiece {
    * x and z, for the odd tilted placement (`rawBoxes.ts` mirrors them).
    */
   rotation: { yaw: number; pitch: number; roll: number };
-  /** The level it belongs to (metres). */
-  elevation: number;
 }
 
 /**
@@ -139,10 +137,11 @@ export interface Underlay {
 
 /**
  * The plan document: everything the user draws, and the only thing in undo history.
- * Levels aren't stored: they are the distinct elevations of its objects (`levels.ts`).
+ * Heights are absolute: a raw piece's pivot `y`, props and dimensions at their
+ * `elevation`. What shows is cut at a session height (`cut.ts`).
  */
 export interface Plan {
-  version: 6;
+  version: 7;
   /** Shown in the plan header and used for the file name. */
   name: string;
   dimensions: Record<DimId, Dimension>;
@@ -156,7 +155,7 @@ export interface Plan {
 export const DEFAULT_PLAN_NAME = 'Untitled';
 
 export const emptyPlan = (): Plan => ({
-  version: 6,
+  version: 7,
   name: DEFAULT_PLAN_NAME,
   dimensions: {},
   props: {},

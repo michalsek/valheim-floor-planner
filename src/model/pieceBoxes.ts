@@ -6,8 +6,8 @@
  *
  * Vertical convention: a prop stands on its elevation at its collider's height span
  * (stairs, ladders, poles and beams with their whole collider; see `propSpan`). A raw
- * piece's pivot is at its elevation plus its own `position.y`, and its box is the
- * prefab's collider (or roof shape) about that pivot (`rawBoxes.ts`).
+ * piece's box is the prefab's collider (or roof shape) about its absolute pivot
+ * (`rawBoxes.ts`).
  */
 import type { Library } from '../catalog/library';
 import {
@@ -43,8 +43,6 @@ export interface PieceBox {
   material: string | null;
   /** The prop's group; null for pieces (and unknown props). */
   group: PropGroup | null;
-  /** The elevation of the plan object it belongs to (its level). */
-  elevation: number;
   center: Vec3;
   size: Vec3;
   /** Turn about +y (radians, three.js sense: counter-clockwise seen from above). */
@@ -82,7 +80,7 @@ const MIN_PROP_HEIGHT = 0.1;
  * the part above their pivot, as a collider reaching below it (a floor brazier, a
  * torch's spike) would otherwise sink into the floor.
  */
-export const propSpan = (def: PropDef | undefined): { bottom: number; height: number } => {
+const propSpan = (def: PropDef | undefined): { bottom: number; height: number } => {
   const range = def?.heightRange ?? APPROX_HEIGHT;
   if (def && LOAD_BEARING_GROUPS.has(def.group)) {
     return { bottom: 0, height: range.maxY - range.minY };
@@ -110,7 +108,6 @@ export const propBox = (
     kind: 'prop',
     material: def?.material ?? null,
     group: def?.group ?? null,
-    elevation: prop.elevation,
     center: { x: centre.x, y: bottom + height / 2, z: centre.z },
     size: { x: rect.maxX - rect.minX, y: height, z: rect.maxZ - rect.minZ },
     rotationY: -prop.rotation * DEG,
@@ -119,11 +116,11 @@ export const propBox = (
   };
 };
 
-/** Every prop and raw piece of the plan, each at its own elevation: props first. */
-export const pieceBoxes = (
-  plan: Plan,
-  lib: Pick<Library, 'propDefs' | 'catalog' | 'roofFamilies' | 'gableWallSets'>
-): PieceBox[] => [
+/** The catalogue data boxes are made from (props and raw pieces). */
+export type BoxLib = Pick<Library, 'propDefs' | 'catalog' | 'roofFamilies' | 'gableWallSets'>;
+
+/** Every prop and raw piece of the plan, each at its own height: props first. */
+export const pieceBoxes = (plan: Plan, lib: BoxLib): PieceBox[] => [
   ...Object.values(plan.props).map((prop) => propBox(prop, lib)),
   ...Object.values(plan.rawPieces).map((piece) => rawBox(piece, lib)),
 ];

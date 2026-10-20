@@ -25,7 +25,7 @@ const SnapMode = () => {
   return (
     <>
       <span>{mode}</span>
-      {hiddenHint && <span>Hidden pieces don't snap: try Up or All</span>}
+      {hiddenHint && <span>Hidden pieces don't snap: raise the cut (C: All)</span>}
     </>
   );
 };

@@ -9,7 +9,6 @@ const piece = (id: string): RawPiece => ({
   prefab: 'woodwall',
   position: { x: 0, y: 0, z: 0 },
   rotation: { yaw: 0, pitch: 0, roll: 0 },
-  elevation: 0,
 });
 
 const ids = (store: ReturnType<typeof createPlanStore>) => Object.keys(store.getPlan().rawPieces);
@@ -43,7 +42,7 @@ describe('planStore', () => {
     store.undo();
     store.dispatch({ type: 'raw.insert', piece: piece('b') });
     expect(store.canRedo()).toBe(false);
-    store.dispatch({ type: 'raw.patch', id: 'b', changes: { elevation: 0 } });
+    store.dispatch({ type: 'raw.patch', id: 'b', changes: { prefab: 'woodwall' } });
     store.undo();
     expect(store.canUndo()).toBe(false);
   });

@@ -30,11 +30,7 @@ export const FLOOR_LIFT = 0.001;
 /** Door and gate panels are drawn this thin at most, so the gap still reads as one. */
 export const PANEL_THICKNESS = 0.12;
 
-const pivotOf = (piece: RawPiece): Vec3 => ({
-  x: piece.position.x,
-  y: piece.elevation + piece.position.y,
-  z: piece.position.z,
-});
+const pivotOf = (piece: RawPiece): Vec3 => ({ ...piece.position });
 
 /**
  * A raw piece's turn (game Euler degrees, yaw clockwise) as the planner's frame: three.js
@@ -154,7 +150,6 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
     kind: 'raw',
     material: rawDef(lib, piece)?.material ?? null,
     group: null,
-    elevation: piece.elevation,
     ...body,
     center: { ...body.center, y: body.center.y + lift },
     prefab: piece.prefab,

@@ -3,7 +3,7 @@
 /**
  * Square floor tiles. Their raw boxes are lifted 1 mm (`rawBoxes.ts`) so a tile on a
  * wall top doesn't fight it, and Build places them `unlifted` (`build/placement.ts`);
- * world imports put pieces on the levels their tiles make (`world/framePieces.ts`).
+ * their clusters make the storey stops the cut steps between (`model/cut.ts`).
  */
 export const FLOOR_TILE_PREFABS: ReadonlySet<string> = new Set([
   'wood_floor',

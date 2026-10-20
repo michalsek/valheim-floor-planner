@@ -6,17 +6,17 @@ import { Stepper } from '../../controls/Stepper';
 import { formatCompact } from '../../format';
 import { flightCount, type Flight } from '../../model/flight';
 import { MAX_ELEVATION } from '../../model/elevation';
-import { elevationStepAtom } from '../../store/session';
+import { cutStepAtom } from '../../store/session';
 
 import { useFlightRise } from './propFlight';
 import { armedDefAtom, flightRiseAtom, propRotationAtom } from './propState';
 
-/** The rise a stair or ladder flight climbs ("Auto": to the next level up). */
+/** The rise a stair or ladder flight climbs ("Auto": to the next storey). */
 const FlightOptions = ({ flight }: { flight: Flight }) => {
   const rise = useFlightRise();
   const set = useAtomValue(flightRiseAtom);
   const setRise = useSetAtom(flightRiseAtom);
-  const step = useAtomValue(elevationStepAtom);
+  const step = useAtomValue(cutStepAtom);
   const n = flightCount(flight, rise);
   return (
     <>
@@ -31,7 +31,7 @@ const FlightOptions = ({ flight }: { flight: Flight }) => {
           onChange={setRise}
         />
         {set !== null && (
-          <Button title="Climb to the next level up" onClick={() => setRise(null)}>
+          <Button title="Climb to the next storey" onClick={() => setRise(null)}>
             Auto
           </Button>
         )}

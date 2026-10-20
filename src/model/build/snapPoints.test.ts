@@ -11,7 +11,6 @@ const raw = (id: string, prefab: string, x: number, y: number, z: number, yaw = 
   prefab,
   position: { x, y, z },
   rotation: { yaw, pitch: 0, roll: 0 },
-  elevation: 0,
 });
 
 const rounded = (points: { x: number; y: number; z: number }[]) =>

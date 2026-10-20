@@ -127,14 +127,14 @@ export const mirrorCommands = (
     const keepX = symmetricAcross(def, 'z') || !symmetricAcross(def, 'x');
     if (keepX && !symmetricAcross(def, 'z')) inexact++;
     const local = mirrorCentre(def);
-    const pivot = { ...piece.position, y: piece.position.y + piece.elevation };
+    const pivot = piece.position;
     const centre = placed(piece.rotation, pivot, local);
     const reflected = { ...centre, [axis]: 2 * line - centre[axis] };
     const rotation = mirroredRotation(piece.rotation, axis, keepX);
     const offset = placed(rotation, { x: 0, y: 0, z: 0 }, local);
     const position = {
       x: round6(reflected.x - offset.x),
-      y: round6(reflected.y - offset.y - piece.elevation),
+      y: round6(reflected.y - offset.y),
       z: round6(reflected.z - offset.z),
     };
     return { type: 'raw.patch', id: piece.id, changes: { position, rotation } };

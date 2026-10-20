@@ -3,7 +3,7 @@ import {
   projection3dAtom,
   pxPerMetreAtom,
   viewportAtom,
-  workDatumAtom,
+  workPlaneAtom,
   type SessionAccess,
 } from '../store/session';
 import { viewModeAtom } from '../store/view3d';
@@ -19,7 +19,7 @@ const pxToMetres = (ctx: SessionAccess, px: number): number => px / ctx.get(pxPe
 export const pxToMetresAt = (ctx: SessionAccess, px: number, p: Vec2): number => {
   const projection = ctx.get(projection3dAtom);
   if (ctx.get(viewModeAtom) !== '3d' || !projection) return px / ctx.get(viewportAtom).zoom;
-  return px / pxPerMetreAt({ x: p.x, y: ctx.get(workDatumAtom), z: p.z }, projection);
+  return px / pxPerMetreAt({ x: p.x, y: ctx.get(workPlaneAtom), z: p.z }, projection);
 };
 
 /** `HIT_TOL_PX` in world metres where the pointer is. */

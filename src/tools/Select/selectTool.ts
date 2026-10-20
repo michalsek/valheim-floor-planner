@@ -35,7 +35,7 @@ const ARROWS: Record<string, readonly [number, number]> = {
 /** Keys the idle tool acts on; during a gesture they are swallowed instead. */
 const isEditKey = (e: KeyboardEvent): boolean => {
   const key = e.key.toLowerCase();
-  // Mod+PageUp / PageDown move the selection a level (`useToolKeyboard`).
+  // Mod+PageUp / PageDown move the selection a step (`useToolKeyboard`).
   if (isMod(e)) return key === 'd' || key === 'a' || key === 'pageup' || key === 'pagedown';
   return e.key === 'Delete' || e.key === 'Backspace' || e.key in ARROWS || rotateStep(e) !== null;
 };

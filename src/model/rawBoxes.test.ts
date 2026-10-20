@@ -8,9 +8,8 @@ import type { RawPiece } from './types';
 const raw = (prefab: string, pitch = 0): RawPiece => ({
   id: prefab,
   prefab,
-  position: { x: 0, y: 0, z: 0 },
+  position: { x: 0, y: 3, z: 0 },
   rotation: { yaw: 0, pitch, roll: 0 },
-  elevation: 3,
 });
 
 describe('rawBox', () => {

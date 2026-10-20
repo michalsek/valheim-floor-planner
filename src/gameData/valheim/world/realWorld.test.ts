@@ -11,6 +11,7 @@ import { rawPivot, setFromRaw, rawPose } from '../../../model/build/ghostSet';
 import { snapPose } from '../../../model/build/placement';
 import { boxSnapPoints, snapIndex, snapsNear } from '../../../model/build/snapPoints';
 import { rotate } from '../../../model/geometry/propGeometry';
+import { storeyStops } from '../../../model/cut';
 import { pieceBoxes } from '../../../model/pieceBoxes';
 import { planFileText, readPlanJson } from '../../../model/planFile';
 import type { Plan, RawPiece, Vec3 } from '../../../model/types';
@@ -54,7 +55,7 @@ const continuity = (pieces: readonly RawPiece[]) => {
         a !== b &&
         a.prefab === b.prefab &&
         a.rotation.yaw === b.rotation.yaw &&
-        Math.abs(a.elevation + a.position.y - b.elevation - b.position.y) < 0.05;
+        Math.abs(a.position.y - b.position.y) < 0.05;
       const d = { x: b.position.x - a.position.x, z: b.position.z - a.position.z };
       if (!same || Math.abs(Math.hypot(d.x, d.z) - l) > 0.05) continue;
       const axis = rotate({ x: 1, z: 0 }, a.rotation.yaw);
@@ -124,7 +125,7 @@ describe.skipIf(!dir)('a real world save', () => {
   it('imports on the world axes by default: the grid on the terrain lattice, the build at 22.5°', () => {
     const groups = groupPieces(pieces);
     const build = describeCluster(pieces, groups[0]!, () => null);
-    const { plan, level } = importCluster(pieces, build, testLibrary, world.name);
+    const plan = importCluster(pieces, build, testLibrary, world.name);
     const frame = plan.importFrame!;
     expect(frame.yaw).toBe(0);
     expect(frameGridOf(frame)).toBe('world');
@@ -134,7 +135,7 @@ describe.skipIf(!dir)('a real world save', () => {
     const raw = Object.values(plan.rawPieces);
     // The build's grid pieces sit at 22.5° (mod 90) on the plan, as in the game.
     expect(raw.filter((p) => p.rotation.yaw % 90 === 22.5).length).toBe(1_090);
-    // Every pivot maps back onto its world pivot, at the levels of the aligned import.
+    // Every pivot maps back onto its world pivot.
     const misplaced = groups[0]!.filter((index, k) => {
       const at = planToWorld(frame, plan.rawPieces[`raw${k}`]!.position);
       return (
@@ -143,16 +144,14 @@ describe.skipIf(!dir)('a real world save', () => {
       );
     });
     expect(misplaced).toEqual([]);
-    expect([...new Set(raw.map((p) => p.elevation))].sort((a, b) => a - b)).toEqual([
-      0, 4, 5, 7, 8,
-    ]);
-    expect(level).toBe(4);
+    const stops = storeyStops(pieceBoxes(plan, testLibrary), testLibrary);
+    expect(stops.map((s) => Math.round(s.top))).toEqual([4, 5, 7, 8]);
   });
 
   it('imports the build axis-aligned (aligned to the build), every piece, and the plan loads back', async () => {
     const groups = groupPieces(pieces);
     const build = describeCluster(pieces, groups[0]!, () => null);
-    const { plan, level } = importCluster(pieces, build, testLibrary, world.name, 'build');
+    const plan = importCluster(pieces, build, testLibrary, world.name, 'build');
     const raw = Object.values(plan.rawPieces);
     expect(raw.length).toBe(1_141);
     expect(raw.filter((p) => p.rotation.yaw % 90 === 0).length).toBe(1_090);
@@ -173,11 +172,11 @@ describe.skipIf(!dir)('a real world save', () => {
       );
     });
     expect(misplaced).toEqual([]);
-    const levels = [...countBy(raw.map((p) => p.elevation))].sort((a, b) => a[0] - b[0]);
-    console.info('Levels (elevation, pieces):', JSON.stringify(levels), 'start at', level);
-    // The floor levels only: roofs go with the storeys under them, not on a level of
-    // their own.
-    expect(levels.map(([elevation]) => elevation)).toEqual([0, 4, 5, 7, 8]);
+    const stops = storeyStops(pieceBoxes(plan, testLibrary), testLibrary);
+    const rows = stops.map((s) => [s.height, s.top, s.count]);
+    console.info('Storey stops (height, top, pieces):', JSON.stringify(rows));
+    // The floors' storeys only: roofs make none.
+    expect(stops.map((s) => Math.round(s.top))).toEqual([4, 5, 7, 8]);
     // Handedness: neighbouring pieces continue along their own x axis as the plan turns
     // them. Only pieces off the build's grid tell a flipped yaw apart (at 45° it turns
     // the axis by 90°): here two roof pieces side by side along their eave.
@@ -197,7 +196,7 @@ describe.skipIf(!dir)('a real world save', () => {
         describeCluster(pieces, groups[0]!, () => null),
         testLibrary,
         ''
-      ).plan;
+      );
     });
     const dist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
     const rate = (n: number, of: number) => `${n} / ${of} (${((100 * n) / of).toFixed(1)} %)`;

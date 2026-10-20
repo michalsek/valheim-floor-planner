@@ -1,6 +1,6 @@
 /**
- * Plans as file JSON (version 6): the plan as it is, but for its site's heights, packed
- * (`heightPacking.ts`). Reading takes any version `parsePlan` does: version 6 heights are
+ * Plans as file JSON (version 7): the plan as it is, but for its site's heights, packed
+ * (`heightPacking.ts`). Reading takes any version `parsePlan` does: packed heights (6, 7) are
  * unpacked first, version 5's base64 is decoded by `parsePlan`. Pure, but asynchronous
  * (the packing streams through `CompressionStream`).
  */

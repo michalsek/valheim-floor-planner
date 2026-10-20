@@ -13,9 +13,8 @@ const lib = testLibrary;
 const raw = (id: string, prefab: string, x: number, z: number, yaw: number): RawPiece => ({
   id,
   prefab,
-  position: { x, y: 1, z },
+  position: { x, y: 3, z },
   rotation: { yaw, pitch: 0, roll: 0 },
-  elevation: 2,
 });
 
 const planOf = (...pieces: RawPiece[]): Plan => ({

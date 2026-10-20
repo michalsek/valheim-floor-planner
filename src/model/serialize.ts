@@ -5,7 +5,8 @@
  * name to "Untitled". Version 1 files (before levels) load with every elevation at 0,
  * version 3 ones (before world imports) without raw pieces, version 4 import frames
  * without terrain; version 5 terrain heights are base64 (version 6 ones arrive already
- * unpacked). Plans are always version 6, so an older app refuses them instead of
+ * unpacked); version 6 and older raw pieces held their height above an elevation and
+ * load at the sum. Plans are always version 7, so an older app refuses them instead of
  * dropping what it doesn't know. Records of the drawn kinds in older files (walls,
  * floors, openings and roofs, whose tools went in M18) are left out and counted by
  * `legacyItems`.
@@ -120,29 +121,37 @@ const parseProp =
     return problem ? fail(path, `an item where ${problem}`) : prop;
   };
 
-/** Unknown prefabs load (the plan warns about them). Ranges are `rawPieceProblem`'s. */
-const parseRawPiece: Parser<RawPiece> = (value, key, path) => {
-  const p = asRecord(value, path);
-  const id = asString(p.id, `${path}.id`);
-  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-  const rotation = asRecord(p.rotation, `${path}.rotation`);
-  const piece = {
-    id,
-    prefab: asString(p.prefab, `${path}.prefab`),
-    position: asPoint3(p.position, `${path}.position`),
-    rotation: {
-      yaw: normalizeDeg(asFinite(rotation.yaw, `${path}.rotation.yaw`)),
-      pitch: asFinite(rotation.pitch, `${path}.rotation.pitch`),
-      roll: asFinite(rotation.roll, `${path}.rotation.roll`),
-    },
-    elevation: readElevation(p.elevation, `${path}.elevation`),
+/**
+ * Unknown prefabs load (the plan warns about them). Ranges are `rawPieceProblem`'s.
+ * `absolute` (version 7): the position is read as it is; before, `y` was over the
+ * piece's `elevation` and loads as the sum, exactly (no rounding).
+ */
+const parseRawPiece =
+  (absolute: boolean): Parser<RawPiece> =>
+  (value, key, path) => {
+    const p = asRecord(value, path);
+    const id = asString(p.id, `${path}.id`);
+    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
+    const rotation = asRecord(p.rotation, `${path}.rotation`);
+    const position = asPoint3(p.position, `${path}.position`);
+    const piece = {
+      id,
+      prefab: asString(p.prefab, `${path}.prefab`),
+      position: absolute
+        ? position
+        : { ...position, y: readElevation(p.elevation, `${path}.elevation`) + position.y },
+      rotation: {
+        yaw: normalizeDeg(asFinite(rotation.yaw, `${path}.rotation.yaw`)),
+        pitch: asFinite(rotation.pitch, `${path}.rotation.pitch`),
+        roll: asFinite(rotation.roll, `${path}.rotation.roll`),
+      },
+    };
+    const problem = rawPieceProblem(piece);
+    return problem ? fail(path, `a piece where ${problem}`) : piece;
   };
-  const problem = rawPieceProblem(piece);
-  return problem ? fail(path, `a piece where ${problem}`) : piece;
-};
 
-const parseRawPieces = (value: unknown): Plan['rawPieces'] => {
-  const pieces = parseCollection(value, '$.rawPieces', parseRawPiece);
+const parseRawPieces = (value: unknown, absolute: boolean): Plan['rawPieces'] => {
+  const pieces = parseCollection(value, '$.rawPieces', parseRawPiece(absolute));
   if (Object.keys(pieces).length > MAX_RAW_PIECES) {
     fail('$.rawPieces', `at most ${MAX_RAW_PIECES} pieces`);
   }
@@ -152,7 +161,7 @@ const parseRawPieces = (value: unknown): Plan['rawPieces'] => {
 const asArray = (value: unknown, path: string): unknown[] =>
   Array.isArray(value) ? value : fail(path, 'an array');
 
-/** Int16 heights (version 6, unpacked), or version 5's base64 of them. */
+/** Int16 heights (version 6 and later, unpacked), or version 5's base64 of them. */
 const asHeights = (value: unknown, path: string, base64: boolean): Int16Array => {
   if (value instanceof Int16Array) return value;
   const heights = base64 && typeof value === 'string' ? heightsFromBase64(value) : null;
@@ -282,16 +291,16 @@ const parseName = (value: unknown): string =>
 export const parsePlan = (raw: unknown): Plan => {
   const root = asRecord(raw, '$');
   const { version } = root;
-  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > 6) {
-    fail('$.version', '1 to 6');
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > 7) {
+    fail('$.version', '1 to 7');
   }
   const elevationOf = version === 1 ? groundElevation : readElevation;
   return {
-    version: 6,
+    version: 7,
     name: parseName(root.name),
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension(elevationOf)),
     props: parseProps(root.props, elevationOf),
-    rawPieces: version >= 4 ? parseRawPieces(root.rawPieces) : {},
+    rawPieces: version >= 4 ? parseRawPieces(root.rawPieces, version >= 7) : {},
     underlay: parseUnderlay(root.underlay, '$.underlay'),
     importFrame:
       version >= 4

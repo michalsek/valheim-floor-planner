@@ -20,7 +20,7 @@ import { PieceCost } from './PieceCost';
 
 /**
  * A single game piece placed freely (imported, built or exploded): names and prefab, yaw
- * (turned about its footprint's centre), its height on the level, collider size and
+ * (turned about its footprint's centre), its absolute pivot height, collider size and
  * cost. Its Mirror and Repeat actions are the Inspector's `PieceActions`.
  */
 export const RawPieceInspector = ({ id }: { id: RawPieceId }) => {
@@ -61,15 +61,15 @@ export const RawPieceInspector = ({ id }: { id: RawPieceId }) => {
             ⟳
           </Button>
         </Field>
-        <ElevationField item={{ kind: 'raw', id }} />
+        <ElevationField
+          item={{ kind: 'raw', id }}
+          label="Height"
+          description="The pivot's height above the plan's 0, in metres"
+        />
       </div>
       <ItemWarnings item={{ kind: 'raw', id }} />
       <PieceActions />
       <Section title="Piece">
-        <Row
-          label="Pivot height"
-          value={`${formatMetres(Math.abs(piece.position.y))} ${piece.position.y < 0 ? 'below' : 'above'} the level`}
-        />
         <Row
           label="Collider"
           value={`${formatSize(rect.maxX - rect.minX, rect.maxZ - rect.minZ, 2)} × ${formatMetres(span.maxY - span.minY)}`}

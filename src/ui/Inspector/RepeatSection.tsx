@@ -20,7 +20,7 @@ import type { SelectionItem } from '../../model/selection';
 import { getLibrary } from '../../store/libraryInstance';
 import { usePlan } from '../../store/planHooks';
 import { editPreviewAtom, selectionAtom } from '../../store/selection';
-import { commitCommands } from '../../tools/Select/selectActions';
+import { commitCommands } from '../../tools/commitCommands';
 import { useToolContext } from '../../tools/toolContext';
 
 import styles from './Inspector.module.css';

@@ -3,9 +3,9 @@ import { ROTATION_STEP, stepManual } from '../../model/build/placement';
 import { normalizeDeg } from '../../model/geometry/propGeometry';
 import { newId } from '../../model/newId';
 import { getLibrary } from '../../store/libraryInstance';
-import { workDatumAtom } from '../../store/session';
 import { isMod, rotateStep } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
+import { commitCommands } from '../commitCommands';
 import type { Tool, ToolContext } from '../types';
 
 import { buildGhostAtom, buildHidesCursorAtom, buildRemovalAtom } from './buildGhost';
@@ -18,17 +18,21 @@ import { BuildPreview3d } from './BuildPreview3d';
 import { armedSetAtom, buildYawAtom, carriedCopiesAtom, manualSnapAtom } from './buildState';
 import { wheelSteps } from './buildWheel';
 
-/** Places the ghost's pieces as one undo entry; nothing when blocked or without a ghost. */
+/**
+ * Places the ghost's pieces as one undo entry (the cut rising to show them); nothing when
+ * blocked or without a ghost.
+ */
 const place = (ctx: ToolContext): void => {
   const ghost = ctx.get(buildGhostAtom);
   if (!ghost || ghost.blockedBy) return;
-  const pieces = setPieces(ghost.set, ghost.pose, ctx.get(workDatumAtom));
+  const pieces = setPieces(ghost.set, ghost.pose);
   const label =
     pieces.length === 1 ? `Place ${pieceName(pieces[0]!.prefab)}` : `Place ${pieces.length} pieces`;
-  const result = ctx.plan.transact(label, (dispatch) => {
-    for (const piece of pieces) dispatch({ type: 'raw.insert', piece: { id: newId(), ...piece } });
-  });
-  if (!result.ok) console.warn(`${label} failed.`, result.error);
+  const cmds = pieces.map((piece) => ({
+    type: 'raw.insert' as const,
+    piece: { id: newId(), ...piece },
+  }));
+  commitCommands(ctx, label, cmds);
 };
 
 /** Removes the raw piece or prop under the pointer (Ctrl/⌘ + click) as one undo entry. */

@@ -6,7 +6,7 @@ import { projection3dAtom } from '../store/session';
 import { project3d } from '../viewport/projection3d';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
-/** The height the 3D overlay's plan points are at (`Overlay3d` sets the work datum). */
+/** The height the 3D overlay's plan points are at (`Overlay3d` sets the work plane). */
 export const OverlayPlaneContext = createContext(0);
 
 /**

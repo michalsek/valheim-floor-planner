@@ -6,7 +6,7 @@ import { useActiveToolId } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayPlan } from '../../store/planHooks';
 import { realLookAtom } from '../../store/modelView';
-import { workDatumAtom } from '../../store/session';
+import { workPlaneAtom } from '../../store/session';
 import { useShownSiteTerrain } from '../../store/siteTerrain';
 import { keptPrefabsAtom } from '../../tools/Build/buildState';
 import { getTool } from '../../tools/toolbox';
@@ -33,16 +33,16 @@ const NEVER = atom(false);
  * The 3D view of the plan: a perspective camera with orbit controls, lights and ground
  * shadows, the flat ground or a site's terrain (`Terrain3d`), every piece and prop as a
  * box at its real size and its own elevation, or as its real game model (in material or
- * support colours, shaded by level, on the levels the view mode draws:
- * `useLevelShading`), the level plate at the current level, pinned dimensions at their
- * own levels, and the snap cursor, its drop line and the active tool's previews on the
+ * support colours, below the cut or with ghosts above it: `useLevelShading`), the
+ * level plate at the work plane, pinned dimensions at their own heights, and the snap
+ * cursor, its drop line and the active tool's previews on the
  * work plane. Picking always uses the boxes. Pointer input goes through `ToolHost`, as
  * in 2D.
  */
 export const View3d = () => {
   const camera = useViewCamera();
   const plan = useDisplayPlan();
-  const datum = useAtomValue(workDatumAtom);
+  const plane = useAtomValue(workPlaneAtom);
   const realLook = useAtomValue(realLookAtom);
   const gl = useThree((s) => s.gl);
   // Models outlive the view (leaving 3D keeps them); back to boxes frees them.
@@ -77,7 +77,7 @@ export const View3d = () => {
       )}
       <Dimensions3d />
       {/* Drawn on the work plane: the previews are built at y = 0 and lifted here. */}
-      <group position-y={datum}>
+      <group position-y={plane}>
         <ToolPreview3d />
         {!cursorHidden && <SnapCursor3d />}
         {!cursorHidden && <DropLine3d />}

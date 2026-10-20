@@ -4,21 +4,17 @@ import { useMemo } from 'react';
 import { formatLevel } from '../format';
 import type { WorldBox } from '../model/geometry/box';
 import { plateRect } from '../scene/view3d/plateRect';
-import { usePlateShown, usePreviewLevel, useShownBoxes } from '../scene/view3d/useLevelShading';
+import { usePlateShown, useShownBoxes } from '../scene/view3d/useLevelShading';
 import { useCursor } from '../store/hooks';
 import { useDisplayPlan } from '../store/planHooks';
-import { projection3dAtom, workDatumAtom } from '../store/session';
+import { projection3dAtom, workPlaneAtom } from '../store/session';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
 import { Label3d } from './Label3d';
 import styles from './Overlay.module.css';
-import { OverlayPlaneContext, useProject3d } from './useProject3d';
+import { useProject3d } from './useProject3d';
 
-/**
- * Gap (px) between the plate's edge and its tag: below it for the current level, above
- * it for the previewed one (their outlines' lowest points are often close); and the
- * cursor's, above it.
- */
+/** Gap (px) between the plate's edge and its tag, below it; and the cursor's, above it. */
 const CORNER_GAP = 12;
 const CURSOR_GAP = 14;
 /** Canvas margins the tag keeps clear of (px): the 3D view's bar is at the bottom. */
@@ -66,16 +62,8 @@ const lowestVisible = (outline: (ScreenPoint | null)[], rect: ScreenRect): Scree
   return lowest;
 };
 
-/** The level's height under the lowest visible point of the plate's edge. */
-const CornerTag = ({
-  rect,
-  text,
-  above = false,
-}: {
-  rect: WorldBox;
-  text: string;
-  above?: boolean;
-}) => {
+/** The work plane's height under the lowest visible point of the plate's edge. */
+const CornerTag = ({ rect, text }: { rect: WorldBox; text: string }) => {
   const project = useProject3d();
   const projection = useAtomValue(projection3dAtom);
   if (!projection) return null;
@@ -92,44 +80,32 @@ const CornerTag = ({
   );
   if (!at) return null;
   return (
-    <text
-      className={styles.plateTag}
-      x={at.x}
-      y={at.y + (above ? -CORNER_GAP : CORNER_GAP)}
-      paintOrder="stroke"
-    >
+    <text className={styles.plateTag} x={at.x} y={at.y + CORNER_GAP} paintOrder="stroke">
       {text}
     </text>
   );
 };
 
 /**
- * The 3D view's level heights (`LevelPlate` draws the plates): wherever the plate is
- * shown (off the ground, and at every level over terrain), at its corner and over the
- * cursor; and at the previewed level's outline.
+ * The work plane's height (`LevelPlate` draws the plate): wherever the plate is shown
+ * (off the ground, and at every height over terrain), at its corner and over the cursor.
  */
 export const LevelTags3d = () => {
-  const datum = useAtomValue(workDatumAtom);
-  const preview = usePreviewLevel();
+  const plane = useAtomValue(workPlaneAtom);
   const cursor = useCursor();
   const { bounds } = useShownBoxes(useDisplayPlan());
   const rect = useMemo(() => plateRect(bounds), [bounds]);
   const raised = usePlateShown();
   return (
     <g>
-      {raised && <CornerTag rect={rect} text={formatLevel(datum)} />}
+      {raised && <CornerTag rect={rect} text={formatLevel(plane)} />}
       {raised && cursor && (
         <Label3d
           at={cursor.snapped}
-          text={formatLevel(datum)}
+          text={formatLevel(plane)}
           above={CURSOR_GAP}
           className={styles.plateTag}
         />
-      )}
-      {preview !== null && (
-        <OverlayPlaneContext value={preview}>
-          <CornerTag rect={rect} text={formatLevel(preview)} above />
-        </OverlayPlaneContext>
       )}
     </g>
   );

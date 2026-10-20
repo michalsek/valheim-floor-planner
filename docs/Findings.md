@@ -2214,3 +2214,167 @@ levels machinery stays as it was for raw pieces, props and dimensions until pass
 6. **For pass 3:** opening a file keeps the current work level, so the first view can be
    an empty level (a pokemanz level +4 over a plan on 0 m). Pass 3 should set H = All on
    open.
+
+## From M18 pass 2 (height model)
+
+Plan: `private/plans/M18.md` §4. One absolute height per raw piece, and one cut height
+instead of levels.
+
+### Model (A)
+
+1. **Version 7, absolute raw heights.** `RawPiece` has no `elevation`. Its
+   `position.y` is the pivot's absolute height above the plan's 0, within
+   [`MIN_RAW_Y`, `MAX_RAW_Y`] = [−272, 384] m. That range holds every valid version 6
+   piece: at most 256 m off an elevation in [−16, 128].
+   - **Loading v4–6:** `y = elevation + y`. The sum is not rounded, so it is the same
+     double the old `pivotOf` computed, and boxes are bitwise unchanged.
+   - Plans always save as version 7. Every older build refuses a v7 file or autosave
+     (`version > 6`).
+   - Props and dimensions keep their `elevation`, which was already absolute.
+2. **Exactness check** (`§4.0`; the user's plan file and a fresh import of the test
+   world, `rawBox` of every piece before and after; counts only):
+   - **The plan file:** 453 / 453 boxes, every field bitwise identical.
+   - **The import:**
+     - 1 141 / 1 141 keys, sizes, turns, shapes and areas identical;
+     - 1 140 positions bitwise, 0 over 2e-6 m, largest |Δ| 8.9e-16 m.
+     - Why not bitwise: the old import stored `elevation + round6(y − datum − elevation)`.
+3. **`model/cut.ts` replaces `levels.ts`.** `cutBoxes`, `aboveCut`, `cutPlan`,
+   `storeyStops`, `nextStop` / `prevStop`, `stepCut`, `cutShowing`, `workPlaneOf` and
+   `raiseCommands`.
+   - **The visibility rule:** a box shows when its bottom < H − `CUT_EPS` (5 mm), so a
+     piece straddling H shows whole. The 5 mm covers the floor tiles' 1 mm lift, H's mm
+     rounding and float noise.
+   - **Storey stops** cluster the walking tops of untilted floor tiles by single linkage:
+     a gap over `STOP_GAP` (0.1 m) starts a new cluster, and a cluster needs at least
+     `MIN_STOP_TILES` (2).
+     - The walking top is the top snap point, not the box top. `wood_floor`'s collider
+       tops out 9.7 cm above its snap plane, so box tops would part a wood and a stone
+       floor at one height.
+     - A stop's `height` is the lowest tile box bottom, so H at a stop hides that floor.
+       Its `top` is the highest walking top.
+     - A stop's count is the boxes whose bottom is in [stop − eps, next stop − eps): what
+       moving H to the next stop reveals. A lone tile above a storey counts with it.
+     - The test world's stops have tops at +4, +5, +7 and +8 m.
+   - **Caches use fixed slots** (per plan, per record, the last filtered result of each
+     record kind, the last view). The old string-keyed `lastResult` map, which grew
+     without bound, is gone. An unfiltered record or plan never takes a last-result slot,
+     so a cut that shows everything doesn't evict the slot that is in use.
+     - Known limit: the per-record slot is keyed by entity objects. A library swap keeps
+       the old bottoms until those records change, the same class as `rawOutline`.
+4. **The interim work plane** (`workPlaneOf`) is 0 at All. With H set, it is the walking
+   top of the highest stop below H.
+5. **Flights** (`riseToNextStop`) rise to the next stop's `top`, the walking surface.
+   Rising to the stop's height would stop a stair one floor-thickness short.
+6. **Writers:**
+   - Import framing stores `round6(y − datum)` with no levels or landing level.
+     `importCluster` returns a `Plan`, and `structuralDatum`'s slack is a local
+     `DATUM_SLACK`.
+   - Build's `setPieces` stores the snapped pivot.
+   - Explode stores `round6(pivot.y)`; Mirror reflects the absolute pivot.
+   - A raw `raise` patches `position.y = round6(y + dy)`. Props and dimensions stay
+     mm-rounded.
+   - The local `round6` copies in `framePieces` and `importCluster` went.
+7. **Removed:** `levels.ts` and its test, `ItemKind.levelled`, `LevelledRecord`,
+   `LEVELLED_KINDS`, `PieceBox.elevation`, `isLevelConnector`, `ImportedBuild`,
+   `landingLevel` and `floorLevels`.
+8. **Still to do in pass 3:**
+   - `rawTier`'s tie-break still uses the pivot height.
+   - `buildHit`'s `datum` is still the work plane.
+   - `rawBoxes.ts`' `level(piece)` means "untilted".
+
+### App (B)
+
+1. **Session state.** `cutHeightAtom` (null = All), `cutStepAtom` (1 / 0.5 m) and
+   `cutGhostAtom` replace the work datum, the elevation step, the four 3D level view
+   modes, the Levels-row hover preview and Pick.
+   - `workPlaneAtom` is the interim work plane (`workPlaneOf`), written only by
+     `store/workPlane.ts`'s `startWorkPlaneSync` (on start, on every plan change and on a
+     cut change). It is synced rather than derived because tools read it outside React,
+     and a derived atom would need `planHooks` in `session`. Pass 3 removes it.
+   - New, Open and Import set the cut to All (also New on a plan that is already new).
+2. **`tools/cutActions.ts` replaces `levelActions.ts`.** `setCut` (clamped, mm-rounded,
+   remembers the last cut in `lastCutAtom`), `stepCut`, `jumpStop`, `toggleAll`,
+   `showItems` and `revealPlaced`; Mod+PageUp's `raiseSelection` is in `selectActions`.
+   Every setter clears the hover and drops what the new cut hides from the selection.
+   - Keys: PageUp / PageDown step the cut; Shift jumps between stops (nothing without
+     stops); Mod raises or lowers the selection. **C toggles All in both views**, back
+     to the last cut, else the highest stop.
+   - **Removed:** Mod+Shift+PageUp / PageDown ("Move levels", the ripple from the level
+     up) and Pick, as planned (§4.11 3).
+3. **What is placed or moved stays shown** (orchestrator decision, a general rule).
+   `commitCommands` (`tools/commitCommands.ts`, used by every tool and panel) calls
+   `revealPlaced`, which runs `cutShowing` over the items its
+   commands insert or patch. So Build, Mod+D carry drops, Item (flights too), Dimension,
+   the Ruler's pin, Move, snap-move, Duplicate, Explode, Mirror, Repeat, Sink, the
+   Inspector's height field and Mod+PageUp all raise the cut onto the step's grid when
+   the result would be hidden. Undoing them leaves the cut where it is.
+   - Found in the manual run: with a 1 m stone floor, H = its stop + 1 is that floor's
+     walking top, which `workPlaneOf` returns, so a wall snapped onto it had its bottom
+     at H and vanished on placing (and wasn't a removal target). It now shows, the cut
+     one step higher.
+   - Undo and redo still raise the cut when they leave a selected item hidden
+     (`followSelection`).
+4. **Picking sees only what the cut shows.** `cutView` (the cut plan, without roof covers
+   while they are hidden) for 2D hits, Mod+A, the select box and dimensions;
+   `drawnBoxes` = `cutBoxes(getShownBoxes(…))` for 3D rays, Build targets and removal.
+   Ghosts are drawn from `aboveCut` only, so they are never hit or hovered: a click on a
+   ghost goes through to what is behind it.
+   - **2D Build targets and removal use the same boxes as 3D,** so they respect the
+     Roofs toggle now (closes M18 §6 13a). 2D removal takes the topmost shown piece
+     under a ray from 1000 m above the work plane.
+5. **3D (interim).** `useLevelShading` draws `cutBoxes`, or with Ghost on every shown box
+   with those above the cut faded (`withLevel`, the old off-level fade). Nothing else is
+   faded any more. The plate is drawn at the work plane while it is off 0 or over
+   terrain; the hovered-level outline and its tag went. Dimensions in 3D come from the
+   cut plan, so they hide above the cut (before, they always showed).
+6. **2D ghosts are gone** (`LevelGhosts`, `RawGhosts`, `.ghostLevel`): 2D draws
+   everything below the cut, so there is no single "level below" to ghost.
+7. **Panels.** BOM: "Visible" / "All" while a cut is set ("Nothing shown below the cut."
+   when empty). Integrity lists what is visible in the Visible scope; a click raises the
+   cut to show the item ("Select it (the cut rises to show it)"). Inspector: a raw
+   piece's field reads "Height" (the absolute pivot); the "Pivot height … above the
+   level" row went. The field's explanation is its accessible name, not a hover title,
+   since `Field` / `NumberInput` (in `controls/`) take no title.
+8. **The interim bar** (`LevelsBar`, aria "Cut"): ▲ / ▼, the cut field (only while a cut
+   is set), All, the step, the stop rows (`+h m · count`, top first; a click cuts there),
+   "Items go on +x m", Support, and in 3D Ghost and the plate frost.
+9. **Manual run** (headless Chrome 155, port 5244; the user's plan file and the test
+   world; counts only):
+   - Opening the plan file: All, no notice; 3D Boxes and Models match the 930a7b9
+     baseline's geometry; the autosave is version 7 with no raw `elevation`.
+   - A synthetic v6 file: Inspector heights 2.25 and 3 (elevation + y); prop and
+     dimension elevations unchanged.
+   - At each stop the stop's floor tiles are hidden, every lower tile is shown, and
+     straddling pieces show whole. PageUp / PageDown, Shift+Page across the stops and to
+     All, C in both views, 0.5 m steps and a typed 2.3 behave as planned.
+   - The test world imported with terrain at H 3 lands at All with 4 stops (tops +4,
+     +5, +7, +8).
+   - Ghosts: no ghost was hovered or selected in 8 aims; Mod+A selects exactly what is
+     shown; 2D clicks on hidden pieces pick none.
+   - Build, carry, snap-move, Mirror, Repeat, Sink (−0.5 m and undo) and Mod+PageUp keep
+     absolute heights; stairs (Auto) rise to the next stop's walking top.
+   - No console errors on WebGPU and `?webgl`, light and dark.
+10. **Out of scope:**
+    - A plan opened during a drag: the release commits the drag's preview to the new
+      plan when its ids match (snap-move since M17; a load doesn't cancel the gesture).
+    - The user's plan file changed on disk during the run (its piece count went from 453
+      to 327, still version 6). The §4.0 exactness counts above are from before.
+    - The number field shows the cut with the browser's locale decimal (a comma here).
+11. **Fix round:**
+    - **PageUp at 128:** stepping up from the top of the elevation range, or past it,
+      is All (`steppedCut`). Before, with a piece starting above 128 m, PageUp stayed
+      at 128.
+    - **The cut never hides the selection:** lowering it (the field, ▲ / ▼, PageUp /
+      PageDown, Shift+Page, a stop row, C) drops the items it hides from the selection,
+      and Delete only takes items the cut shows. Raising it to show items (undo, a
+      placement) leaves the selection alone.
+    - **`lastCutAtom` and `resetCut`:** the last cut C goes back to is session state,
+      not a module variable. New, Open and Import call `resetCut`, which clears the cut
+      and the last cut, so C on a fresh plan goes to its highest stop.
+    - **`NumberInput` drafts:** after a commit the field shows the value in effect
+      again, so a refused or clamped entry (500 typed at 128) doesn't stay in the
+      field. Every user is keyed by its value, so an accepted change still shows.
+    - Undo's `followSelection` clears the hover when it moves the cut.
+    - Inspector heights show at most 3 decimals (the stored value is unchanged until
+      edited); the height field's history entry is "Change height". The bar is 16 px
+      wider so a cut like 4.968 fits.

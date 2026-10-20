@@ -4,7 +4,7 @@ import { hitItem } from '../model/hitTest';
 import { ITEM_KINDS } from '../model/itemKinds';
 import { isSelected, type SelectionItem } from '../model/selection';
 import { getLibrary } from '../store/libraryInstance';
-import { useLevelPlan } from '../store/planHooks';
+import { useCutPlan } from '../store/planHooks';
 import { hoverAtom, selectionAtom } from '../store/selection';
 import { supportViewAtom } from '../store/session';
 
@@ -27,7 +27,7 @@ type Tone = keyof typeof TONES;
 export const SelectionHighlight = () => {
   const selection = useAtomValue(selectionAtom);
   const hover = useAtomValue(hoverAtom);
-  const plan = useLevelPlan();
+  const plan = useCutPlan();
   const supportView = useAtomValue(supportViewAtom);
 
   const hovered = hover && hitItem(hover);

@@ -2,7 +2,7 @@ import { useAtomValue } from 'jotai';
 
 import { formatLevel } from '../format';
 import { useCursor } from '../store/hooks';
-import { workDatumAtom } from '../store/session';
+import { workPlaneAtom } from '../store/session';
 import { crispLineOffset } from '../viewport/viewportMath';
 
 import styles from './Overlay.module.css';
@@ -15,11 +15,11 @@ const TAG_OFFSET = { x: 8, y: 16 } as const;
 
 /**
  * Crosshair at the snapped point, or (dashed) at the raw point while Alt is held; off
- * the ground, the current level's height beside it.
+ * the ground, the work plane's height beside it.
  */
 export const SnapCursor = () => {
   const cursor = useCursor();
-  const datum = useAtomValue(workDatumAtom);
+  const plane = useAtomValue(workPlaneAtom);
   const toScreen = useWorldToScreen();
   if (!cursor) return null;
 
@@ -36,14 +36,14 @@ export const SnapCursor = () => {
         <line x1={x} y1={y - ARM} x2={x} y2={y + ARM} />
         <circle cx={x} cy={y} r={3} />
       </g>
-      {datum !== 0 && (
+      {plane !== 0 && (
         <text
           className={styles.levelTag}
           x={p.x + TAG_OFFSET.x}
           y={p.y + TAG_OFFSET.y}
           paintOrder="stroke"
         >
-          {formatLevel(datum)}
+          {formatLevel(plane)}
         </text>
       )}
     </>

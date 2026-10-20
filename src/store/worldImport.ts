@@ -1,6 +1,6 @@
 /**
- * Importing a world build: its pieces as a new plan, on its main floor
- * (`ImportedBuild.level`), fitted in view, optionally with the ground under it (M16).
+ * Importing a world build: its pieces as a new plan at their absolute heights, shown
+ * whole (the cut at All) and fitted in view, optionally with the ground under it (M16).
  * Either way it is one `plan.replace`, so one undo step. Adding terrain later to a plan
  * imported without it is one `site.setTerrain` ("Add terrain").
  *
@@ -16,7 +16,6 @@
  * (`alignToBuildAtom`); `reframeImport` turns it either way later ("Turn the grid").
  */
 import type { WorldCluster } from '../model/world/clusters';
-import { clampElevation, roundElevation } from '../model/elevation';
 import { planBounds } from '../model/planBounds';
 import { isPlanEmpty } from '../model/selection';
 import { growRect, type SiteSide } from '../model/terrain/siteExtend';
@@ -42,7 +41,7 @@ import { fileStatusAtom } from './fileActions';
 import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
 import { hoverAtom, selectionAtom } from './selection';
-import { fitViewTo, workDatumAtom, type SessionAccess } from './session';
+import { fitViewTo, resetCut, type SessionAccess } from './session';
 import { sitesOf } from './siteWorld';
 import { resetOrbit } from './view3d';
 
@@ -65,7 +64,6 @@ export type RevealSummary = Pick<Reveal, 'sites' | 'refused'>;
 /** A build made into a plan, ready to import, and whether its ground can be made. */
 export interface PreparedBuild {
   plan: Plan;
-  level: number;
   rect: PatchRect | null;
   terrain: TerrainAvailability;
   /** The sites on its starting patch brought along (none unless asked for). */
@@ -107,21 +105,21 @@ export const prepareBuild = (
 ): PreparedBuild | { error: string } => {
   try {
     const built = importCluster(world.pieces, cluster, getLibrary(), world.name, grid);
-    const rect = siteRect(built.plan, getLibrary());
+    const rect = siteRect(built, getLibrary());
     const terrain: TerrainAvailability = rect
       ? terrainAvailability(world, rect)
       : { ok: false, reason: 'The build has no extent.' };
-    if (!nearby || !rect) return { ...built, rect, terrain, nearby: NO_SITES };
-    const found = revealSites(world.pieces, sitesOf(world), built.plan, rect, getLibrary());
+    if (!nearby || !rect) return { plan: built, rect, terrain, nearby: NO_SITES };
+    const found = revealSites(world.pieces, sitesOf(world), built, rect, getLibrary());
     const plan: Plan = {
-      ...built.plan,
+      ...built,
       rawPieces: {
-        ...built.plan.rawPieces,
+        ...built.rawPieces,
         ...Object.fromEntries(found.pieces.map((p) => [p.id, p])),
       },
-      importFrame: { ...built.plan.importFrame!, worldPieces: found.worldPieces },
+      importFrame: { ...built.importFrame!, worldPieces: found.worldPieces },
     };
-    return { plan, level: built.level, rect, terrain, nearby: found };
+    return { plan, rect, terrain, nearby: found };
   } catch (error) {
     return { error: messageOf(error) };
   }
@@ -202,7 +200,7 @@ const replaceWithBuild = async (
   ctx.set(hoverAtom, null);
   // A file's outcome (a "Left out …" notice) was about the plan this one replaces.
   ctx.set(fileStatusAtom, null);
-  ctx.set(workDatumAtom, roundElevation(clampElevation(build.level)));
+  resetCut(ctx);
   fitViewTo(ctx, planBounds(plan, getLibrary()));
   resetOrbit(ctx);
   return 'done';

@@ -3,9 +3,9 @@
  * piece's bottom on the terrain, or on y = 0 without one) and that no unselected piece
  * holds (none rests on or is snapped to one) can be lowered into the ground by dragging
  * a vertical arrow over it, and raised back up until a piece is on the ground again. It
- * changes a raw piece's height off its level, or an item's elevation, within the usual
- * limits; the depth snaps to the elevation step (0.1 m with Shift). The whole selection
- * moves together, so a stack sinks as one.
+ * changes a raw piece's height, or an item's elevation, within the usual limits; the
+ * depth snaps to the cut step (0.1 m with Shift). The whole selection moves together, so
+ * a stack sinks as one.
  */
 import { boxBounds, boxSnapPoints, snapIndex, snapsNear } from '../../model/build/snapPoints';
 import type { PlanCommand } from '../../model/commands';
@@ -14,7 +14,7 @@ import { convexHull } from '../../model/geometry/convex';
 import { boxCorners } from '../../model/geometry/orient';
 import { round6 } from '../../model/geometry/round';
 import type { PieceBox } from '../../model/pieceBoxes';
-import { MAX_RAW_HEIGHT } from '../../model/rawPieces';
+import { MIN_RAW_Y } from '../../model/rawPieces';
 import type { Selection, SelectionItem } from '../../model/selection';
 import { groundUnderOrEdge } from '../../model/terrain/siteTerrain';
 import type { Plan, Vec3 } from '../../model/types';
@@ -137,8 +137,7 @@ const shiftCommand = (plan: Plan, item: SelectionItem, shift: number): PlanComma
     case 'raw': {
       const piece = plan.rawPieces[item.id];
       if (!piece) return null;
-      const min = Math.max(-MAX_RAW_HEIGHT, MIN_ELEVATION - piece.elevation);
-      const y = round6(Math.max(min, piece.position.y + shift));
+      const y = round6(Math.max(MIN_RAW_Y, piece.position.y + shift));
       return { type: 'raw.patch', id: item.id, changes: { position: { ...piece.position, y } } };
     }
     case 'prop': {

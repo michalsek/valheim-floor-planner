@@ -7,12 +7,13 @@ import { planFileText, readPlanJson } from '../model/planFile';
 import { growSiteTerrain, type SiteGrowth } from '../model/terrain/siteExtend';
 import type { PatchRect } from '../model/terrain/sitePatch';
 import { planToWorld } from '../model/terrain/siteTerrain';
-import type { Plan, SiteTerrain } from '../model/types';
+import { emptyPlan, type Plan, type SiteTerrain } from '../model/types';
 import { describeCluster } from '../model/world/clusters';
 
 import { setLibrary } from './libraryInstance';
 import { createPlanStore } from './planStore';
-import { extendTerrain, prepareBuild, type ExtendResult } from './worldImport';
+import { cutHeightAtom, lastCutAtom } from './session';
+import { extendTerrain, importBuild, prepareBuild, type ExtendResult } from './worldImport';
 
 /** Flat ground over `rect` with biomes over its zones: what the worker would give. */
 const flat = (rect: PatchRect) => {
@@ -110,12 +111,12 @@ describe('sites the terrain reveals', () => {
     expect(plan.peekUndoLabel()).toBe('Extend terrain east, 1 site');
     const frame = plan.getPlan().importFrame!;
     expect(frame.worldPieces).toHaveLength(9);
-    // A revealed piece maps back onto its world point, on a level of its own floor.
+    // A revealed piece maps back onto its world point, at its world height.
     const floor = Object.values(plan.getPlan().rawPieces).find(
       (p) => p.prefab === 'wood_floor' && planToWorld(frame, p.position).x > 100
     )!;
     expect(planToWorld(frame, floor.position).x).toBeCloseTo(151);
-    expect(floor.elevation + floor.position.y + frame.origin.y).toBeCloseTo(32);
+    expect(floor.position.y + frame.origin.y).toBeCloseTo(32);
     plan.undo();
     expect(pieceCount(plan)).toBe(6);
     expect(plan.getPlan().importFrame!.worldPieces).toHaveLength(6);
@@ -146,5 +147,21 @@ describe('sites the terrain reveals', () => {
     const older = createPlanStore({ ...imported(), importFrame: frame });
     expect(await extend(older)).toEqual({ sites: [3], refused: [] });
     expect(pieceCount(older)).toBe(9);
+  });
+});
+
+describe('importing a build', () => {
+  beforeAll(() => setLibrary(testLibrary));
+
+  it('shows it whole: the cut goes back to All', async () => {
+    const ctx = { ...createStore(), plan: createPlanStore(emptyPlan()) };
+    ctx.set(cutHeightAtom, 3);
+    ctx.set(lastCutAtom, 3);
+    const build = prepareBuild(world, mainHut());
+    if ('error' in build) throw new Error(build.error);
+    expect(await importBuild(ctx, world, build, null)).toBe('done');
+    expect(ctx.get(cutHeightAtom)).toBeNull();
+    expect(ctx.get(lastCutAtom)).toBeNull();
+    expect(Object.keys(ctx.plan.getPlan().rawPieces)).toHaveLength(3);
   });
 });

@@ -4,7 +4,7 @@ import { propCentre } from '../model/geometry/propGeometry';
 import type { Prop } from '../model/types';
 import { useViewport } from '../store/hooks';
 import { getLibrary } from '../store/libraryInstance';
-import { useLevelPlan } from '../store/planHooks';
+import { useCutPlan } from '../store/planHooks';
 
 import styles from './Overlay.module.css';
 import { textWidth, type TextFont } from './textWidth';
@@ -62,7 +62,7 @@ const PropLabel = ({ prop, zoom }: { prop: Prop; zoom: number }) => {
 /** Prop names on their footprints, when zoomed in far enough (screen layer). */
 export const PropLabels = () => {
   const { zoom } = useViewport();
-  const props = useLevelPlan().props;
+  const props = useCutPlan().props;
   if (zoom < MIN_ZOOM) return null;
   return (
     <g>

@@ -5,8 +5,8 @@ import { sameLevel } from '../model/elevation';
 import { dimensionLine } from '../model/geometry/dimension';
 import { measure } from '../model/geometry/measure';
 import type { Vec2 } from '../model/types';
-import { useDisplayPlan } from '../store/planHooks';
-import { workDatumAtom } from '../store/session';
+import { useCutPlan } from '../store/planHooks';
+import { workPlaneAtom } from '../store/session';
 
 import type { DimensionTone } from './DimensionLine';
 import { Label3d } from './Label3d';
@@ -39,16 +39,16 @@ export const DimensionLabel3d = ({ a, b, offset = 0, tone = 'live' }: DimensionL
   );
 };
 
-/** The pinned dimensions' lengths, each at its own level (their lines are `Dimensions3d`). */
+/** The pinned dimensions' lengths below the cut, each at its own height (lines: `Dimensions3d`). */
 export const PinnedDimensionLabels3d = () => {
-  const { dimensions } = useDisplayPlan();
+  const { dimensions } = useCutPlan();
   const toneOf = useDimensionTone();
-  const datum = useAtomValue(workDatumAtom);
+  const plane = useAtomValue(workPlaneAtom);
   return (
     <g>
       {Object.values(dimensions).map(({ id, a, b, offset, elevation }) => (
         <OverlayPlaneContext key={id} value={elevation}>
-          <g className={sameLevel(elevation, datum) ? undefined : styles.offLevel}>
+          <g className={sameLevel(elevation, plane) ? undefined : styles.offLevel}>
             <DimensionLabel3d a={a} b={b} offset={offset} tone={toneOf(id)} />
           </g>
         </OverlayPlaneContext>

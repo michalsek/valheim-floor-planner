@@ -5,23 +5,20 @@ import { isRawRoof, isRawRoofCover, rawOutline } from '../model/rawBoxes';
 import { rawDef } from '../model/rawPieces';
 import type { Plan, RawPiece } from '../model/types';
 import { getLibrary } from '../store/libraryInstance';
-import { useGhostPlan, useLevelPlan } from '../store/planHooks';
+import { useCutPlan } from '../store/planHooks';
 import { roofsVisibleAtom } from '../store/session';
 
 import { footprintStyle } from './footprintStyle';
 import styles from './Footprints.module.css';
 import { toSvgPoints } from './svgPoints';
 
-/** Lowest first, so what is seen from above is drawn on top. */
+/** Lowest pivot first, so what is seen from above is drawn on top. */
 const inDrawOrder = (plan: Pick<Plan, 'rawPieces'>): RawPiece[] =>
-  Object.values(plan.rawPieces).sort(
-    (a, b) => a.elevation + a.position.y - (b.elevation + b.position.y)
-  );
+  Object.values(plan.rawPieces).sort((a, b) => a.position.y - b.position.y);
 
 /**
  * One raw piece's outline from above, in its material's colour (world layer): filled,
- * or only stroked for roof pieces, as the roof layer draws roofs. (As a ghost, `.ghostLevel`
- * draws it neutral and dashed.)
+ * or only stroked for roof pieces.
  */
 const RawFootprint = ({ piece }: { piece: RawPiece }) => {
   const lib = getLibrary();
@@ -53,10 +50,7 @@ const Footprints = ({ plan }: { plan: Pick<Plan, 'rawPieces'> }) => {
 };
 
 /**
- * The current level's raw pieces (an imported build) as their outlines from above;
+ * The raw pieces below the cut (an imported build) as their outlines from above;
  * stacked courses overlap, so taller stacks read darker.
  */
-export const RawFootprints = () => <Footprints plan={useLevelPlan()} />;
-
-/** The level below's raw pieces, as ghosts (inside `LevelGhosts`' group). */
-export const RawGhosts = () => <Footprints plan={useGhostPlan()} />;
+export const RawFootprints = () => <Footprints plan={useCutPlan()} />;

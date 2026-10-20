@@ -8,7 +8,7 @@ import type { Prop, Vec2 } from '../model/types';
 import { getLibrary } from '../store/libraryInstance';
 import { bandOf, supportBandColor } from '../scene/supportColors';
 import { useThemeTokens } from '../store/hooks';
-import { useLevelPlan } from '../store/planHooks';
+import { useCutPlan } from '../store/planHooks';
 import { supportViewAtom } from '../store/session';
 import { useSupport } from '../store/supportSync';
 
@@ -88,12 +88,12 @@ export const PropFootprint = ({ prop, className, color: override }: PropFootprin
 };
 
 /**
- * Every prop's footprint on the current level (world layer, above raw pieces so overlaps
+ * Every prop's footprint below the cut (world layer, above raw pieces so overlaps
  * show through), larger ones first so smaller ones stay on top, as they are hit. In the
  * support view, props that take part are filled in their support band's colour.
  */
 export const PropFootprints = () => {
-  const props = propsInDrawOrder(useLevelPlan(), getLibrary().propDefs);
+  const props = propsInDrawOrder(useCutPlan(), getLibrary().propDefs);
   const supportView = useAtomValue(supportViewAtom);
   const { support } = useSupport();
   const tokens = useThemeTokens();

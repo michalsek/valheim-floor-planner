@@ -1,15 +1,13 @@
 import { useEffect } from 'react';
 
+import type { CutDirection } from '../model/cut';
 import { nextSnapStep } from '../model/geometry/snap';
-import { nextLevelViewMode } from '../model/levels';
 import { planBounds } from '../model/planBounds';
 import { openPlanFile, saveCurrentPlan } from '../store/fileActions';
 import { getLibrary } from '../store/libraryInstance';
 import {
   activeToolIdAtom,
   fitViewTo,
-  levelPickAtom,
-  levelViewModeAtom,
   resetModifiers,
   setModifier,
   snapStepAtom,
@@ -20,9 +18,9 @@ import { requestOrbit, toggleViewMode, viewModeAtom } from '../store/view3d';
 import { DEFAULT_VIEWPORT } from '../viewport/viewportMath';
 
 import { isMod, isRedoKey, isUndoKey } from './keys';
-import { jumpLevel, moveSelectionLevel, stepLevel, type LevelDirection } from './levelActions';
 import { modIgnoredAtom } from './Build/buildState';
-import { carryCopies } from './Select/selectActions';
+import { jumpStop, stepCut, toggleAll } from './cutActions';
+import { carryCopies, raiseSelection } from './Select/selectActions';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, TOOLS } from './toolbox';
 import type { ToolContext } from './types';
@@ -62,18 +60,16 @@ const isPlainDigit = (e: KeyboardEvent, code: string): boolean =>
   e.code === code && !isMod(e) && !e.altKey && !e.shiftKey;
 
 /**
- * PageUp / PageDown step the current level; with Shift they jump to the next level with
- * something on it; with Mod they move the selection a step (Mod+Shift: everything from
- * this level up), and the current level follows.
+ * PageUp / PageDown step the cut; with Shift they jump to the next storey stop; with Mod
+ * they move the selection a step (the cut rises to keep it shown).
  */
-const levelBindings = (key: string, dir: LevelDirection): KeyBinding[] => {
+const cutBindings = (key: string, dir: CutDirection): KeyBinding[] => {
   const page = (e: KeyboardEvent, mod: boolean, shift: boolean) =>
     e.key === key && isMod(e) === mod && e.shiftKey === shift && !e.altKey;
   return [
-    { test: (e) => page(e, false, false), repeat: true, run: (s) => stepLevel(s, dir) },
-    { test: (e) => page(e, false, true), repeat: true, run: (s) => void jumpLevel(s, dir) },
-    { test: (e) => page(e, true, false), run: (s) => void moveSelectionLevel(s, dir, false) },
-    { test: (e) => page(e, true, true), run: (s) => void moveSelectionLevel(s, dir, true) },
+    { test: (e) => page(e, false, false), repeat: true, run: (s) => stepCut(s, dir) },
+    { test: (e) => page(e, false, true), repeat: true, run: (s) => jumpStop(s, dir) },
+    { test: (e) => page(e, true, false), run: (s) => void raiseSelection(s, dir) },
   ];
 };
 
@@ -110,15 +106,10 @@ const KEYMAP: readonly KeyBinding[] = [
   // character unshifted (AZERTY).
   { test: (e) => isPlainDigit(e, 'Digit3'), run: toggleViewMode },
   { keys: ['g'], run: (s) => s.set(snapStepAtom, nextSnapStep(s.get(snapStepAtom))) },
-  // C: the next 3D level view mode (nothing in 2D).
-  {
-    keys: ['c'],
-    run: (s) => {
-      if (in3d(s)) s.set(levelViewModeAtom, nextLevelViewMode(s.get(levelViewModeAtom)));
-    },
-  },
-  ...levelBindings('PageUp', 1),
-  ...levelBindings('PageDown', -1),
+  // C: the cut to All and back (both views).
+  { keys: ['c'], run: toggleAll },
+  ...cutBindings('PageUp', 1),
+  ...cutBindings('PageDown', -1),
   // Select's Mod+D on raw pieces (it leaves it to here): carry copies into Build.
   {
     keys: ['d'],
@@ -175,10 +166,6 @@ export const useToolKeyboard = (): void => {
         return;
       }
       if (isEditableTarget(e.target)) return;
-      if (e.key === 'Escape' && ctx.get(levelPickAtom)) {
-        ctx.set(levelPickAtom, false);
-        return;
-      }
       if (e.key === ' ' || e.key === 'Alt') {
         // Space would scroll or re-click a focused button; Alt would focus the menu bar.
         e.preventDefault();

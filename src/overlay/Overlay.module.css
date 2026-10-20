@@ -182,7 +182,7 @@
   stroke-dasharray: 6 4;
 }
 
-/* A level's height: at the 3D plate's corner and the 3D cursor (accent), and at the 2D
+/* The work plane's height: at the 3D plate's corner and the 3D cursor (accent), and at the 2D
    cursor (muted, beside the cross). */
 .plateTag,
 .levelTag {
@@ -207,7 +207,7 @@
   stroke-width: 3px;
 }
 
-/* Labels of a level other than the current one (3D). */
+/* Labels off the work plane (3D). */
 .offLevel {
   opacity: 0.4;
 }

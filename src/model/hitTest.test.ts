@@ -7,12 +7,11 @@ import { boxFromCorners } from './geometry/box';
 import { hitTest, itemsInBox } from './hitTest';
 
 /** A 2 m wood wall along x, its pivot at (x, z). */
-const wall = (id: string, x: number, z = 0, elevation = 0): RawPiece => ({
+const wall = (id: string, x: number, z = 0, y = 0): RawPiece => ({
   id,
   prefab: 'woodwall',
-  position: { x, y: 0, z },
+  position: { x, y, z },
   rotation: { yaw: 0, pitch: 0, roll: 0 },
-  elevation,
 });
 
 const prop = (id: string, prefab: string, x: number): Prop => ({

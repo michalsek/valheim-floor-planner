@@ -67,7 +67,7 @@ describe('world builds', () => {
   it('imports on the world axes by default, the origin on the world lattice', () => {
     const cloud = cloudOf(shed(45, 101.3, 99.1));
     const cluster = describeCluster(cloud, groupPieces(cloud)[0]!, () => null);
-    const { plan } = importCluster(cloud, cluster, testLibrary, 'Fixture');
+    const plan = importCluster(cloud, cluster, testLibrary, 'Fixture');
     const frame = plan.importFrame!;
     expect(frame.yaw).toBe(0);
     expect([frame.origin.x % WORLD_LATTICE, frame.origin.z % WORLD_LATTICE]).toEqual([0, 0]);
@@ -92,7 +92,7 @@ describe('world builds', () => {
   it('aligns to the build when asked: a turned shed comes in axis-aligned, cornered at the origin', () => {
     const cloud = cloudOf(shed(45, 100, 100));
     const cluster = describeCluster(cloud, groupPieces(cloud)[0]!, () => null);
-    const { plan } = importCluster(cloud, cluster, testLibrary, 'Fixture', 'build');
+    const plan = importCluster(cloud, cluster, testLibrary, 'Fixture', 'build');
     const pieces = Object.values(plan.rawPieces);
     expect(pieces.map((p) => p.rotation.yaw)).toEqual([0, 0, 0, 180, 0]);
     expect(plan.importFrame).toMatchObject({ worldName: 'Fixture', yaw: 45 });
@@ -112,9 +112,6 @@ describe('world builds', () => {
     const [wx, wz] = back(pieces[2]!.position.x, pieces[2]!.position.z);
     expect(wx).toBeCloseTo(cloud.position[6]!);
     expect(wz).toBeCloseTo(cloud.position[8]!);
-    // Heights from the structure's lowest bottom (31.25, the floors' top); the upper wall has no
-    // floor under it, so it stays on level 0, 1 m up.
-    expect(pieces.map((p) => p.elevation)).toEqual([0, 0, 0, 0, 0]);
   });
 
   it('keeps north up and turns pieces clockwise as the game does', () => {
@@ -126,7 +123,7 @@ describe('world builds', () => {
     ]);
     const cluster = describeCluster(cloud, [0, 1, 2], () => null);
     const [south, north, chest] = Object.values(
-      importCluster(cloud, cluster, testLibrary, 'Fixture').plan.rawPieces
+      importCluster(cloud, cluster, testLibrary, 'Fixture').rawPieces
     );
     expect(north!.position.z).toBeCloseTo(south!.position.z - 10);
     expect(north!.position.x).toBeCloseTo(south!.position.x);
@@ -148,33 +145,13 @@ describe('world builds', () => {
     return importCluster(cloud, cluster, testLibrary, 'Fixture');
   };
 
-  it('starts on the main floor, not on a few stray pieces below it', () => {
-    const { plan, level } = imported(decks);
-    const floors = Object.values(plan.rawPieces).filter((p) => p.prefab === 'wood_floor');
-    expect(level).toBeGreaterThan(0);
-    expect(level).toBe(Math.min(...floors.map((p) => p.elevation)));
-  });
-
   it('takes height 0 from the structure, not from a station on lower ground', () => {
-    const bare = imported(decks).plan;
-    const { plan } = imported([...decks, ['piece_workbench', 12, 29.3, 1, 0]]);
+    const bare = imported(decks);
+    const plan = imported([...decks, ['piece_workbench', 12, 29.3, 1, 0]]);
     expect(plan.importFrame!.origin.y).toBe(bare.importFrame!.origin.y);
     const pieces = Object.values(plan.rawPieces);
-    expect(new Set(pieces.map((p) => p.elevation))).toEqual(new Set([0, 4, 8]));
+    const floors = pieces.filter((p) => p.prefab === 'wood_floor');
+    expect(new Set(floors.map((p) => p.position.y))).toEqual(new Set([4, 8]));
     expect(pieces.at(-1)!.position.y).toBeLessThan(0);
-  });
-
-  it('puts each roof course on the storey under its lowest edge, as walls', () => {
-    // A 45° course with its eave on each deck's 2 m walls (bottom 6 m and 10 m up).
-    const roofs: Spec[] = [
-      ['wood_roof_45', 1, 37, 3, 0],
-      ['wood_roof_45', 1, 41, 3, 0],
-    ];
-    const { plan, level } = imported([...decks, ...roofs]);
-    const pieces = Object.values(plan.rawPieces);
-    const roofLevels = pieces.filter((p) => p.prefab === 'wood_roof_45').map((p) => p.elevation);
-    expect(roofLevels).toEqual([4, 8]);
-    expect(new Set(pieces.map((p) => p.elevation))).toEqual(new Set([0, 4, 8]));
-    expect(level).toBe(4);
   });
 });

@@ -2,10 +2,10 @@
  * Sites a plan's terrain reveals: the world's sites (`groupPieces`, any size) with a piece
  * on the plan's terrain patch that the plan doesn't hold yet. A revealed site comes in
  * whole, even where it reaches past the patch, in the plan's own frame (origin, yaw and
- * datum from the first import) and on levels by the wall rule against the plan's
- * levels. Which sites the plan holds comes from its frame's `worldPieces`: a site with
- * any of its pieces there is in the plan, so pieces deleted from the plan never come
- * back, and a site isn't brought in twice after an undo, a redo or a reopen. Pure.
+ * datum from the first import), at absolute heights above that datum. Which sites the
+ * plan holds comes from its frame's `worldPieces`: a site with any of its pieces there
+ * is in the plan, so pieces deleted from the plan never come back, and a site isn't
+ * brought in twice after an undo, a redo or a reopen. Pure.
  */
 import { MAX_RAW_PIECES } from '../rawPieces';
 import type { PatchRect } from '../terrain/sitePatch';
@@ -121,7 +121,7 @@ export interface Reveal {
 
 /**
  * The sites `rect` reveals for `plan` (its frame's world), as raw pieces in its frame.
- * Sites beyond the plan's piece limit, or reaching too far off its levels, are refused
+ * Sites beyond the plan's piece limit, or outside the height range, are refused
  * with their reason, never dropped unseen.
  */
 export const revealSites = (
@@ -135,7 +135,6 @@ export const revealSites = (
   const out: Reveal = { pieces: [], worldPieces: frame?.worldPieces ?? [], sites: [], refused: [] };
   if (!frame) return out;
   const planned = plannedSites(cloud, sites, plan);
-  const levels = [...new Set(Object.values(plan.rawPieces).map((p) => p.elevation))];
   const taken = new Set(Object.keys(plan.rawPieces));
   const keys = [...planned.keys];
   let count = taken.size;
@@ -155,8 +154,7 @@ export const revealSites = (
     };
     try {
       const framed = framePieces(cloud, members, frame, lib);
-      const { pieces } = rawPiecesInFrame(framed, frame.origin.y, lib, idOf, levels);
-      out.pieces.push(...pieces);
+      out.pieces.push(...rawPiecesInFrame(framed, frame.origin.y, idOf));
     } catch (error) {
       out.refused.push({ pieces: members.length, reason: (error as Error).message });
       continue;

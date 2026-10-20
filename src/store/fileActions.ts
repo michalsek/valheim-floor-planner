@@ -1,6 +1,7 @@
 /**
  * New, Open and Save, shared by the plan header and the Mod+O / Mod+S keys. Open and
- * New replace the plan with an undoable `plan.replace`; outcomes go to `fileStatusAtom`.
+ * New replace the plan with an undoable `plan.replace` and show it whole (the cut at
+ * All); outcomes go to `fileStatusAtom`.
  */
 import { atom } from 'jotai';
 
@@ -13,7 +14,7 @@ import { pickPlanFile, readPlanFile, savePlanFile } from './files';
 import { getImage, putImage } from './imageStore';
 import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
-import { embedUnderlayAtom, fitViewTo, type SessionAccess } from './session';
+import { embedUnderlayAtom, fitViewTo, resetCut, type SessionAccess } from './session';
 import { resetOrbit } from './view3d';
 
 export interface FileStatus {
@@ -121,6 +122,7 @@ export const openPlanFile = async (ctx: FileContext): Promise<void> => {
     // Stored first, so the underlay doesn't flash "missing".
     if (plan.underlay && underlayImage) await putImage(plan.underlay.imageId, underlayImage);
     ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Open ${file.name}` });
+    resetCut(ctx);
     fitViewTo(ctx, planBounds(plan, getLibrary()));
     resetOrbit(ctx);
     ctx.set(fileStatusAtom, legacy ? legacyNotice(legacy) : null);
@@ -137,11 +139,15 @@ export const startNewPlan = (ctx: FileContext): void => {
   const current = ctx.plan.getPlan();
   if (isPlanEmpty(current)) {
     // Already new: nothing to replace, and no history entry.
-    if (current.name === DEFAULT_PLAN_NAME) return;
+    if (current.name === DEFAULT_PLAN_NAME) {
+      resetCut(ctx);
+      return;
+    }
   } else if (!window.confirm('Start a new plan? You can undo this.')) {
     return;
   }
   ctx.plan.dispatch({ type: 'plan.replace', plan: emptyPlan() }, { label: 'New plan' });
+  resetCut(ctx);
   resetOrbit(ctx);
   ctx.set(fileStatusAtom, null);
 };

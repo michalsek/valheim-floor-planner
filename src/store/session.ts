@@ -6,7 +6,6 @@
 import { atom, createStore, type Getter } from 'jotai';
 
 import { snapToGrid, type SnapStep } from '../model/geometry/snap';
-import type { LevelViewMode } from '../model/levels';
 import type { Vec2 } from '../model/types';
 import type { ToolId } from '../tools/toolIds';
 import {
@@ -72,31 +71,36 @@ export type AutosaveStatus = 'ok' | 'failed' | 'unavailable' | 'unread';
 export const autosaveStatusAtom = atom<AutosaveStatus>('ok');
 
 /**
- * The current level: the height of the plane tools work on (its walking surface). The
- * Levels bar and PageUp / PageDown set it; new objects are stamped with it, 2D shows
- * that level (and ghosts of the one below), picking sees only it.
+ * The cut height H: what shows is what starts below it (`cut.ts`); null is All (no cut).
+ * The Levels bar, PageUp / PageDown and C set it. Session only, never undone.
  */
-export const workDatumAtom = atom<number>(0);
+export const cutHeightAtom = atom<number | null>(null);
 
-/** The Levels bar's step: 1 m, or 0.5 m (grausten floors are 0.5 m thick). */
-export type ElevationStep = 1 | 0.5;
-export const elevationStepAtom = atom<ElevationStep>(1);
+/** The last cut set (never All), for C to go back to. */
+export const lastCutAtom = atom<number | null>(null);
+
+/** A new, opened or imported plan: shown whole, and C forgets the old plan's cut. */
+export const resetCut = (store: SessionAccess): void => {
+  store.set(cutHeightAtom, null);
+  store.set(lastCutAtom, null);
+};
+
+/** The cut's step: 1 m, or 0.5 m (grausten floors are 0.5 m thick). */
+export type CutStep = 1 | 0.5;
+export const cutStepAtom = atom<CutStep>(1);
+
+/** 3D: pieces above the cut are drawn as a frosted ghost (never pickable). */
+export const cutGhostAtom = atom<boolean>(false);
+
+/**
+ * The height new things go on and tools work at: the walking surface of the highest
+ * storey floor the cut still shows, 0 at All (`workPlaneOf`). Written only by
+ * `startWorkPlaneSync`; read-only elsewhere; pass 3 removes it.
+ */
+export const workPlaneAtom = atom<number>(0);
 
 /** Colour pieces by structural support instead of material (both views). */
 export const supportViewAtom = atom<boolean>(false);
-
-/**
- * 3D: which levels are drawn (`LevelViewMode`): the cut by default (the current level
- * and what is below it, less lower pieces that start more than `CUT_ABOVE` over it).
- * C cycles it. Session only.
- */
-export const levelViewModeAtom = atom<LevelViewMode>('cut');
-
-/** The level whose Levels bar row the pointer is over (3D previews it); null for none. */
-export const levelHoverAtom = atom<number | null>(null);
-
-/** The next click on the canvas picks a piece, and the level moves to its top. */
-export const levelPickAtom = atom<boolean>(false);
 
 /** The 3D camera as plain data (`OrbitRig` keeps it current); null outside 3D. */
 export const projection3dAtom = atom<Projection3d | null>(null);
@@ -107,7 +111,7 @@ const pointerWorld = (get: Getter, screen: ScreenPoint): Vec2 | null => {
     return screenToWorld(get(viewportAtom), get(viewportSizeAtom), screen);
   }
   const projection = get(projection3dAtom);
-  return projection && workPlanePoint(screen, projection, get(workDatumAtom));
+  return projection && workPlanePoint(screen, projection, get(workPlaneAtom));
 };
 
 /**
@@ -134,7 +138,7 @@ export const pxPerMetreAtom = atom<number>((get) => {
   if (get(viewModeAtom) !== '3d' || !projection) return get(viewportAtom).zoom;
   const cursor = get(cursorAtom);
   const at = cursor
-    ? { x: cursor.raw.x, y: get(workDatumAtom), z: cursor.raw.z }
+    ? { x: cursor.raw.x, y: get(workPlaneAtom), z: cursor.raw.z }
     : orbitTargetOf(projection);
   return pxPerMetreAt(at, projection);
 });

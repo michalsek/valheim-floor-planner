@@ -1,8 +1,9 @@
 import { normalizeDeg } from '../../model/geometry/propGeometry';
 import { newId } from '../../model/newId';
-import { workDatumAtom } from '../../store/session';
+import { workPlaneAtom } from '../../store/session';
 import { rotateStep } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
+import { commitCommands } from '../commitCommands';
 import type { Tool } from '../types';
 
 import { flightRise, ghostSteps } from './propFlight';
@@ -28,15 +29,14 @@ export const propTool: Tool = {
     if (e.button !== PRIMARY_BUTTON) return;
     const ghost = ctx.get(propGhostAtom);
     if (!ghost) return;
-    const steps = ghostSteps(ghost, ctx.get(workDatumAtom), flightRise(ctx));
+    const steps = ghostSteps(ghost, ctx.get(workPlaneAtom), flightRise(ctx));
     const label = ghost.def.flight ? 'Add stairs' : `Place ${ghost.def.name}`;
-    const result = ctx.plan.transact(label, (dispatch) => {
-      for (const step of steps) {
-        const prop = { id: newId(), prefab: ghost.def.prefab, upgrades: 0, ...step };
-        dispatch({ type: 'prop.insert', prop });
-      }
-    });
-    if (!result.ok) console.warn(`${label} failed.`, result.error);
+    const cmds = steps.map((step) => ({
+      type: 'prop.insert' as const,
+      prop: { id: newId(), prefab: ghost.def.prefab, upgrades: 0, ...step },
+    }));
+    // One entry; the cut rises to show what was placed.
+    commitCommands(ctx, label, cmds);
   },
   onKeyDown(e, ctx) {
     const turn = rotateStep(e);

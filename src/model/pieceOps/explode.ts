@@ -35,11 +35,10 @@ export const rawFromBox = (box: PieceBox, id: string): RawPiece | null => {
     prefab: box.prefab,
     position: {
       x: round6(box.pivot.x),
-      y: round6(box.pivot.y - box.elevation),
+      y: round6(box.pivot.y),
       z: round6(box.pivot.z),
     },
     rotation: rotationOfTurn(turn),
-    elevation: box.elevation,
   };
 };
 

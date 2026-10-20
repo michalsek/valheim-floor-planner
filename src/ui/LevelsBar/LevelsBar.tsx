@@ -1,5 +1,4 @@
 import { useAtom, useAtomValue } from 'jotai';
-import { useEffect } from 'react';
 
 import { Button } from '../../controls/Button';
 import { keepFocus } from '../../controls/keepFocus';
@@ -7,88 +6,48 @@ import { NumberInput } from '../../controls/NumberInput';
 import { SegmentedControl } from '../../controls/SegmentedControl';
 import { ToggleButton } from '../../controls/ToggleButton';
 import { formatLevel } from '../../format';
+import type { StoreyStop } from '../../model/cut';
 import { sameLevel } from '../../model/elevation';
-import { levelsOf, selectionLevels, type Level } from '../../model/levels';
 import { useViewMode } from '../../store/hooks';
-import { getLibrary } from '../../store/libraryInstance';
-import { getPieceBoxes, usePlan } from '../../store/planHooks';
-import { selectionAtom } from '../../store/selection';
+import { getStoreyStops, usePlan } from '../../store/planHooks';
 import {
-  elevationStepAtom,
-  levelHoverAtom,
-  levelPickAtom,
+  cutGhostAtom,
+  cutHeightAtom,
+  cutStepAtom,
   supportViewAtom,
-  workDatumAtom,
-  type ElevationStep,
+  workPlaneAtom,
+  type CutStep,
 } from '../../store/session';
-import { setWorkElevation, stepLevel } from '../../tools/levelActions';
+import { setCut, stepCut, toggleAll } from '../../tools/cutActions';
 import { useToolContext } from '../../tools/toolContext';
 
 import { LevelViewControls } from './LevelViewControls';
 import styles from './LevelsBar.module.css';
 
-const STEPS: readonly { value: ElevationStep; label: string }[] = [
+const STEPS: readonly { value: CutStep; label: string }[] = [
   { value: 1, label: '1 m' },
   { value: 0.5, label: '0.5 m' },
 ];
 
-/** The plan's levels, top to bottom, with the current one in even when it is empty. */
-const useLevels = (datum: number): Level[] => {
-  const plan = usePlan();
-  const levels = levelsOf(plan, getPieceBoxes(plan), getLibrary());
-  if (levels.some((l) => sameLevel(l.elevation, datum))) return levels;
-  return [...levels, { elevation: datum, count: 0 }].sort((a, b) => b.elevation - a.elevation);
-};
-
-/** Whether any selected item is on the level at `elevation`. */
-const useSelectionOn = (): ((elevation: number) => boolean) => {
-  const levels = selectionLevels(usePlan(), useAtomValue(selectionAtom), getLibrary());
-  return (elevation) => [...levels].some((l) => sameLevel(l, elevation));
-};
-
-/**
- * The level rows: click one to go there; in 3D, hovering one previews it (cleared on
- * leaving the list, on unmount, on a view switch and when its row goes, e.g. on undo).
- * A dot marks the selection's levels.
- */
-const LevelRows = ({ levels, datum }: { levels: Level[]; datum: number }) => {
+/** The storey stops, top to bottom: click one to cut there. */
+const StopRows = ({ stops, h }: { stops: readonly StoreyStop[]; h: number | null }) => {
   const ctx = useToolContext();
-  const [hover, setHover] = useAtom(levelHoverAtom);
-  const is3d = useViewMode() === '3d';
-  const selectionOn = useSelectionOn();
-  useEffect(() => {
-    setHover(null);
-    return () => setHover(null);
-  }, [is3d, setHover]);
-  const rowGone = hover !== null && !levels.some((l) => sameLevel(l.elevation, hover));
-  useEffect(() => {
-    if (rowGone) setHover(null);
-  }, [rowGone, setHover]);
-
   return (
-    <ul className={styles.levels} onMouseLeave={() => setHover(null)}>
-      {levels.map(({ elevation, count }) => {
-        const current = sameLevel(elevation, datum);
+    <ul className={styles.levels}>
+      {[...stops].reverse().map(({ height, count }) => {
+        const current = h !== null && sameLevel(height, h);
         return (
-          <li key={elevation}>
+          <li key={height}>
             <button
               type="button"
               className={current ? `${styles.level} ${styles.levelCurrent}` : styles.level}
               aria-current={current}
-              title="Go to this level (Shift+PageUp / PageDown: the next one)"
+              title="Cut here: hides this floor and what starts above it (Shift+PageUp / PageDown: the next stop)"
               onMouseDown={keepFocus}
-              onMouseEnter={() => setHover(is3d ? elevation : null)}
-              onClick={() => setWorkElevation(ctx, elevation)}
+              onClick={() => setCut(ctx, height)}
             >
-              <span className={styles.levelName}>
-                {selectionOn(elevation) && (
-                  <span className={styles.selectionDot} title="Selection is on this level">
-                    <span className={styles.visuallyHidden}>Selection is on this level: </span>
-                  </span>
-                )}
-                {formatLevel(elevation)}
-              </span>
-              <span className={styles.count}>{count === 0 ? 'empty' : count}</span>
+              <span className={styles.levelName}>{formatLevel(height)}</span>
+              <span className={styles.count}>{count}</span>
             </button>
           </li>
         );
@@ -98,52 +57,56 @@ const LevelRows = ({ levels, datum }: { levels: Level[]; datum: number }) => {
 };
 
 /**
- * The levels at the canvas edge: the level rows, the current level with ▲ / ▼ and a
- * field, the step, Pick (the next click picks a piece's top), the support view and (3D)
- * which levels are drawn and the plate's frost.
+ * The cut at the canvas edge (interim; pass 3 replaces it with the Cut bar): the cut
+ * height with ▲ / ▼ and a field, All (C), the step, the storey stops, where new items go,
+ * the support view and (3D) the ghost toggle and the plate's frost.
  */
 export const LevelsBar = () => {
   const ctx = useToolContext();
-  const datum = useAtomValue(workDatumAtom);
-  const [step, setStep] = useAtom(elevationStepAtom);
-  const [picking, setPicking] = useAtom(levelPickAtom);
+  const h = useAtomValue(cutHeightAtom);
+  const plane = useAtomValue(workPlaneAtom);
+  const [step, setStep] = useAtom(cutStepAtom);
+  const [ghosts, setGhosts] = useAtom(cutGhostAtom);
   const [supportView, setSupportView] = useAtom(supportViewAtom);
   const is3d = useViewMode() === '3d';
-  const levels = useLevels(datum);
+  const stops = getStoreyStops(usePlan());
 
   return (
-    <div className={styles.bar} role="toolbar" aria-label="Levels">
+    <div className={styles.bar} role="toolbar" aria-label="Cut">
       <div className={styles.current}>
-        <Button title="Up a step (PageUp)" onClick={() => stepLevel(ctx, 1)}>
+        <Button title="Cut a step higher (PageUp)" onClick={() => stepCut(ctx, 1)}>
           ▲
         </Button>
-        <NumberInput
-          key={datum}
-          label="Current level in metres"
-          value={datum}
-          step={step}
-          onCommit={(e) => setWorkElevation(ctx, e)}
-        />
-        <Button title="Down a step (PageDown)" onClick={() => stepLevel(ctx, -1)}>
+        {h !== null && (
+          <NumberInput
+            key={h}
+            label="Cut height in metres"
+            value={h}
+            step={step}
+            onCommit={(next) => setCut(ctx, next)}
+          />
+        )}
+        <Button title="Cut a step lower (PageDown)" onClick={() => stepCut(ctx, -1)}>
           ▼
         </Button>
       </div>
-      <SegmentedControl<ElevationStep>
-        label="Level step"
+      <div className={styles.actions}>
+        <ToggleButton
+          title="Show everything, no cut (C: back to the cut)"
+          pressed={h === null}
+          onChange={() => toggleAll(ctx)}
+        >
+          All
+        </ToggleButton>
+      </div>
+      <SegmentedControl<CutStep>
+        label="Cut step"
         options={STEPS}
         value={step}
         onChange={(v) => setStep(v)}
       />
-      <LevelRows levels={levels} datum={datum} />
-      <div className={styles.actions}>
-        <ToggleButton
-          title="Click a piece to go to its top (Esc to stop)"
-          pressed={picking}
-          onChange={setPicking}
-        >
-          Pick
-        </ToggleButton>
-      </div>
+      {stops.length > 0 && <StopRows stops={stops} h={h} />}
+      <p className={styles.plane}>Items go on {formatLevel(plane)}</p>
       <div className={styles.actions}>
         <ToggleButton
           title="Colour pieces by structural support"
@@ -153,7 +116,20 @@ export const LevelsBar = () => {
           Support
         </ToggleButton>
       </div>
-      {is3d && <LevelViewControls />}
+      {is3d && (
+        <>
+          <div className={styles.actions}>
+            <ToggleButton
+              title="Draw what is above the cut as a faded ghost (it can't be picked)"
+              pressed={ghosts}
+              onChange={setGhosts}
+            >
+              Ghost
+            </ToggleButton>
+          </div>
+          <LevelViewControls />
+        </>
+      )}
     </div>
   );
 };
