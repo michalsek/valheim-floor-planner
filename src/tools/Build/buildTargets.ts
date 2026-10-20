@@ -1,7 +1,7 @@
 /**
  * What the Build tool builds against (M17 §3.1, §3.4): the committed plan's pieces as
- * the views draw them (below the cut, roofs as toggled), with their snap index, and in 3D
- * the shown ground. Hidden pieces are neither hit nor snapped to. The lists are kept per
+ * the views draw them (below the cut, roofs as toggled), with their snap index, and the
+ * shown terrain. Hidden pieces are neither hit nor snapped to. The lists are kept per
  * committed plan and cut, so the snap index (cached per list) is built once per commit.
  */
 import { atom, type Getter } from 'jotai';
@@ -10,57 +10,35 @@ import { snapIndex, type SnapIndex } from '../../model/build/snapPoints';
 import type { PieceBox } from '../../model/pieceBoxes';
 import type { SiteFrame, TerrainGrid } from '../../model/terrain/siteTerrain';
 import type { Plan } from '../../model/types';
+import { committedPlanAtom } from '../../store/committedPlan';
 import { getLibrary } from '../../store/libraryInstance';
-import { getPieceBoxes, getShownBoxes } from '../../store/planHooks';
-import { planStore } from '../../store/planInstance';
-import { cutHeightAtom, roofsVisibleAtom, terrainShownAtom } from '../../store/session';
-import { getSiteGround } from '../../store/siteTerrain';
-import { viewModeAtom } from '../../store/view3d';
-import { drawnBoxes } from '../picking';
-
-const planBase = atom<Plan>(planStore.getPlan());
-planBase.onMount = (set) => {
-  set(planStore.getPlan());
-  return planStore.subscribe(({ plan }) => set(plan));
-};
-
-/**
- * The committed plan, as an atom (followed while something reads it from React), so the
- * ghost follows a commit, an undo or a load at once.
- */
-export const committedPlanAtom = atom((get) => get(planBase));
+import { surfaceScene } from '../../store/pointer';
+import { getPieceBoxes } from '../../store/planHooks';
 
 export interface BuildTargets {
   plan: Plan;
-  /** What the ray lands on (3D) and what snaps. */
+  /** What the ray lands on and what snaps. */
   boxes: readonly PieceBox[];
   index: SnapIndex;
-  /** The ground the ray lands on: 3D with the terrain shown; null otherwise. */
+  /** The terrain the ray lands on while it is shown; null otherwise (the plane 0). */
   terrain: { grid: TerrainGrid; frame: SiteFrame } | null;
   /** Some pieces of the plan are hidden (by the cut or the Roofs toggle). */
   hidden: boolean;
 }
 
-/** One cached list per key: the last one asked for (a pointer sweep asks the same). */
-const memoList = () => {
-  let last: { key: readonly unknown[]; boxes: readonly PieceBox[] } | null = null;
-  return (key: readonly unknown[], make: () => readonly PieceBox[]): readonly PieceBox[] => {
-    if (last && last.key.length === key.length && last.key.every((k, i) => k === key[i])) {
-      return last.boxes;
-    }
-    last = { key, boxes: make() };
-    return last.boxes;
-  };
+/** The last list kept without the carried pieces (a pointer sweep asks the same). */
+let lastKept: {
+  shown: readonly PieceBox[];
+  exclude: ReadonlySet<string>;
+  boxes: readonly PieceBox[];
+} | null = null;
+
+const without = (shown: readonly PieceBox[], exclude: ReadonlySet<string>) => {
+  if (lastKept?.shown !== shown || lastKept.exclude !== exclude) {
+    lastKept = { shown, exclude, boxes: shown.filter((b) => !exclude.has(b.key)) };
+  }
+  return lastKept.boxes;
 };
-
-const drawn = memoList();
-
-const targetBoxes = (get: Getter, plan: Plan): readonly PieceBox[] => {
-  const shown = getShownBoxes(plan, get(roofsVisibleAtom));
-  return drawn([shown, get(cutHeightAtom)], () => drawnBoxes({ get }, plan));
-};
-
-const kept = memoList();
 
 /**
  * The Build targets for the current view and cut of `plan`, less the boxes whose keys
@@ -71,17 +49,14 @@ export const buildTargets = (
   plan: Plan,
   exclude: ReadonlySet<string> | null = null
 ): BuildTargets => {
-  const in3d = get(viewModeAtom) === '3d';
-  const shown = targetBoxes(get, plan);
-  const boxes = exclude
-    ? kept([shown, exclude], () => shown.filter((b) => !exclude.has(b.key)))
-    : shown;
-  const site = in3d && get(terrainShownAtom) ? getSiteGround(plan) : null;
+  // The drawn boxes are the same array per plan, cut and Roofs toggle (`cutBoxes`).
+  const { boxes: shown, terrain } = surfaceScene(get, plan);
+  const boxes = exclude ? without(shown, exclude) : shown;
   return {
     plan,
     boxes,
     index: snapIndex(boxes, getLibrary()),
-    terrain: site && { grid: site.grid, frame: site.frame },
+    terrain,
     hidden: shown.length < getPieceBoxes(plan).length,
   };
 };

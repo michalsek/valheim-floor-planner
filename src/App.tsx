@@ -5,7 +5,6 @@ import styles from './App.module.css';
 import { captureDrop } from './install/dropFolder';
 import { dropWorldOnPlanner } from './install/loadWorld';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
-import { LevelTags3d } from './overlay/LevelTags3d';
 import { Overlay } from './overlay/Overlay';
 import { Overlay3d } from './overlay/Overlay3d';
 import { PinnedDimensions } from './overlay/PinnedDimensions';
@@ -24,8 +23,8 @@ import { ToolOverlay3d, ToolPreview, ToolSnapCursor, ToolWorldPreview } from './
 import { BomPanel } from './ui/BomPanel/BomPanel';
 import { BuildPalette } from './ui/BuildPalette/BuildPalette';
 import { CatalogBrowser } from './ui/CatalogBrowser/CatalogBrowser';
+import { CutBar } from './ui/CutBar/CutBar';
 import { Inspector } from './ui/Inspector/Inspector';
-import { LevelsBar } from './ui/LevelsBar/LevelsBar';
 import { PlanHeader } from './ui/PlanHeader/PlanHeader';
 import { SiteExpandHandles } from './ui/SiteExpand/SiteExpandHandles';
 import { StatusStrip } from './ui/StatusStrip/StatusStrip';
@@ -56,10 +55,9 @@ const PlanOverlay = () => (
   </Overlay>
 );
 
-/** The 3D overlay: level heights, dimension lengths and the tool's labels and handles. */
+/** The 3D overlay: dimension lengths and the tool's labels and handles. */
 const ViewOverlay3d = () => (
   <Overlay3d>
-    <LevelTags3d />
     <PinnedDimensionLabels3d />
     <ToolOverlay3d />
   </Overlay3d>
@@ -100,7 +98,7 @@ const CanvasChrome = () => {
         <ToolOptionsBar />
         {useViewMode() === '3d' && <ViewBar />}
       </div>
-      <LevelsBar />
+      <CutBar />
     </>
   );
 };

@@ -10,7 +10,7 @@ import { isSelected, itemsLabel, toggleItem, unionItems } from '../../model/sele
 import { snapValue } from '../../model/geometry/snap';
 import type { Vec2 } from '../../model/types';
 import { editPreviewAtom, hoverAtom, selectionAtom } from '../../store/selection';
-import { cursorStyleAtom, snapStepAtom, workPlaneAtom } from '../../store/session';
+import { cursorStyleAtom, snapStepAtom } from '../../store/session';
 import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from '../types';
@@ -56,11 +56,14 @@ export const cancelGesture = (ctx: ToolContext): boolean => {
   return true;
 };
 
-/** The press on the plane at the grabbed height (on the work plane where that misses). */
+/**
+ * The press on the plane at the grabbed height (on the surface under the pointer where
+ * that misses).
+ */
 const grabOf = (ctx: ToolContext, e: ToolPointerEvent, y: number): Grab => {
   const on = onPlaneAt(ctx, e, y);
   if (on) return { y, world: on.world, snapped: on.snapped };
-  return { y: ctx.get(workPlaneAtom), world: e.world, snapped: e.snapped };
+  return { y: e.y, world: e.world, snapped: e.snapped };
 };
 
 export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
@@ -226,9 +229,9 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
 };
 
 /**
- * A move or release with no world point (3D: over the sky, or terrain the work plane
- * doesn't reach): a snap-move and a sink drag follow the pointer by screen point, and the
- * release commits their last preview; other gestures wait, and their release cancels.
+ * A move or release with no world point (3D: over the sky, or beyond reach): a snap-move
+ * and a sink drag follow the pointer by screen point, and the release commits their last
+ * preview; other gestures wait, and their release cancels.
  */
 export const onSelectOffPlane = (
   e: OffPlanePointerEvent,

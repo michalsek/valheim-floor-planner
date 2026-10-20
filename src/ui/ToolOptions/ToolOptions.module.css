@@ -9,7 +9,7 @@
   align-items: center;
   gap: 6px 14px;
   width: max-content;
-  /* Clear of the Levels bar at the top right (≈ 160 px) when it wraps to more rows. */
+  /* Clear of the Cut bar at the top right (≈ 160 px) when it wraps to more rows. */
   max-width: calc(100% - 340px);
   padding: 6px 12px;
   background: var(--surface-raised);

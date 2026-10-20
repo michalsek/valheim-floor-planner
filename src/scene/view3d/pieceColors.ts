@@ -1,7 +1,6 @@
 /**
- * How 3D boxes are coloured: a base colourer (materials, or support), ghosts above the
- * cut faded, and the selection / hover tint over it. Models are tinted the same way, over
- * their textures.
+ * How 3D boxes are coloured: a base colourer (materials, or support) and the selection /
+ * hover tint over it. Models are tinted the same way, over their textures.
  */
 import { materialColor, mixHex } from '../../catalog/materialColors';
 import { hitItem, type Hit } from '../../model/hitTest';
@@ -17,8 +16,6 @@ export type PieceColorer = (box: PieceBox) => string;
 /** Share of the selection colour in a selected and in a hovered piece. */
 const SELECTED_MIX = 0.7;
 const HOVER_MIX = 0.35;
-/** How far a ghost above the cut fades towards the canvas colour. */
-const OFF_LEVEL_MIX = 0.4;
 
 /** The plan colours: materials and prop groups. */
 export const materialColorer =
@@ -41,12 +38,6 @@ export const supportColorer =
 type Mixer<S> = (shade: S, color: string, share: number) => S;
 type Shader<S> = (box: PieceBox) => S;
 
-const levelled =
-  <S>(mix: Mixer<S>) =>
-  (shade: Shader<S>, faded: (box: PieceBox) => boolean, tokens: ThemeTokens): Shader<S> =>
-  (box) =>
-    faded(box) ? mix(shade(box), tokens.canvas, OFF_LEVEL_MIX) : shade(box);
-
 const itemKey = (item: SelectionItem): string => `${item.kind}:${item.id}`;
 
 const highlighted =
@@ -62,13 +53,6 @@ const highlighted =
       return shade(box);
     };
   };
-
-/** `colorer`, with the pieces `faded` says faded towards the canvas (ghosts above the cut). */
-export const withLevel: (
-  colorer: PieceColorer,
-  faded: (box: PieceBox) => boolean,
-  tokens: ThemeTokens
-) => PieceColorer = levelled(mixHex);
 
 /**
  * `colorer`, with selected items and the hovered one tinted towards `tint` (the selection
@@ -120,7 +104,5 @@ export const supportTinter =
     return color ? { color, amount: SUPPORT_TINT } : NO_TINT;
   };
 
-/** `withLevel` for model tints. */
-export const tintWithLevel = levelled(mixTint);
 /** `withHighlight` for model tints. */
 export const tintWithHighlight = highlighted(mixTint);

@@ -1,19 +1,13 @@
 /**
- * Moving the cut: shared by the Levels bar, PageUp / PageDown and C. The cut height is
+ * Moving the cut: shared by the Cut bar, PageUp / PageDown and C. The cut height is
  * session state (never undone). Whatever is placed or moved stays shown: the cut rises
  * to it (`revealPlaced`, via `commitCommands`), so everything visible stays editable;
  * and lowering the cut drops what it hides from the selection.
  */
-import {
-  boxBottom,
-  cutShowing,
-  nextStop,
-  prevStop,
-  steppedCut,
-  type CutDirection,
-} from '../model/cut';
+import { cutShowing, nextStop, prevStop, steppedCut, type CutDirection } from '../model/cut';
 import type { PlanCommand } from '../model/commands';
 import { clampElevation, roundElevation } from '../model/elevation';
+import { boxBottom } from '../model/pieceBoxes';
 import { itemExists, type Selection, type SelectionItem } from '../model/selection';
 import { getLibrary } from '../store/libraryInstance';
 import { getCutPlan, getPieceBoxes, getStoreyStops } from '../store/planHooks';

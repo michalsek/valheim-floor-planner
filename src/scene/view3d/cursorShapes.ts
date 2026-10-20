@@ -1,4 +1,4 @@
-/** The 3D cursor's marks on the work plane, as polylines (metres). Pure. */
+/** The 3D cursor's marks on the plane it lies on, as polylines (metres). Pure. */
 import type { Polyline } from '../../model/geometry/box';
 import type { Vec2 } from '../../model/types';
 

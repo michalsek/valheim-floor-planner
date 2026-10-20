@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { startInstall } from './install/loadInstall';
 import { openPlanStorage, startAutosave } from './store/autosave';
+import { startCommittedPlanSync } from './store/committedPlan';
 import { fileStatusAtom, legacyNotice } from './store/fileActions';
 import { pruneImages } from './store/imageStore';
 import { planStore } from './store/planInstance';
@@ -13,7 +14,6 @@ import { startSelectionSync } from './store/selection';
 import { startSupportSync } from './store/supportSync';
 import { autosaveStatusAtom, sessionStore } from './store/session';
 import { startThemeSync } from './store/theme';
-import { startWorkPlaneSync } from './store/workPlane';
 import { InstallGate } from './ui/InstallGate/InstallGate';
 import { useInstall } from './ui/shared/useInstall';
 
@@ -45,8 +45,9 @@ const start = async () => {
 
   // Before the first render, so the selection is pruned before React reads it.
   startSelectionSync(planStore, sessionStore);
-  const stopWorkPlaneSync = startWorkPlaneSync(planStore, sessionStore);
-  import.meta.hot?.dispose(stopWorkPlaneSync);
+  // Before the first render too: tools read the committed plan outside React.
+  const stopCommittedPlanSync = startCommittedPlanSync(planStore, sessionStore);
+  import.meta.hot?.dispose(stopCommittedPlanSync);
   // Support is worked out when idle, only while something shows it.
   const stopSupportSync = startSupportSync(planStore, sessionStore);
   import.meta.hot?.dispose(stopSupportSync);

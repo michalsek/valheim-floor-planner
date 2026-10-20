@@ -2,7 +2,7 @@ import { useAtomValue } from 'jotai';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { derivePlan, type Derived } from '../model/derivePlan';
-import { cutPlan, storeyStops, type StoreyStop } from '../model/cut';
+import { cutBoxes, cutPlan, storeyStops, type StoreyStop } from '../model/cut';
 import { pieceBoxes, type PieceBox } from '../model/pieceBoxes';
 import type { Plan } from '../model/types';
 
@@ -97,6 +97,16 @@ export const getShownBoxes = (plan: Plan, roofsVisible: boolean): readonly Piece
   if (!shown) roofless.set(all, (shown = all.filter((b) => !b.roofCover)));
   return shown;
 };
+
+/**
+ * The boxes the views draw and tools hit: the shown ones the cut at `h` keeps (the same
+ * array for the same boxes and cut).
+ */
+export const getDrawnBoxes = (
+  plan: Plan,
+  roofsVisible: boolean,
+  h: number | null
+): readonly PieceBox[] => cutBoxes(getShownBoxes(plan, roofsVisible), h);
 
 /** History labels for the history list (see `PlanStore.historyLabels`). */
 export const useHistory = (): HistoryLabels =>

@@ -4,7 +4,7 @@ import { testLibrary } from '../catalog/testLibrary';
 import { emptyPlan, type Plan, type Prop, type RawPiece } from './types';
 
 import { boxFromCorners } from './geometry/box';
-import { hitTest, itemsInBox } from './hitTest';
+import { hitTest, itemsInBox, rawDrawOrder } from './hitTest';
 
 /** A 2 m wood wall along x, its pivot at (x, z). */
 const wall = (id: string, x: number, z = 0, y = 0): RawPiece => ({
@@ -57,9 +57,22 @@ describe('hitTest', () => {
     expect(at(plan, 10, 2)).toMatchObject({ kind: 'prop', id: 's' });
   });
 
-  it('of equal raw footprints takes the highest', () => {
-    const plan = planOf([wall('low', 0), wall('high', 0, 0, 4), wall('mid', 0, 0, 2)]);
-    expect(at(plan, 0, 0)).toMatchObject({ kind: 'raw', id: 'high' });
+  it('takes the highest top, then the smallest', () => {
+    const piece = (id: string, prefab: string, y: number): RawPiece => ({
+      ...wall(id, 0, 0, y),
+      prefab,
+    });
+    const floor = planOf([wall('w', 0), piece('f', 'wood_floor', 2)]);
+    expect(at(floor, 0, 0)).toMatchObject({ kind: 'raw', id: 'f' });
+    const pole = planOf([wall('w', 0), piece('f', 'wood_floor', 2), piece('p', 'wood_pole2', 2)]);
+    expect(at(pole, 0, 0)).toMatchObject({ kind: 'raw', id: 'p' });
+    const stack = planOf([wall('low', 0), wall('high', 0, 0, 4), wall('mid', 0, 0, 2)]);
+    expect(at(stack, 0, 0)).toMatchObject({ kind: 'raw', id: 'high' });
+    // Tops in one 5 cm band (the floor's 2.098, the pole's 2.08): the smaller wins, though lower.
+    const tie = planOf([piece('f', 'wood_floor', 2), piece('p', 'wood_pole2', 1.08)]);
+    expect(at(tie, 0, 0)).toMatchObject({ kind: 'raw', id: 'p' });
+    // Drawn in the reverse order: what is picked is drawn on top.
+    expect(rawDrawOrder(pole, testLibrary).map((p) => p.id)).toEqual(['w', 'f', 'p']);
   });
 
   it('of equal prop footprints prefers the selected one, then the one drawn on top', () => {

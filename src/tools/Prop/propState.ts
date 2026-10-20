@@ -4,7 +4,11 @@ import type { PropDef, PropGroup } from '../../catalog/propDefs';
 import { placementPosition } from '../../model/geometry/propGeometry';
 import type { Vec2 } from '../../model/types';
 import { getLibrary } from '../../store/libraryInstance';
-import { cursorAtom, snapStepAtom } from '../../store/session';
+import { groundHeight } from '../../model/build/buildHit';
+import { clampElevation, roundElevation } from '../../model/elevation';
+import { committedPlanAtom } from '../../store/committedPlan';
+import { cursorAtom, surfaceScene } from '../../store/pointer';
+import { snapStepAtom } from '../../store/session';
 
 /** The prefab the Prop tool places (null: nothing armed). */
 export const armedPrefabAtom = atom<string | null>(null);
@@ -25,6 +29,11 @@ export interface PropGhost {
   def: PropDef;
   position: Vec2;
   rotation: number;
+  /**
+   * The height it stands at (absolute): the surface under the pointer; on the ground,
+   * the ground at its own position.
+   */
+  elevation: number;
 }
 
 /**
@@ -38,7 +47,12 @@ export const propGhostAtom = atom<PropGhost | null>((get) => {
   const rotation = get(propRotationAtom);
   const step = cursor.snapping ? get(snapStepAtom) : null;
   const position = placementPosition(cursor.raw, rotation, def.rect, step, def.snap);
-  return { def, rotation, position };
+  const y =
+    cursor.on === 'ground'
+      ? groundHeight(surfaceScene(get, get(committedPlanAtom)), position)
+      : cursor.y;
+  const elevation = roundElevation(clampElevation(y));
+  return { def, rotation, position, elevation };
 });
 
 // The catalogue browser's search and group chips (kept across tool switches).

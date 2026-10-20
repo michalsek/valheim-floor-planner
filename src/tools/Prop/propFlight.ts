@@ -4,19 +4,19 @@ import { useMemo } from 'react';
 
 import { flightSteps, riseToNextStop, type FlightStep } from '../../model/flight';
 import { getStoreyStops, usePlan } from '../../store/planHooks';
-import { workPlaneAtom } from '../../store/session';
 import type { ToolContext } from '../types';
 
 import { flightRiseAtom, propGhostAtom, type PropGhost } from './propState';
 
-/** The flight's rise: as set, or up to the next storey's floor. */
-export const flightRise = (ctx: ToolContext): number =>
-  ctx.get(flightRiseAtom) ??
-  riseToNextStop(getStoreyStops(ctx.plan.getPlan()), ctx.get(workPlaneAtom));
+/** The flight's rise from `from`: as set, or up to the next storey's floor. */
+export const flightRise = (ctx: ToolContext, from: number): number =>
+  ctx.get(flightRiseAtom) ?? riseToNextStop(getStoreyStops(ctx.plan.getPlan()), from);
 
+/** `flightRise` from the ghost's height (0 without a ghost). */
 export const useFlightRise = (): number => {
   const set = useAtomValue(flightRiseAtom);
-  const auto = riseToNextStop(getStoreyStops(usePlan()), useAtomValue(workPlaneAtom));
+  const from = useAtomValue(propGhostAtom)?.elevation ?? 0;
+  const auto = riseToNextStop(getStoreyStops(usePlan()), from);
   return set ?? auto;
 };
 
@@ -29,9 +29,9 @@ export const ghostSteps = (ghost: PropGhost, elevation: number, rise: number): F
   return ghost.def.flight ? flightSteps(ghost.def.flight, start, rise) : [start];
 };
 
-/** The ghost's pieces relative to the work plane (previews are lifted to it). */
+/** The ghost's pieces, at their absolute heights. */
 export const useGhostSteps = (): FlightStep[] => {
   const ghost = useAtomValue(propGhostAtom);
   const rise = useFlightRise();
-  return useMemo(() => (ghost ? ghostSteps(ghost, 0, rise) : []), [ghost, rise]);
+  return useMemo(() => (ghost ? ghostSteps(ghost, ghost.elevation, rise) : []), [ghost, rise]);
 };

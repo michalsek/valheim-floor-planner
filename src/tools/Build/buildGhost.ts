@@ -6,7 +6,7 @@
  */
 import { atom, type Getter } from 'jotai';
 
-import { buildHit, hitOnGrid, type BuildHit, type BuildScene } from '../../model/build/buildHit';
+import { hitOnGrid, type BuildHit } from '../../model/build/buildHit';
 import {
   placeSet,
   setBoxes,
@@ -20,38 +20,20 @@ import { deepOverlaps, type DeepOverlap } from '../../model/build/overlap';
 import { basePose, blockedBy, snapPose, type SnapPair } from '../../model/build/placement';
 import { boxBounds, boxesNear } from '../../model/build/snapPoints';
 import type { Bounds3 } from '../../model/geometry/bounds3';
-import { pickBoxes, type Ray3 } from '../../model/geometry/ray';
+import { pickBoxes } from '../../model/geometry/ray';
 import type { PieceBox } from '../../model/pieceBoxes';
 import type { Plan } from '../../model/types';
 import { ghostSupport } from '../../model/support/ghostSupport';
 import type { BoxSupport } from '../../model/support/planSupport';
+import { committedPlanAtom } from '../../store/committedPlan';
 import { getLibrary } from '../../store/libraryInstance';
-import {
-  modifiersAtom,
-  pointerScreenAtom,
-  projection3dAtom,
-  snapStepAtom,
-  viewportAtom,
-  viewportSizeAtom,
-  workPlaneAtom,
-} from '../../store/session';
+import { pointerHit, pointerRay } from '../../store/pointer';
+import { modifiersAtom, pointerScreenAtom, snapStepAtom } from '../../store/session';
 import { committedSupportIndex, latestSupportAtom } from '../../store/supportSync';
-import { viewModeAtom } from '../../store/view3d';
-import { screenRay } from '../../viewport/projection3d';
-import { screenToWorld, type ScreenPoint } from '../../viewport/viewportMath';
+import type { ScreenPoint } from '../../viewport/viewportMath';
 
 import { armedSetAtom, buildYawAtom, manualSnapAtom, removeModeAtom } from './buildState';
-import {
-  buildTargets,
-  buildTargetsAtom,
-  committedPlanAtom,
-  type BuildTargets,
-} from './buildTargets';
-
-/** Hits further than this many orbit distances don't count (M10's far limit). */
-const MAX_DISTANCES = 6;
-/** The 2D ray starts this far over the work plane. */
-const RAY_2D_HEIGHT = 1000;
+import { buildTargets, buildTargetsAtom, type BuildTargets } from './buildTargets';
 
 export interface BuildGhost {
   set: GhostSet;
@@ -79,36 +61,6 @@ export interface BuildGhost {
   hidden: boolean;
 }
 
-/** The ray under a canvas point: the camera's in 3D, straight down onto the plane in 2D. */
-const pointerRay = (
-  get: Getter,
-  screen: ScreenPoint | null
-): { ray: Ray3; maxT: number } | null => {
-  if (!screen) return null;
-  if (get(viewModeAtom) === '3d') {
-    const projection = get(projection3dAtom);
-    if (!projection) return null;
-    return {
-      ray: screenRay(screen, projection),
-      maxT: MAX_DISTANCES * projection.orbitDistance,
-    };
-  }
-  const p = screenToWorld(get(viewportAtom), get(viewportSizeAtom), screen);
-  const y = get(workPlaneAtom) + RAY_2D_HEIGHT;
-  return { ray: { origin: { x: p.x, y, z: p.z }, dir: { x: 0, y: -1, z: 0 } }, maxT: Infinity };
-};
-
-/** What the Build ray may land on: in 2D the work plane only. */
-const sceneOf = (get: Getter, targets: BuildTargets, maxT: number): BuildScene => {
-  const in3d = get(viewModeAtom) === '3d';
-  return {
-    boxes: in3d ? targets.boxes : [],
-    terrain: targets.terrain,
-    datum: get(workPlaneAtom),
-    maxT,
-  };
-};
-
 const unionBounds = (boxes: readonly PieceBox[]): Bounds3 => {
   const all = boxes.map(boxBounds);
   const pick = (f: (a: number, b: number) => number, side: 'min' | 'max', axis: 'x' | 'y' | 'z') =>
@@ -130,19 +82,19 @@ const unionBounds = (boxes: readonly PieceBox[]): Bounds3 => {
 const deepest = (overlaps: readonly DeepOverlap[]): DeepOverlap | null =>
   overlaps.reduce<DeepOverlap | null>((a, b) => (a && a.depth >= b.depth ? a : b), null);
 
-/** Where the ray lands, moved onto the grid on the ground unless placing freely. */
+/**
+ * Where the pointer lands on the targets (`pointerHit`, keeping a face hit, whose normal
+ * drives the base pose), moved onto the grid on the ground unless placing freely.
+ */
 const landing = (
   get: Getter,
   screen: ScreenPoint,
   targets: BuildTargets,
   free: boolean
 ): BuildHit | null => {
-  const pointer = pointerRay(get, screen);
-  if (!pointer) return null;
-  const scene = sceneOf(get, targets, pointer.maxT);
-  const hit = buildHit(pointer.ray, scene);
+  const hit = pointerHit(get, screen, targets, { rest: false });
   if (!hit || free) return hit;
-  return hitOnGrid(hit, get(snapStepAtom), scene);
+  return hitOnGrid(hit, get(snapStepAtom), targets);
 };
 
 /** What to place, and where the pointer is: the Build tool's armed set, or a carried one. */
@@ -224,7 +176,7 @@ export interface BuildRemoval {
 
 /**
  * While Ctrl/⌘ is held, the piece a click would remove: the nearest drawn piece under the
- * pointer (in 2D, along a ray straight down: the topmost one shown).
+ * pointer (in 2D, along a ray straight down from `SKY_Y`: the one drawn on top).
  */
 export const buildRemovalAtom = atom<BuildRemoval | null>((get) => {
   if (!get(removeModeAtom)) return null;

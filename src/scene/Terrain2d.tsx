@@ -28,7 +28,7 @@ import { terrainOpacityAtom } from '../store/terrainOpacity';
 import { usePrewarm } from './usePrewarm';
 import { useRelease } from './useRelease';
 
-/** Under the level-below ghosts (−0.2) and everything else; contours just over it. */
+/** Under everything else; contours just over it. */
 const RELIEF_Y = -0.3;
 const CONTOUR_Y = -0.25;
 /** How much the water colour covers ground under the sea. */

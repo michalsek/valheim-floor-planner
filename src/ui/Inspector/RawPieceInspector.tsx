@@ -12,7 +12,7 @@ import { useToolContext } from '../../tools/toolContext';
 import { Row, Section } from '../shared/PanelList';
 
 import styles from './Inspector.module.css';
-import { ElevationField } from './ElevationField';
+import { HeightField } from './HeightField';
 import { InspectorTitle } from './InspectorTitle';
 import { ItemWarnings } from './ItemWarnings';
 import { PieceActions } from './PieceActions';
@@ -61,11 +61,7 @@ export const RawPieceInspector = ({ id }: { id: RawPieceId }) => {
             ⟳
           </Button>
         </Field>
-        <ElevationField
-          item={{ kind: 'raw', id }}
-          label="Height"
-          description="The pivot's height above the plan's 0, in metres"
-        />
+        <HeightField item={{ kind: 'raw', id }} />
       </div>
       <ItemWarnings item={{ kind: 'raw', id }} />
       <PieceActions />

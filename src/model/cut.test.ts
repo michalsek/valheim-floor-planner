@@ -11,9 +11,9 @@ import {
   nextStop,
   prevStop,
   raiseCommands,
+  cutRange,
   steppedCut,
   storeyStops,
-  workPlaneOf,
 } from './cut';
 import { pieceBoxes } from './pieceBoxes';
 import { emptyPlan, type Plan, type RawPiece } from './types';
@@ -105,6 +105,14 @@ describe('the cut', () => {
     ]);
   });
 
+  it('makes no stop of tiles resting on a floor', () => {
+    const floor = [0, 2, 4, 6].map((x) => raw(`f${x}`, 'stone_floor_2x2', 1, x));
+    const stacked = [0, 2, 4].map((x) => raw(`s${x}`, 'stone_floor_2x2', 2, x));
+    const stops = stopsOf(planOf(...floor, ...stacked));
+    expect(stops.map((s) => s.height)).toEqual([0.501]);
+    expect(stops[0]?.count).toBe(7);
+  });
+
   it('clusters drifted tiles into one stop', () => {
     const drift = [0, 0.012, -0.013, 0.027, -0.008, 0.02];
     const plan = planOf(
@@ -119,7 +127,7 @@ describe('the cut', () => {
     ]);
   });
 
-  it('steps, jumps between stops and finds the work plane', () => {
+  it('steps and jumps between stops', () => {
     // Highest box bottom 8.968 (the lone tile at 9).
     expect(steppedCut(null, -1, 1, 8.968)).toBe(8);
     expect(steppedCut(null, -1, 0.5, 8.968)).toBe(8.5);
@@ -150,11 +158,6 @@ describe('the cut', () => {
     expect(prevStop(stops, 5.968)).toBe(0.501);
     expect(prevStop(stops, 0.501)).toBeNull();
 
-    expect(workPlaneOf(stops, null)).toBe(0);
-    expect(workPlaneOf(stops, 0.501)).toBe(0);
-    expect(workPlaneOf(stops, 3)).toBe(1.5);
-    expect(workPlaneOf(stops, 7)).toBe(6);
-
     // A wall from 2 to 4 is hidden at 2 and shown at 3: the cut rises to the step above
     // its bottom.
     const plan = planOf(raw('w', 'woodwall', 3));
@@ -166,5 +169,13 @@ describe('the cut', () => {
     // Above the elevation range the cut can't show it: All.
     const high = planOf(raw('w', 'woodwall', 201));
     expect(cutShowing(3, high, items, 1, testLibrary)).toBeNull();
+
+    // The slider's range: bottoms 0 and 2 (walls at 1 and 3).
+    const walls = boxesOf(planOf(raw('low', 'woodwall', 1), raw('high', 'woodwall', 3)));
+    expect(cutRange(walls, 1)).toEqual({ min: 1, max: 2 });
+    expect(cutRange(walls, 0.5)).toEqual({ min: 0.5, max: 2 });
+    expect(cutRange([], 1)).toBeNull();
+    // Every bottom within one step: no value between them, so no slider.
+    expect(cutRange(boxesOf(planOf(raw('w', 'woodwall', 1.2))), 1)).toBeNull();
   });
 });

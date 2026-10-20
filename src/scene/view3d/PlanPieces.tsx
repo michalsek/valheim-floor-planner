@@ -23,8 +23,8 @@ interface BoxPiecesProps {
   boxes: readonly PieceBox[];
   /**
    * Every box that may be drawn, a superset of `boxes` (default `boxes`): what the
-   * instanced meshes (and models) are kept for, so the level view mode and level
-   * changes remount and relink nothing.
+   * instanced meshes (and models) are kept for, so cut steps remount and relink
+   * nothing.
    */
   retainBoxes?: readonly PieceBox[];
   colorOf: PieceColorer;
@@ -64,8 +64,8 @@ const BoxWireframes = ({ boxes, colorOf }: BoxPiecesProps) => {
 
 interface ModelPiecesProps extends BoxPiecesProps {
   /**
-   * Every box whose model stays loaded: a prefab only on a level the view mode hides
-   * keeps its resources, so stepping levels relinks nothing.
+   * Every box whose model stays loaded: a prefab only above the cut keeps its
+   * resources, so cut steps relink nothing.
    */
   retainBoxes: readonly PieceBox[];
   tintOf: PieceTinter;

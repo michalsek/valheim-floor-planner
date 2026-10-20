@@ -1,8 +1,9 @@
 /**
  * What is under a point, and what lies in a box, for selection.
- * `hitTest` tries tiers in order (dimension, small prop, raw piece, large prop) and the
- * nearest (or smallest) object within the first tier that has one wins. Large props
- * (ships, kilns) come after raw pieces, so pieces inside a ship stay clickable.
+ * `hitTest` tries tiers in order (dimension, small prop, raw piece, large prop), and the
+ * first tier with something under the point wins: the nearest dimension, the smallest
+ * prop, or the raw piece drawn on top (`rawDrawOrder`). Large props (ships, kilns) come
+ * after raw pieces, so pieces inside a ship stay clickable.
  */
 import { propRect, type PropDef } from '../catalog/propDefs';
 
@@ -11,12 +12,13 @@ import { dimensionLine } from './geometry/dimension';
 import { distanceToSegment } from './geometry/measure';
 import { pointInProp } from './geometry/propGeometry';
 import { ITEM_KINDS, type KindLib } from './itemKinds';
+import { boxTop } from './pieceBoxes';
 import { propArea, propsInDrawOrder } from './props';
 import { pointInConvex } from './geometry/convex';
-import { rawOutline, rawOutlineArea } from './rawBoxes';
+import { rawBox, rawOutline, rawOutlineArea } from './rawBoxes';
 import type { RawShapeLib } from './rawShapes';
 import { allItems, isSelected, type Selection, type SelectionItem } from './selection';
-import type { Dimension, DimId, Plan, PropId, RawPieceId, Vec2 } from './types';
+import type { Dimension, DimId, Plan, PropId, RawPiece, RawPieceId, Vec2 } from './types';
 
 export type Hit =
   | { kind: 'dimension'; id: DimId; distance: number }
@@ -79,21 +81,44 @@ const propTier =
     return best?.hit ?? null;
   };
 
+/** Box tops within this (metres) are drawn and picked as one height. */
+export const SAME_TOP = 0.05;
+
+const drawOrders = new WeakMap<Plan['rawPieces'], { lib: RawShapeLib; order: RawPiece[] }>();
+
 /**
- * The raw piece under `p`: the smallest footprint; of equal ones (a stack of wall
- * courses), the highest, which is the one seen from above.
+ * The raw pieces in their 2D draw order: by box top in `SAME_TOP` bands, lowest first,
+ * then the larger outline first, then by id; so what is seen from above is drawn on top
+ * (cached per `rawPieces` record).
  */
+export const rawDrawOrder = (
+  plan: Pick<Plan, 'rawPieces'>,
+  lib: RawShapeLib
+): readonly RawPiece[] => {
+  const cached = drawOrders.get(plan.rawPieces);
+  if (cached?.lib === lib) return cached.order;
+  const keyed = Object.values(plan.rawPieces).map((piece) => ({
+    piece,
+    band: Math.round(boxTop(rawBox(piece, lib)) / SAME_TOP),
+    area: rawOutlineArea(piece, lib),
+  }));
+  keyed.sort(
+    (a, b) =>
+      a.band - b.band ||
+      b.area - a.area ||
+      (a.piece.id < b.piece.id ? -1 : a.piece.id > b.piece.id ? 1 : 0)
+  );
+  const order = keyed.map((k) => k.piece);
+  drawOrders.set(plan.rawPieces, { lib, order });
+  return order;
+};
+
+/** The raw piece under `p` that is drawn on top: the highest, then the smallest. */
 const rawTier: Tier = (plan, p, tol, { rawLib }) => {
-  let best: { hit: Hit; area: number; top: number } | null = null;
-  for (const piece of Object.values(plan.rawPieces)) {
-    if (!pointInConvex(p, rawOutline(piece, rawLib), tol)) continue;
-    const area = rawOutlineArea(piece, rawLib);
-    const top = piece.position.y;
-    if (!best || area < best.area - 1e-9 || (area < best.area + 1e-9 && top > best.top)) {
-      best = { hit: { kind: 'raw', id: piece.id, area }, area, top };
-    }
-  }
-  return best?.hit ?? null;
+  const piece = rawDrawOrder(plan, rawLib).findLast((raw) =>
+    pointInConvex(p, rawOutline(raw, rawLib), tol)
+  );
+  return piece ? { kind: 'raw', id: piece.id, area: rawOutlineArea(piece, rawLib) } : null;
 };
 
 const TIERS: readonly Tier[] = [

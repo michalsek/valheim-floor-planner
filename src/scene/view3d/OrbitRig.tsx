@@ -56,7 +56,7 @@ const createControls = (camera: PerspectiveCamera): OrbitControls => {
   // Pans slide over the ground rather than across the screen.
   controls.screenSpacePanning = false;
   controls.zoomToCursor = true;
-  // Down to almost straight up from below: under the plate, the ground and foundations.
+  // Down to almost straight up from below: under the ground and foundations.
   controls.maxPolarAngle = Math.PI - 0.05;
   controls.minDistance = MIN_ORBIT_DISTANCE;
   controls.maxDistance = 20_000;
@@ -101,8 +101,8 @@ const createRig = (camera: PerspectiveCamera, onMove: (projection: Projection3d)
   const publish = () => onMove(projection(canvas));
 
   /**
-   * Keeps the camera above the safety floor (it may go under the plate and the ground,
-   * to look at foundations from below) and fits the depth planes to the new distance.
+   * Keeps the camera above the safety floor (it may go under the ground, to look
+   * at foundations from below) and fits the depth planes to the new distance.
    * Call after every camera move.
    */
   const afterMove = () => {

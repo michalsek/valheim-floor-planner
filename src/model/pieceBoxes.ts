@@ -125,6 +125,21 @@ export const pieceBoxes = (plan: Plan, lib: BoxLib): PieceBox[] => [
   ...Object.values(plan.rawPieces).map((piece) => rawBox(piece, lib)),
 ];
 
+const bottoms = new WeakMap<PieceBox, number>();
+
+/** The height of a box's lowest corner (a tilted roof slab's too), once per box. */
+export const boxBottom = (box: PieceBox): number => {
+  let bottom = bottoms.get(box);
+  if (bottom === undefined) {
+    bottom = Math.min(...boxCorners(box).map((c) => c.y));
+    bottoms.set(box, bottom);
+  }
+  return bottom;
+};
+
+/** The height of a box's highest corner. */
+export const boxTop = (box: PieceBox): number => Math.max(...boxCorners(box).map((c) => c.y));
+
 /** The axis-aligned box around every box (turns, tilts and shapes included); null when there are none. */
 export const boxesBounds = (boxes: readonly PieceBox[]): Bounds3 | null => {
   if (boxes.length === 0) return null;

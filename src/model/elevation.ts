@@ -9,7 +9,7 @@ export const MIN_ELEVATION = -16;
 export const MAX_ELEVATION = 128;
 
 /** Elevations closer than this are the same height. */
-const SAME_LEVEL = 1e-3;
+const SAME_HEIGHT = 1e-3;
 
 /** Why `elevation` can't be stored, or null when it can. */
 export const elevationProblem = (elevation: number): string | null =>
@@ -17,7 +17,7 @@ export const elevationProblem = (elevation: number): string | null =>
     ? null
     : `the elevation must be a number from ${MIN_ELEVATION} to ${MAX_ELEVATION} m`;
 
-export const sameLevel = (a: number, b: number): boolean => Math.abs(a - b) < SAME_LEVEL;
+export const sameHeight = (a: number, b: number): boolean => Math.abs(a - b) < SAME_HEIGHT;
 
 /** An elevation rounded to the millimetre (stops, cut heights, typed values). */
 export const roundElevation = (e: number): number => Math.round(e * 1000) / 1000 + 0;

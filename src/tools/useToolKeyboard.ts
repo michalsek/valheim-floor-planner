@@ -144,9 +144,28 @@ const matchesKeys = (binding: KeyBinding, e: KeyboardEvent): boolean =>
 const matches = (binding: KeyBinding, e: KeyboardEvent): boolean =>
   (binding.test ? binding.test(e) : matchesKeys(binding, e)) && (binding.repeat || !e.repeat);
 
-const isEditableTarget = (target: EventTarget | null): boolean =>
+/** Inputs that take typed text; a focused slider, checkbox or button leaves keys to us. */
+const TEXT_INPUTS = new Set(['text', 'number', 'search']);
+
+/** Whether keys typed at `target` are text entry (a text field, a textarea, editable content). */
+/** The keys a focused slider moves itself with; every other key still reaches the tools. */
+const SLIDER_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+]);
+
+const isEditableTarget = (target: EventTarget | null, key: string): boolean =>
   target instanceof HTMLElement &&
-  (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+  (target.isContentEditable ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLInputElement &&
+      (TEXT_INPUTS.has(target.type) || (target.type === 'range' && SLIDER_KEYS.has(key)))));
 
 /**
  * Window-level keyboard handling. Order: file keys (Mod+S, Mod+O), then, outside
@@ -165,7 +184,7 @@ export const useToolKeyboard = (): void => {
         if (!e.repeat) fileBinding.run(ctx);
         return;
       }
-      if (isEditableTarget(e.target)) return;
+      if (isEditableTarget(e.target, e.key)) return;
       if (e.key === ' ' || e.key === 'Alt') {
         // Space would scroll or re-click a focused button; Alt would focus the menu bar.
         e.preventDefault();

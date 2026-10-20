@@ -120,9 +120,7 @@ const GroundPart = ({
 /**
  * A site's ground in 3D, in place of the flat ground: the surface in tiles (biome tints,
  * rock on steep slopes; casting and taking shadows), earth skirts down its edges, the sea where
- * the ground dips under it, and the plan grid draped over the surface. The grid is
- * always the coarse reference: with terrain, the level plate is the work plane at every
- * level, the ground included.
+ * the ground dips under it, and the full plan grid draped over the surface.
  *
  * From under the ground the surface and its grid are left out, so the build's underside
  * and foundations show (back faces alone would still draw slivers of far slopes that
@@ -136,7 +134,7 @@ export const Terrain3d = ({ ground }: { ground: SiteGround }) => {
   const { terrain: colors } = useThemeTokens();
   const opacity = useAtomValue(terrainOpacityAtom);
   const [materials] = useState(createMaterials);
-  const grid = useGroundGrid({ coarse: true, draped: true, opacity });
+  const grid = useGroundGrid({ draped: true, opacity });
   const geometry = useMemo(() => createGeometry(ground), [ground]);
   useRelease(geometry, disposeGeometry);
   const tiles = useTerrainTiles(ground);

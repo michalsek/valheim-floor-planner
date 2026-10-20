@@ -9,7 +9,7 @@ import type { ScreenPoint } from '../../viewport/viewportMath';
 import type { SinkTarget } from './sinkHandle';
 import type { Carry } from './snapMove';
 
-/** Where a press grabbed: in 3D, a piece's face may be above the work plane. */
+/** Where a press grabbed, and the height of the horizontal plane a move drags along. */
 export interface Grab {
   y: number;
   world: Vec2;
@@ -23,7 +23,7 @@ export type SelectGesture =
   | {
       phase: 'pressing';
       startScreen: ScreenPoint;
-      /** On the work plane: where a box select starts. */
+      /** On the surface under the pointer: where a box select starts. */
       startWorld: Vec2;
       /** The grabbed point, on the horizontal plane at height `y` a move drags along. */
       grab: Grab;
@@ -38,7 +38,7 @@ export type SelectGesture =
    */
   | { phase: 'moving'; grab: Grab; items: Selection; anchor: Vec2 | null }
   /**
-   * Box select: a world rectangle on the work plane, kept in world points so a zoom
+   * Box select: a world rectangle in plan, kept in world points so a zoom
    * mid-drag doesn't move it. The screen points decide contain vs touch.
    */
   | {

@@ -1,10 +1,8 @@
 import { useThree } from '@react-three/fiber';
-import { useAtomValue } from 'jotai';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { ShadowNodeMaterial } from 'three/webgpu';
 
 import { useThemeTokens } from '../../store/hooks';
-import { workPlaneAtom } from '../../store/session';
 
 import { useGroundGrid } from './useGroundGrid';
 
@@ -12,7 +10,7 @@ import { useGroundGrid } from './useGroundGrid';
 const GROUND_SIZE = 4000;
 /** Just under the floor tops on the ground, so floors cover the grid. */
 const GRID_DROP = 0.02;
-/** The shadow catcher sits just under the terrain (y = 0), whatever the work plane. */
+/** The shadow catcher sits just under the grid. */
 const CATCHER_DROP = 0.03;
 
 /** A see-through ground that only shows the shadows cast on it. */
@@ -29,13 +27,11 @@ const createCatcher = () => {
 /**
  * The flat ground of a plan without (shown) terrain: the plan grid at y = 0 and a
  * shadow catcher just under it. Neither hides what is below it. The grid fades out
- * around the orbit target; while the work plane is raised (`LevelPlate` draws its
- * grid) it keeps only its coarse lines, fainter (`useGroundGrid`).
+ * around the orbit target (`useGroundGrid`).
  */
 export const Ground = () => {
-  const plane = useAtomValue(workPlaneAtom);
   const invalidate = useThree((s) => s.invalidate);
-  const grid = useGroundGrid({ coarse: plane !== 0 });
+  const grid = useGroundGrid();
   const [catcher] = useState(createCatcher);
   const { shadowAlpha } = useThemeTokens();
 

@@ -1,6 +1,5 @@
 import { normalizeDeg } from '../../model/geometry/propGeometry';
 import { newId } from '../../model/newId';
-import { workPlaneAtom } from '../../store/session';
 import { rotateStep } from '../keys';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import { commitCommands } from '../commitCommands';
@@ -29,7 +28,7 @@ export const propTool: Tool = {
     if (e.button !== PRIMARY_BUTTON) return;
     const ghost = ctx.get(propGhostAtom);
     if (!ghost) return;
-    const steps = ghostSteps(ghost, ctx.get(workPlaneAtom), flightRise(ctx));
+    const steps = ghostSteps(ghost, ghost.elevation, flightRise(ctx, ghost.elevation));
     const label = ghost.def.flight ? 'Add stairs' : `Place ${ghost.def.name}`;
     const cmds = steps.map((step) => ({
       type: 'prop.insert' as const,

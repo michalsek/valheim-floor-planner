@@ -181,33 +181,3 @@
   stroke: var(--ink-muted);
   stroke-dasharray: 6 4;
 }
-
-/* The work plane's height: at the 3D plate's corner and the 3D cursor (accent), and at the 2D
-   cursor (muted, beside the cross). */
-.plateTag,
-.levelTag {
-  stroke: var(--label-halo);
-  stroke-width: 4px;
-  stroke-linejoin: round;
-  dominant-baseline: central;
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-}
-
-.plateTag {
-  fill: var(--accent);
-  font-size: 11px;
-  font-weight: 600;
-  text-anchor: middle;
-}
-
-.levelTag {
-  fill: var(--text-muted);
-  font-size: 10px;
-  stroke-width: 3px;
-}
-
-/* Labels off the work plane (3D). */
-.offLevel {
-  opacity: 0.4;
-}

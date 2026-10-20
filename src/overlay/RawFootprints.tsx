@@ -1,6 +1,7 @@
 import { useAtomValue } from 'jotai';
 
 import { materialVar } from '../catalog/materialColors';
+import { rawDrawOrder } from '../model/hitTest';
 import { isRawRoof, isRawRoofCover, rawOutline } from '../model/rawBoxes';
 import { rawDef } from '../model/rawPieces';
 import type { Plan, RawPiece } from '../model/types';
@@ -11,10 +12,6 @@ import { roofsVisibleAtom } from '../store/session';
 import { footprintStyle } from './footprintStyle';
 import styles from './Footprints.module.css';
 import { toSvgPoints } from './svgPoints';
-
-/** Lowest pivot first, so what is seen from above is drawn on top. */
-const inDrawOrder = (plan: Pick<Plan, 'rawPieces'>): RawPiece[] =>
-  Object.values(plan.rawPieces).sort((a, b) => a.position.y - b.position.y);
 
 /**
  * One raw piece's outline from above, in its material's colour (world layer): filled,
@@ -40,7 +37,7 @@ const Footprints = ({ plan }: { plan: Pick<Plan, 'rawPieces'> }) => {
   const lib = getLibrary();
   return (
     <>
-      {inDrawOrder(plan)
+      {rawDrawOrder(plan, lib)
         .filter((piece) => roofsVisible || !isRawRoofCover(piece, lib))
         .map((piece) => (
           <RawFootprint key={piece.id} piece={piece} />

@@ -24,7 +24,7 @@ export const DEFAULT_DIR: Vec3 = directionFrom(25, 40);
 
 /**
  * The lowest the camera goes without a site's terrain (metres): only a safety limit, as
- * views from under the plate and the ground are allowed.
+ * views from under the ground are allowed.
  */
 export const DEFAULT_CAMERA_FLOOR = -50;
 

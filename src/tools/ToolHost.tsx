@@ -10,42 +10,31 @@ import {
 } from 'react';
 
 import { useActiveToolId, useModifiers, useViewMode } from '../store/hooks';
+import { cursorAtom } from '../store/pointer';
 import { hoverAtom } from '../store/selection';
-import { snapToGrid } from '../model/geometry/snap';
 import {
   activeToolIdAtom,
-  cursorAtom,
   cursorStyleAtom,
   modifiersAtom,
   panViewport,
   pointerScreenAtom,
   projection3dAtom,
   setModifier,
-  snapStepAtom,
-  type Cursor,
 } from '../store/session';
 import { toolPressAtom, viewModeAtom } from '../store/view3d';
 import { localPoint } from '../viewport/localPoint';
 import { useViewportControls } from '../viewport/useViewportControls';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
-import { dragThresholdPx, surfacePlanPoint } from './picking';
+import { dragThresholdPx } from './picking';
 import { MIDDLE_BUTTON, PRIMARY_BUTTON } from './pointerButtons';
 import { useToolContext } from './toolContext';
 import { getTool, setActiveTool, worksIn3d } from './toolbox';
 import styles from './ToolHost.module.css';
-import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from './types';
+import type { OffPlanePointerEvent, ToolPointerEvent } from './types';
 import { useToolKeyboard } from './useToolKeyboard';
 
 type HostPointerEvent = ReactPointerEvent<HTMLDivElement>;
-
-/** A cursor on the piece under a canvas point, for 3D rays that miss the work plane. */
-const surfaceCursor = (ctx: ToolContext, screen: ScreenPoint, alt: boolean): Cursor | null => {
-  const raw = surfacePlanPoint(ctx, screen);
-  if (!raw) return null;
-  const snapped = alt ? raw : snapToGrid(raw, ctx.get(snapStepAtom));
-  return { raw, snapped, snapping: !alt };
-};
 type HostMouseEvent = ReactMouseEvent<HTMLDivElement>;
 
 const offPlane = (
@@ -75,9 +64,9 @@ type Gesture =
  * every press they see, even on buttons mapped to nothing) before they hear it. The
  * press is never stopped, so window listeners (outside-click menus) still see it.
  *
- * In 3D, where the pointer's ray misses the work plane, a piece under it (a wall seen
- * against the sky) gives the world point instead; with neither, moves drop the tool's
- * hover, a press is a miss and a release cancels.
+ * Events carry the surface under the pointer (`pointer.ts`). In 3D, where the pointer's
+ * ray finds no surface (the sky, beyond reach), moves drop the tool's hover, a press is a
+ * miss and a release cancels.
  */
 export const ToolHost = ({ children }: { children: ReactNode }) => {
   const ctx = useToolContext();
@@ -114,12 +103,13 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
       screen: ScreenPoint,
       e: { button: number; altKey: boolean; shiftKey: boolean }
     ): ToolPointerEvent | null => {
-      const cursor = ctx.get(cursorAtom) ?? surfaceCursor(ctx, screen, e.altKey);
+      const cursor = ctx.get(cursorAtom);
       if (!cursor) return null;
       const event = {
         screen,
         world: cursor.raw,
         snapped: cursor.snapped,
+        y: cursor.y,
         button: e.button,
         altKey: e.altKey,
         shiftKey: e.shiftKey,
@@ -222,7 +212,7 @@ export const ToolHost = ({ children }: { children: ReactNode }) => {
     const event = toolEvent(screen, e);
     gestureRef.current = { kind: 'tool', pointerId: e.pointerId, press: event && screen };
     if (event) activeTool().onPointerDown?.(event, ctx);
-    else activeTool().onPointerMiss?.(e, ctx);
+    else activeTool().onPointerMiss?.(offPlane(screen, e), ctx);
   };
 
   const onPointerMove = (e: HostPointerEvent) => {

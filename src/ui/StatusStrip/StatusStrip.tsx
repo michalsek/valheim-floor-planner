@@ -1,15 +1,13 @@
 import { useAtom } from 'jotai';
 
 import { ToggleButton } from '../../controls/ToggleButton';
-import { formatLevel, formatNumber, formatZoom } from '../../format';
+import { formatHeight, formatNumber, formatZoom } from '../../format';
 import { isRawRoofCover } from '../../model/rawBoxes';
-import { groundAt } from '../../model/terrain/siteTerrain';
 import type { Plan } from '../../model/types';
 import { useCursor, useRendererBackend, useViewMode, useViewport } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { usePlanSelector } from '../../store/planHooks';
 import { roofsVisibleAtom, showAllRadiiAtom, underlayVisibleAtom } from '../../store/session';
-import { useShownSiteTerrain } from '../../store/siteTerrain';
 
 import { GridFrameButton } from './GridFrameButton';
 import { InstallMenu } from './InstallMenu';
@@ -68,22 +66,16 @@ const LayerToggles = () => {
   );
 };
 
-/**
- * The plan height of the shown terrain under the cursor ("ground +0.6 m", "ground —" off
- * the patch); null without shown terrain.
- */
-const useGroundReadout = (): string | null => {
+/** The height of the surface under the cursor ("y +0.6 m"; "y —" without a cursor). */
+const useSurfaceReadout = (): string => {
   const cursor = useCursor();
-  const site = useShownSiteTerrain();
-  if (!site) return null;
-  const h = cursor && groundAt(site.grid, site.frame, cursor.raw);
-  return `ground ${h === null ? '—' : formatLevel(Math.round(h * 10) / 10)}`;
+  return `y ${cursor ? formatHeight(Math.round(cursor.y * 10) / 10) : '—'}`;
 };
 
-/** The cursor on the plan (the work plane in 3D), the ground there, the 2D zoom, the snap step. */
+/** The cursor on the plan, the surface's height there, the 2D zoom, the snap step. */
 const PlanReadouts = ({ is2d }: { is2d: boolean }) => {
   const cursor = useCursor();
-  const ground = useGroundReadout();
+  const surface = useSurfaceReadout();
   const { zoom } = useViewport();
   return (
     <>
@@ -92,11 +84,13 @@ const PlanReadouts = ({ is2d }: { is2d: boolean }) => {
           ? `x ${formatNumber(cursor.snapped.x)}  z ${formatNumber(cursor.snapped.z)} m`
           : '—'}
       </span>
-      {ground && (
-        <span className={styles.ground} title="The terrain's height under the cursor (plan height)">
-          {ground}
-        </span>
-      )}
+      {/* Always there, so the strip doesn't shift as the pointer leaves the canvas. */}
+      <span
+        className={styles.surface}
+        title="The height of the surface under the cursor (where items and dimensions go)"
+      >
+        {surface}
+      </span>
       {is2d && <span>{formatZoom(zoom)}</span>}
       <SnapStepPicker />
     </>

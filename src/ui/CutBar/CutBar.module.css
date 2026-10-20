@@ -27,7 +27,7 @@
   min-width: 0;
 }
 
-.levels {
+.stops {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -38,7 +38,7 @@
   list-style: none;
 }
 
-.level {
+.stop {
   display: flex;
   justify-content: space-between;
   width: 100%;
@@ -51,17 +51,17 @@
   cursor: pointer;
 }
 
-.level:hover {
+.stop:hover {
   background: var(--surface-hover);
 }
 
-.levelCurrent,
-.levelCurrent:hover {
+.stopCurrent,
+.stopCurrent:hover {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.levelName {
+.stopHeight {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -80,15 +80,16 @@
   flex: 1;
 }
 
-/* Where new items go (the work plane). */
-.plane {
-  margin: 0;
-  font-size: 0.85em;
-  font-variant-numeric: tabular-nums;
-}
-
-.frost {
+/* The slider of cut heights (the last notch is All) and the ghosts' opacity. */
+.slider {
   width: 100%;
   margin: 0;
   accent-color: var(--accent);
+}
+
+.sliderLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85em;
 }

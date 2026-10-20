@@ -6,7 +6,7 @@ import { emptyPlan, type Plan, type RawPiece } from '../model/types';
 import { startNewPlan } from '../store/fileActions';
 import { setLibrary } from '../store/libraryInstance';
 import { createPlanStore } from '../store/planStore';
-import { selectionAtom } from '../store/selection';
+import { selectionAtom, startSelectionSync } from '../store/selection';
 import { cutHeightAtom, lastCutAtom, resetCut } from '../store/session';
 
 import { commitCommands } from './commitCommands';
@@ -52,6 +52,16 @@ describe('cut actions', () => {
     expect(ctx.get(cutHeightAtom)).toBe(3);
     ctx.plan.undo();
     ctx.plan.undo();
+    expect(ctx.get(cutHeightAtom)).toBe(3);
+  });
+
+  it('raise the cut to show what a redo brings back', () => {
+    const ctx = contextOf();
+    startSelectionSync(ctx.plan, ctx);
+    commitCommands(ctx, 'Place', [{ type: 'raw.insert', piece: raw('a', 'woodwall', 3) }]);
+    ctx.plan.undo();
+    setCut(ctx, 2);
+    ctx.plan.redo();
     expect(ctx.get(cutHeightAtom)).toBe(3);
   });
 

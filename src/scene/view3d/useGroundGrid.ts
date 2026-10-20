@@ -11,19 +11,21 @@ import type { GridMaterialHandle } from '../grid/gridMaterialTypes';
 const FADE_DISTANCES = 3;
 const MIN_FADE_RADIUS = 30;
 /**
- * While the ground isn't the work plane (the level plate draws the work grid), it keeps
- * only its 10 m lines, at this strength: a coarse reference.
- */
-const COARSE_STRENGTH = 0.5;
-const COARSE_LEVELS = [0, 0, 0, 1] as const;
-/**
  * Draped over the terrain, the grid is pulled towards the camera in depth (factor,
  * units), so it wins over the surface it lies on. Floors resting on the ground still
  * cover it.
  */
 const DRAPE_OFFSET = [-1, -4] as const;
-/** Draped, the grid is quieter still: lit, tinted ground carries it less well than a plain canvas. */
-const DRAPED_STRENGTH = 0.6;
+/**
+ * Draped, the grid is quieter still: lit, tinted ground carries it less well than a plain
+ * canvas, and every level of lines shows (M18; 0.6 read loud in the dark theme).
+ */
+const DRAPED_STRENGTH = 0.45;
+/**
+ * Draped, the theme's grid scale is capped here: on lit ground a dark theme's brighter
+ * lines (0.8) still read loud, while a light theme's (0.55) are already quiet.
+ */
+const DRAPED_THEME_CAP = 0.6;
 
 /** What the controls orbit around (`OrbitRig` registers them with r3f). */
 const orbitTarget = (controls: unknown): Vector3 | null =>
@@ -35,8 +37,6 @@ const orbitTarget = (controls: unknown): Vector3 | null =>
     : null;
 
 export interface GroundGridOptions {
-  /** Only the coarse lines, fainter: the ground is not the work plane. */
-  coarse: boolean;
   /** Drawn on the terrain's own surface (depth-offset towards the camera). */
   draped?: boolean;
   /** Fades the lines with the ground they lie on (the terrain's opacity), 0 to 1. */
@@ -45,15 +45,14 @@ export interface GroundGridOptions {
 
 /**
  * The 3D ground grid's material, shared by the flat ground (`Ground`) and the terrain
- * (`Terrain3d`): the theme's grid colour and strength, all levels or only the coarse
- * ones, and a fade around the orbit target that follows the camera on every frame drawn
+ * (`Terrain3d`): the theme's grid colour and strength, every level of lines, and a
+ * fade around the orbit target that follows the camera on every frame drawn
  * (uniforms only, so it never asks for more frames).
  */
 export const useGroundGrid = ({
-  coarse,
   draped = false,
   opacity = 1,
-}: GroundGridOptions): GridMaterialHandle => {
+}: GroundGridOptions = {}): GridMaterialHandle => {
   const dpr = useThree((s) => s.viewport.dpr);
   const invalidate = useThree((s) => s.invalidate);
   const [grid] = useState(() => {
@@ -72,10 +71,14 @@ export const useGroundGrid = ({
 
   useEffect(() => () => grid.dispose(), [grid]);
 
-  const levelAlpha = useMemo(() => {
-    const scale = gridAlphaScale * (draped ? DRAPED_STRENGTH : 1) * opacity;
-    return coarse ? strength3d(scale * COARSE_STRENGTH, COARSE_LEVELS) : strength3d(scale);
-  }, [coarse, draped, opacity, gridAlphaScale]);
+  const levelAlpha = useMemo(
+    () =>
+      strength3d(
+        (draped ? Math.min(gridAlphaScale, DRAPED_THEME_CAP) * DRAPED_STRENGTH : gridAlphaScale) *
+          opacity
+      ),
+    [draped, opacity, gridAlphaScale]
+  );
 
   useLayoutEffect(() => {
     grid.update({ levelAlpha, dpr, color: gridLine });

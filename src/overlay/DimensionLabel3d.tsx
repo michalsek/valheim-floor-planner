@@ -1,12 +1,8 @@
-import { useAtomValue } from 'jotai';
-
 import { formatMetres } from '../format';
-import { sameLevel } from '../model/elevation';
 import { dimensionLine } from '../model/geometry/dimension';
 import { measure } from '../model/geometry/measure';
 import type { Vec2 } from '../model/types';
 import { useCutPlan } from '../store/planHooks';
-import { workPlaneAtom } from '../store/session';
 
 import type { DimensionTone } from './DimensionLine';
 import { Label3d } from './Label3d';
@@ -43,14 +39,11 @@ export const DimensionLabel3d = ({ a, b, offset = 0, tone = 'live' }: DimensionL
 export const PinnedDimensionLabels3d = () => {
   const { dimensions } = useCutPlan();
   const toneOf = useDimensionTone();
-  const plane = useAtomValue(workPlaneAtom);
   return (
     <g>
       {Object.values(dimensions).map(({ id, a, b, offset, elevation }) => (
         <OverlayPlaneContext key={id} value={elevation}>
-          <g className={sameLevel(elevation, plane) ? undefined : styles.offLevel}>
-            <DimensionLabel3d a={a} b={b} offset={offset} tone={toneOf(id)} />
-          </g>
+          <DimensionLabel3d a={a} b={b} offset={offset} tone={toneOf(id)} />
         </OverlayPlaneContext>
       ))}
     </g>

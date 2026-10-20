@@ -4,39 +4,32 @@
  * picked. In 2D it is the plan hit test at the event's world point. In 3D:
  *
  * 1. the nearest box along the pointer's ray (raw pieces and props);
- * 2. on nothing, the plan hit test at the work-plane point, which brings dimensions
- *    and near misses.
+ * 2. on nothing, a dimension hit at its own height (where the ray meets its plane);
+ * 3. else the plan hit test at the event's surface point (near misses).
  *
  * Pure TS against the plan's boxes, never r3f raycasting (see Roadmap).
  */
 import type { BoxMode } from '../model/geometry/box';
 import { pickBoxes, pointOnRay } from '../model/geometry/ray';
 import { snapToGrid } from '../model/geometry/snap';
-import { hitTest, itemsInBox, type Hit, type HitOptions } from '../model/hitTest';
+import { hitDimension, hitTest, itemsInBox, type Hit, type HitOptions } from '../model/hitTest';
 import { boxFromCorners } from '../model/geometry/box';
-import { cutBoxes } from '../model/cut';
 import type { PieceBox } from '../model/pieceBoxes';
 import { isRawRoofCover } from '../model/rawBoxes';
 import type { SelectionItem } from '../model/selection';
-import type { Plan, Vec2, Vec3 } from '../model/types';
+import type { DimId, Plan, Vec2, Vec3 } from '../model/types';
 import { getLibrary } from '../store/libraryInstance';
-import { getCutPlan, getPieceBoxes, getShownBoxes } from '../store/planHooks';
+import { getCutPlan, getDrawnBoxes, getPieceBoxes } from '../store/planHooks';
+import { pointerRay } from '../store/pointer';
 import { selectionAtom } from '../store/selection';
-import {
-  cutHeightAtom,
-  projection3dAtom,
-  roofsVisibleAtom,
-  snapStepAtom,
-  workPlaneAtom,
-  type SessionAccess,
-} from '../store/session';
+import { cutHeightAtom, projection3dAtom, roofsVisibleAtom, snapStepAtom } from '../store/session';
 import { viewModeAtom } from '../store/view3d';
-import { screenRay, workPlanePoint, type Projection3d } from '../viewport/projection3d';
+import { planePointAt, type Projection3d } from '../viewport/projection3d';
 import type { ScreenPoint } from '../viewport/viewportMath';
 
-import { hitTolerance } from './hitTolerance';
+import { HIT_TOL_PX, hitTolerance, pxToMetresAt } from './hitTolerance';
 import { itemsInScreenRect, screenRectFrom } from './Select/screenBoxSelect';
-import type { ToolContext, ToolPointerEvent } from './types';
+import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from './types';
 
 /**
  * A press that moves further than this (screen px) is a drag: more in 3D, where a few
@@ -87,66 +80,88 @@ const planHit = (ctx: ToolContext, p: Vec2, plan = cutView(ctx)) =>
   hitTest(plan, p, hitTolerance(ctx), hitOptions(ctx));
 
 /**
- * The nearest of `boxes` (the drawn ones by default) under a canvas point in 3D, and
- * where the ray enters it.
+ * The nearest drawn piece or prop box along the pointer's ray in 3D (within its reach,
+ * `pointerRay`), and where the ray enters it; null in 2D or on a miss.
  */
-const surfaceAt = (
+export const pickSurface = (
   ctx: ToolContext,
-  screen: ScreenPoint,
-  boxes: readonly PieceBox[] = drawnBoxes(ctx, ctx.plan.getPlan())
+  e: ToolPointerEvent
 ): { box: PieceBox; hit: Hit; point: Vec3 } | null => {
-  const v = projectionOf(ctx);
-  if (!v) return null;
-  const ray = screenRay(screen, v);
-  const found = pickBoxes(ray, boxes);
-  return found && { box: found.box, hit: found.box.hit, point: pointOnRay(ray, found.t) };
+  const pointer = projectionOf(ctx) && pointerRay(ctx.get, e.screen);
+  if (!pointer) return null;
+  const boxes = getDrawnBoxes(
+    ctx.plan.getPlan(),
+    ctx.get(roofsVisibleAtom),
+    ctx.get(cutHeightAtom)
+  );
+  const found = pickBoxes(pointer.ray, boxes);
+  if (!found || found.t > pointer.maxT) return null;
+  return { box: found.box, hit: found.box.hit, point: pointOnRay(pointer.ray, found.t) };
 };
 
 /**
- * The nearest piece or prop box along the pointer's ray in 3D, and where the ray
- * enters it; null in 2D or on a miss.
+ * The shown dimension under the pointer: in 2D the nearest to the event's point; in 3D
+ * the nearest where the pointer's ray meets its own plane (its elevation), each within
+ * the hit tolerance at that point.
  */
-export const pickSurface = (ctx: ToolContext, e: ToolPointerEvent) => surfaceAt(ctx, e.screen);
-
-/**
- * In 3D, a world point for a canvas point whose ray misses the work plane but hits a
- * piece (a wall seen against the sky): the hit point's plan position. Null otherwise.
- */
-export const surfacePlanPoint = (ctx: ToolContext, screen: ScreenPoint): Vec2 | null => {
-  const surface = surfaceAt(ctx, screen);
-  return surface && { x: surface.point.x, z: surface.point.z };
+export const pickDimension = (
+  ctx: ToolContext,
+  e: ToolPointerEvent
+): { id: DimId; distance: number; elevation: number } | null => {
+  const { dimensions } = cutView(ctx);
+  const v = projectionOf(ctx);
+  if (!v) {
+    const hit = hitDimension(dimensions, e.world, hitTolerance(ctx));
+    return hit && { ...hit, elevation: dimensions[hit.id]?.elevation ?? 0 };
+  }
+  let best: { id: DimId; distance: number; elevation: number; px: number } | null = null;
+  for (const dim of Object.values(dimensions)) {
+    const p = planePointAt(e.screen, v, dim.elevation);
+    if (!p) continue;
+    const tol = pxToMetresAt(ctx, HIT_TOL_PX, { x: p.x, y: dim.elevation, z: p.z });
+    const hit = hitDimension({ [dim.id]: dim }, p, tol);
+    // Each is measured on its own plane, so they are compared in screen px.
+    const px = hit ? (hit.distance / tol) * HIT_TOL_PX : Infinity;
+    if (hit && (!best || px < best.px)) best = { ...hit, elevation: dim.elevation, px };
+  }
+  return best && { id: best.id, distance: best.distance, elevation: best.elevation };
 };
 
 /**
  * What the event is over (as the 2D hit test reports it), and the height of the point
- * grabbed on it: a piece's surface in 3D, else the work plane. A move drags along the
- * horizontal plane at that height, so a wall picked by its face follows the pointer
- * instead of the ground behind it.
+ * grabbed on it: in 3D a piece's surface, else a dimension's height; otherwise the
+ * surface under the pointer. A move drags along the horizontal plane at that height, so
+ * a wall picked by its face follows the pointer instead of the ground behind it.
  */
 export const pickGrab = (ctx: ToolContext, e: ToolPointerEvent): { hit: Hit | null; y: number } => {
-  const plane = ctx.get(workPlaneAtom);
-  if (!projectionOf(ctx)) return { hit: planHit(ctx, e.world), y: plane };
+  if (!projectionOf(ctx)) return { hit: planHit(ctx, e.world), y: e.y };
   const surface = pickSurface(ctx, e);
   if (surface) return { hit: surface.hit, y: surface.point.y };
-  return { hit: planHit(ctx, e.world), y: plane };
+  const dimension = pickDimension(ctx, e);
+  if (dimension) {
+    const { id, distance, elevation } = dimension;
+    return { hit: { kind: 'dimension', id, distance }, y: elevation };
+  }
+  return { hit: planHit(ctx, e.world), y: e.y };
 };
 
 /**
- * The event moved onto the horizontal plane at height `y` (snapped as the cursor is):
- * in 3D, where its ray meets that plane; in 2D, the event itself. Null when the ray
- * misses the plane.
+ * The event moved onto the horizontal plane at height `y` (snapped as the cursor is, and
+ * with that `y`): in 3D, where its ray meets that plane, also for an event with no world
+ * point (a press over the sky); in 2D, the event itself. Null when the ray misses the
+ * plane.
  */
 export const onPlaneAt = (
   ctx: ToolContext,
-  e: ToolPointerEvent,
+  e: ToolPointerEvent | OffPlanePointerEvent,
   y: number
 ): ToolPointerEvent | null => {
   const v = projectionOf(ctx);
-  if (!v) return e;
-  const world = workPlanePoint(e.screen, v, y);
+  if (!v) return 'world' in e ? { ...e, y } : null;
+  const world = planePointAt(e.screen, v, y);
   if (!world) return null;
   const snapped = e.altKey ? world : snapToGrid(world, ctx.get(snapStepAtom));
-  return { ...e, world, snapped };
+  return { ...e, world, snapped, y };
 };
 
 /**
@@ -165,10 +180,3 @@ export const itemsInSelectBox = (
   const rect = screenRectFrom(screen.a, screen.b);
   return itemsInScreenRect(plan, getPieceBoxes(plan), v, rect, mode, getLibrary());
 };
-
-/**
- * The boxes the views draw and tools hit: the shown ones the cut keeps. Takes only `get`,
- * so derived atoms can use it too.
- */
-export const drawnBoxes = ({ get }: Pick<SessionAccess, 'get'>, plan: Plan): readonly PieceBox[] =>
-  cutBoxes(getShownBoxes(plan, get(roofsVisibleAtom)), get(cutHeightAtom));

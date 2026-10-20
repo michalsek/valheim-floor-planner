@@ -17,8 +17,13 @@ export const formatDelta = (dx: number, dz: number): string =>
 export const formatZoom = (zoom: number): string =>
   `${zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)} px/m`;
 
-/** Whole and half metres without trailing zeros: `8` → `"8"`, `8.5` → `"8.5"`. */
-export const formatCompact = (n: number): string => String(Math.round(n * 100) / 100);
+/**
+ * Without trailing zeros, to `digits` decimals (default 2): `8` → `"8"`, `8.5` → `"8.5"`.
+ */
+export const formatCompact = (n: number, digits = 2): string => {
+  const scale = 10 ** digits;
+  return String(Math.round(n * scale) / scale);
+};
 
 /** `(7.7, 7.7, 2)` → `"7.70 × 7.70"`; without `digits`, compact (`"8 × 8"`). */
 export const formatSize = (w: number, d: number, digits?: number): string => {
@@ -26,6 +31,9 @@ export const formatSize = (w: number, d: number, digits?: number): string => {
   return `${f(w)} × ${f(d)}`;
 };
 
-/** A level by its height: `3` → `"+3 m"`, `0` → `"0 m"`, `-1.5` → `"−1.5 m"`. */
-export const formatLevel = (e: number): string =>
-  `${e > 0 ? '+' : e < 0 ? MINUS : ''}${formatCompact(Math.abs(e))} m`;
+/**
+ * A height, to `digits` decimals (default 2): `3` → `"+3 m"`, `0` → `"0 m"`, `-1.5` →
+ * `"−1.5 m"`; `(4.968, 3)` → `"+4.968 m"`.
+ */
+export const formatHeight = (e: number, digits?: number): string =>
+  `${e > 0 ? '+' : e < 0 ? MINUS : ''}${formatCompact(Math.abs(e), digits)} m`;

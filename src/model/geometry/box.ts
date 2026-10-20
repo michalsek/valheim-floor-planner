@@ -1,4 +1,4 @@
-/** Axis-aligned world boxes: box selection, plan bounds and the level plate. */
+/** Axis-aligned world boxes: box selection, plan bounds and the 3D cut outline. */
 import type { Vec2 } from '../types';
 
 import { segments } from './polyline';

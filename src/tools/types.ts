@@ -11,15 +11,17 @@ import type { ToolId } from './toolIds';
 export type { ToolId } from './toolIds';
 
 /**
- * A pointer event already converted to plan coordinates by `ToolHost`. In 3D the
- * points are where the pointer's ray meets the work plane, so tools work the same in
- * both views; `picking.ts` is the only seam that knows which view is showing.
+ * A pointer event already converted to plan coordinates by `ToolHost`: the points are
+ * those of the surface under the pointer (`pointer.ts`) in both views, so tools work the
+ * same in each; `picking.ts` is the only seam that knows which view is showing.
  */
 export interface ToolPointerEvent {
   screen: ScreenPoint;
   world: Vec2;
   /** Snapped to the current step, or equal to `world` while Alt is held. */
   snapped: Vec2;
+  /** The height of the surface under the pointer (`pointer.ts`). */
+  y: number;
   button: number;
   altKey: boolean;
   shiftKey: boolean;
@@ -65,14 +67,14 @@ export interface Tool {
   /** The pointer left the canvas: drop hover state (a captured gesture goes on). */
   onPointerLeave?(ctx: ToolContext): void;
   /**
-   * A press with nothing under it to work with (3D: empty sky, no piece and no work
-   * plane). No other pointer event of that sequence reaches the tool.
+   * A press with nothing under it to work with (3D: empty sky, no piece and no ground
+   * within reach). No other pointer event of that sequence reaches the tool.
    */
-  onPointerMiss?(e: Pick<ToolPointerEvent, 'button' | 'shiftKey'>, ctx: ToolContext): void;
+  onPointerMiss?(e: OffPlanePointerEvent, ctx: ToolContext): void;
   /**
    * During the tool's own pointer sequence, a move or the release where the pointer has
-   * no world point (3D: over the sky, or terrain the work plane doesn't reach). Without
-   * it, such a move only drops the hover and such a release cancels the sequence.
+   * no world point (3D: over the sky, or beyond reach). Without it, such a move only
+   * drops the hover and such a release cancels the sequence.
    */
   onPointerOffPlane?(e: OffPlanePointerEvent, phase: 'move' | 'up', ctx: ToolContext): void;
   /** A double-click; its two pointer-downs have already reached `onPointerDown`. */
@@ -90,7 +92,7 @@ export interface Tool {
   Preview?: ComponentType;
   /** Overlay content in world metres (strokes need `vector-effect="non-scaling-stroke"`). */
   WorldPreview?: ComponentType;
-  /** 3D scene content (r3f): ghost pieces, lines on the work plane. */
+  /** 3D scene content (r3f) at absolute heights: ghost pieces, drafted lines. */
   Preview3d?: ComponentType;
   /** 3D overlay content in screen CSS px, placed with `useProject3d`: labels, handles. */
   Overlay3d?: ComponentType;

@@ -55,7 +55,7 @@ const frameOf = (piece: RawPiece) => rawTurn(piece.rotation);
 const placed = (piece: RawPiece, local: Vec3): Vec3 =>
   fromLocal(local, { center: pivotOf(piece), size: local, ...frameOf(piece) });
 
-const level = (piece: RawPiece) => piece.rotation.pitch === 0 && piece.rotation.roll === 0;
+const untilted = (piece: RawPiece) => piece.rotation.pitch === 0 && piece.rotation.roll === 0;
 
 /** The box without its owner's fields (key, item, hit, colours). */
 type Body = Pick<PieceBox, 'center' | 'size' | 'rotationY' | 'tiltX' | 'rollZ' | 'shape' | 'pivot'>;
@@ -63,7 +63,7 @@ type Body = Pick<PieceBox, 'center' | 'size' | 'rotationY' | 'tiltX' | 'rollZ' |
 const bodyOf = (piece: RawPiece, lib: RawShapeLib): Body => {
   const def = rawDef(lib, piece);
   const frame = frameOf(piece);
-  const roof = level(piece) ? rawRoofDef(lib, piece.prefab) : undefined;
+  const roof = untilted(piece) ? rawRoofDef(lib, piece.prefab) : undefined;
   if (roof && def) {
     const center = placed(piece, pieceAnchor(def, roof.size));
     const { shape, size, slope } = roof;
@@ -125,7 +125,7 @@ export const rawOutlineArea = (piece: RawPiece, lib: RawShapeLib): number =>
 
 /** Whether the piece is drawn as a roof shape (and outlined, not filled, in 2D). */
 export const isRawRoof = (piece: RawPiece, lib: RawShapeLib): boolean =>
-  level(piece) && rawRoofDef(lib, piece.prefab) !== undefined;
+  untilted(piece) && rawRoofDef(lib, piece.prefab) !== undefined;
 
 /**
  * Whether the piece covers a roof (a roof family's straight, ridge or corner piece, at
@@ -153,7 +153,9 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
     ...body,
     center: { ...body.center, y: body.center.y + lift },
     prefab: piece.prefab,
-    ...(level(piece) ? {} : { modelTurn: { x: frame.tiltX, y: frame.rotationY, z: frame.rollZ } }),
+    ...(untilted(piece)
+      ? {}
+      : { modelTurn: { x: frame.tiltX, y: frame.rotationY, z: frame.rollZ } }),
     ...(isRawRoofCover(piece, lib) ? { roofCover: true as const } : {}),
   };
 };

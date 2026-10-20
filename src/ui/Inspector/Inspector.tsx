@@ -13,7 +13,7 @@ import { useToolContext } from '../../tools/toolContext';
 import { Row, Section } from '../shared/PanelList';
 
 import styles from './Inspector.module.css';
-import { ElevationField } from './ElevationField';
+import { HeightField } from './HeightField';
 import { InspectorTitle } from './InspectorTitle';
 import { PieceActions } from './PieceActions';
 import { PropInspector } from './PropInspector';
@@ -27,7 +27,7 @@ const DimensionInspector = ({ id }: { id: DimId }) => {
     <>
       <InspectorTitle title="Dimension" />
       <div className={styles.fields}>
-        <ElevationField item={{ kind: 'dimension', id }} />
+        <HeightField item={{ kind: 'dimension', id }} />
       </div>
       <Section title="Measures">
         <Row label="Length" value={formatMetres(length)} />

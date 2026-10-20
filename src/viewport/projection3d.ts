@@ -36,9 +36,9 @@ export interface Projection3d {
 }
 
 /**
- * The work plane is ignored further than this many orbit distances away: near the
+ * A horizontal plane is ignored further than this many orbit distances away: near the
  * horizon a pixel spans metres, so points there are useless (and a drag swept up to it
- * would build something huge).
+ * would move something far off).
  */
 const MAX_PLANE_DISTANCES = 6;
 
@@ -82,11 +82,11 @@ export const orbitTargetOf = (v: Projection3d): Vec3 =>
   addVec3(v.eye, scaleVec3(v.forward, v.orbitDistance));
 
 /**
- * The point on the work plane (height `y`) under a canvas point, or null for a ray
- * that doesn't reach it within `MAX_PLANE_DISTANCES` orbit distances (at or above the
- * horizon, or grazing it).
+ * The point on the horizontal plane at height `y` under a canvas point (a drag's or a
+ * dimension's plane), or null for a ray that doesn't reach it within
+ * `MAX_PLANE_DISTANCES` orbit distances (at or above the horizon, or grazing it).
  */
-export const workPlanePoint = (p: ScreenPoint, v: Projection3d, y: number): Vec2 | null => {
+export const planePointAt = (p: ScreenPoint, v: Projection3d, y: number): Vec2 | null => {
   const hit = rayPlaneY(screenRay(p, v), y);
   if (!hit || hit.t > MAX_PLANE_DISTANCES * v.orbitDistance) return null;
   return { x: hit.point.x, z: hit.point.z };

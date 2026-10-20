@@ -2378,3 +2378,304 @@ instead of levels.
     - Inspector heights show at most 3 decimals (the stored value is unchanged until
       edited); the height field's history entry is "Change height". The bar is 16 px
       wider so a cut like 4.968 fits.
+
+## From M18 pass 3 (tools and UI)
+
+Plan: `private/plans/M18.md` §5. The work plane is gone: every tool works on the surface
+under the pointer, at absolute heights.
+
+### Pointer and tools (A)
+
+1. **The surface under the pointer** (`store/pointer.ts`, `model/build/buildHit.ts`).
+   "Drawn boxes" are `getDrawnBoxes(plan, roofsVisible, H)` of the committed plan
+   (`store/committedPlan.ts`, kept current by `startCommittedPlanSync`, so tools read it
+   outside React); hidden pieces and ghosts never count.
+
+   | | Ray | Lands on (nearest wins) | Nothing hit |
+   |---|---|---|---|
+   | 3D | The camera ray, up to 6 orbit distances | Drawn boxes; the shown terrain from above; the plane y = 0 from above, where no terrain lies under the point | No cursor (the tools' "no world point" path) |
+   | 3D, side face or underside (`normal.y < UPWARD` = 0.5) | Straight down from the hit, `DROP_OFF` (1 cm) off the face | as above | The face hit |
+   | 2D | Straight down from `SKY_Y` (1000 m), above everything drawn | Drawn boxes; the ground | The ground at the point. 2D is never null. |
+   | Build | The same rays; ground hits go onto the grid (`hitOnGrid`) | as above, without the carried pieces | 3D: no ghost. 2D: the ground (see 3.1) |
+   | Build removal | The same rays | Drawn boxes | No target |
+
+   - The ground is the shown terrain, else 0 (`groundHeight`): flat plans, Terrain off,
+     and points beyond the patch.
+   - `Cursor` is `{ raw, snapped, snapping, y, on }`. `y` is the hit's height on a piece,
+     and the ground height at `snapped` on the ground; `on` is `'piece'` or `'ground'`
+     (terrain counts as ground). `ToolPointerEvent` carries the same `y`.
+   - `pxPerMetreAtom` is taken at the cursor's surface point; `pxToMetresAt` takes a 3D
+     point.
+2. **Tools on the surface.**
+   - **Item:** `elevation = roundElevation(clampElevation(cursor.y))`; a flight's Auto
+     rise is `riseToNextStop(stops, elevation)`. Previews are at absolute heights.
+   - **Dimension and Ruler** are level at the height under their first point (mm
+     rounded). In 3D, later points are taken on that plane (`onPlaneAt`, `cursorOnPlane`
+     / `useCursorOnPlane`), so B dragged past an edge stays under the pointer. The
+     Dimension tool's hover and Alt+click find a dimension at its own height
+     (`pickDimension`): in 3D each candidate is measured on its own plane, and they are
+     compared in screen px.
+   - **Select** grabs at a box hit's height, else a dimension's elevation (3D), else the
+     surface's `y`; the drag plane is that height.
+   - **2D picking and drawing:** raw pieces are drawn in `rawDrawOrder` (box top in
+     `SAME_TOP` = 5 cm bands, lowest first, then the larger outline, then the id), and
+     `rawTier` picks in the reverse order, so the piece drawn on top is the one picked.
+     Props keep their tiers.
+3. **Deviations from the plan.**
+   1. **2D Build always lands** (`downHit`): with nothing under the cut (H −2), it lands
+      on the ground and places; the cut then rises to show it. §5.1's Build row said "no
+      ghost", but §5.0 (2D is never null) and the manual plan (step 2) expect the
+      placement.
+   2. **2D rays start above everything drawn (`SKY_Y`), not at H** (the orchestrator's
+      call; the plan had them start at H, or at `SKY_Y` at All).
+      - Why: the scene holds only the drawn boxes, with the cut and the Roofs toggle
+        applied. Starting at H only kept the ray off pieces you can see: those that
+        straddle the cut.
+      - The case that showed it: the test house's upper stop is 2.968 (the wood floors'
+        collider bottom), under the stone wall tops at 3.0. From H the ray started inside
+        the walls, missed them and landed on the lower floor.
+      - From the sky, the ray lands on the topmost visible surface, which is what 2D
+        draws on top and what 2D picking takes. What is placed above H is then shown by
+        `revealPlaced`.
+      - `pointerRay` lost its `from` parameter.
+   3. `buildTargets` no longer keeps its own copy of the drawn list: `cutBoxes` already
+      gives one array per boxes and cut. One slot remains for the list without the
+      carried pieces.
+4. **Checked by hand** (§5.11 steps 1–6, headless Chrome over CDP, WebGPU; a scratch
+   house: 4 stone floors, 4 stone walls, 4 wood floors on the wall tops, 8 wood walls, 4
+   roof pieces):
+   - The stored y values are the snapped ghost pivots (24 / 24, also in the autosave).
+     The stops are at 0.001 and 2.968 (tops 1 and 3).
+   - At the upper stop the cursor over the lower floor reads 1.001 (its box top). On a
+     wall's inner face it drops to that floor.
+   - 2D: at All Build lands on the roof (pivot 7 for a 2 m pole). At the upper stop the
+     cursor over a wall reads its top (3.0), and Build places on it (pivot 4) and raises
+     the cut to 4; over the middle it lands on the lower floor. At the lower stop and at
+     H −2 it lands on the ground (at H −2 the pole is placed and the cut rises to 1). Ctrl+click at All
+     removes a roof piece, and at the upper stop a stone wall (what is drawn on top).
+   - A chest on the upper floor stands at 3.098, and the Inspector says 3.098. A bed aimed
+     at a wall's face stands at the wall's foot (3.098). 2D at H 4 places on the upper
+     floor. At the upper stop it places on what is drawn on top there: a stone wall's top
+     (3.0) over a wall, the lower floor (1.001) over the room.
+   - A dimension drawn on the upper floor with B past the edge pins at A's height
+     (3.098). Hover and Alt+click delete it. A ruler pin takes A's surface height.
+   - Stairs from the lower floor rise 1.999 to the upper walking top (3.0); from the top
+     floor, the default 2 m.
+   - 2D picking: a floor over a stone wall picks the floor; a pole through the floor
+     picks the pole; wood over stone walls picks the wood course; a pole whose top ties
+     the floor's (same 5 cm band) picks the pole; a chest on a floor picks the chest.
+   - Select: a 3D drag of the chest upstairs keeps 3.098; a dimension drags at its own
+     height (3D and 2D); a snap-moved wood wall, with the pointer on the floor, keeps y
+     4; PageDown mid-drag gives no errors, and the release shows the result.
+5. **Findings.**
+   1. **Props stand on collider tops** (§5.13, 5): on a `wood_floor` an item stands at
+      3.098, not the snap plane's 3.0. Stairs from the top floor start there too.
+   2. **Mod+D copies follow the Build ray**, as in M17: a wood wall copied onto the
+      ground lands at y 1 (its foot on the ground). Snap-move keeps y only while the
+      pointer is on the surface the piece stands on. With the pointer held at the
+      grabbed wall's face height, the ray passes the carried wall, and it can hit a
+      neighbouring wall's face and lift the piece to that height.
+   3. **The 3D cursor now raycasts** every drawn box and the terrain on each pointer
+      move and camera frame. It used to meet a plane. The Build ghost does the same once
+      more while it is armed. Not measured here; the perf run is B's (§5.11, 10).
+   4. **Test harness:** after an HMR update, Vite serves changed modules with a `?t=`
+      query, so a CDP script's `import('/src/…')` gets a second instance of them. Restart
+      the dev server before driving the app through its modules.
+6. **Fix round** (after QA and code review).
+   1. **Stacked tiles made a bogus stop.** In the user's plan, three stone floor tiles
+      stacked on the main stone floor formed a stop 1 mm above that floor's walking top.
+      Everything standing on that floor then started at the cut, so it hid, and any
+      placement there raised the cut by a step.
+      - Rule: after clustering, a stop is dropped when its height (the cluster's lowest
+        box bottom, 1 mm lift included) is within `STOP_GAP` of a lower stop's walking
+        top (from snap points). `MIN_STOP_TILES` stays 2.
+      - The user's plan: 3 stops before, 2 now. 0 shown boxes have their top within 1 cm
+        of either stop. In the browser, a chest and a wood wall placed on the ground
+        floor at the stop that shows it leave the cut alone.
+      - At the lowest stop the ground floor itself is hidden. Placing there lands on the
+        terrain above that floor's bottom, and the cut rises, as it should.
+   2. **Redo reveals what it brings back.** `startSelectionSync` keeps the previous
+      plan, and on a redo the items whose records changed (compared by identity) go
+      through `cutShowing` with the selection. The cut only rises; undo is unchanged.
+   3. **A focused slider no longer swallows shortcuts.** Only text, number and search
+      inputs, textareas and editable content keep keys to themselves; a focused slider
+      keeps only its own keys (arrows, PageUp / PageDown, Home, End), so C and the tool
+      shortcuts work while the arrows still move the slider, one step each.
+   4. **`cutRange` is null** when no step value lies between the lowest and highest
+      bottoms; the Cut bar then hides the slider.
+   5. **Refactors:**
+      - `pointerHit` (`pointer.ts`) is the one landing for the cursor (`rest`: side faces
+        and undersides drop) and the Build ghost (face hits kept, then `hitOnGrid`).
+      - `getDrawnBoxes` is the only source of drawn boxes; `pickSurface` uses
+        `pointerRay`, so it has the same reach as the cursor.
+      - `downHit` always looks from `SKY_Y`, which now lives in `buildHit.ts`.
+      - `workPlanePoint` is now `planePointAt`.
+      - `useCursorOnPlane` returns only `{ raw, snapped, snapping }`.
+      - `committedPlanAtom` is read-only; a private base atom is seeded by the sync.
+      - `boxBottom` and `boxTop` moved to `pieceBoxes.ts`. `boxTop` is uncached: its
+        cache never hit, since draw order builds fresh boxes.
+      - `rawTier` uses `findLast`. The dimension hover stores only `{ kind, id,
+        distance }`. Deleting a hovered dimension is one `commitCommands` entry.
+      - Build's `onPointerMiss` is gone: with one landing, a press without a cursor has
+        no ghost either.
+   6. **A press over the sky in 3D** now reaches `onPointerMiss` with its screen point.
+      Dimension and Ruler place B, or the offset, on the draft's plane there. Checked: a
+      B-click with no surface under it moves the draft on.
+   7. **Item on the ground** takes the ground height at its own position, not at the
+      cursor's snapped point.
+   8. **Later:** `buildHit.ts` is now the pointer's landing as much as Build's; a rename
+      (for example `pointerLanding`) is left for later. `DropLine3d` should call
+      `groundHeight` (B).
+
+### Scene and UI (B)
+
+1. **3D.** `useCutShading` (was `useLevelShading`) draws `cutBoxes` always; with Ghost
+   on, `aboveCut` goes to `CutGhosts`. That is one see-through `PieceInstances` (and
+   its edgeless twin for roof shapes) retained for every shown box, in material
+   colours, casting no shadow, in Boxes and Models alike. The Frost slider
+   (`ghostFrostAtom`, `valheimFloorPlanner.ghostFrost.v1`, default 0.25, 0 to 0.6) sets
+   the two materials' opacity, a uniform. `CutGhosts` is always mounted, so its empty
+   meshes link on entry. The opaque fade (`withLevel`, `OFF_LEVEL_MIX`) is gone, as are
+   the off-level dimension fade and `.offLevel`.
+   - **The cut outline** (`CutOutline3d`, `cutRect`, was `plateRect`) is an accent
+     rectangle at H, collapsed at All. It goes around the build's bounds, not the
+     terrain-widened camera bounds that the plate used, so on a site it stays near the
+     build.
+   - **Removed:** the level plate, its tags (`LevelTags3d`), the 2D cursor's level tag,
+     `.plateTag` / `.levelTag`, the `position-y={plane}` lift in `View3d`, and the
+     ground grid's coarse mode. The flat ground and the terrain always draw the full
+     grid.
+   - **`DRAPED_STRENGTH` is 0.6 → 0.45.** At full levels the draped grid read loud in
+     the dark theme.
+   - `SnapCursor3d` sits at `cursor.y + CURSOR_LIFT` (1 cm). `DropLine3d` runs from
+     `(snapped, cursor.y)` down to the shown terrain (else 0). It shows only while the
+     cursor is on a piece more than 0.1 m off the ground.
+   - `ThemeTokens.canvas` is deleted (nothing read it after the fade went).
+2. **The Cut bar** (`ui/CutBar/`: `CutBar`, `CutSlider`, `StopList`, `GhostControls`)
+   replaces `LevelsBar`. It has:
+   - ▲, the field and ▼. ▲ is disabled at All, titled "Showing everything". The field
+     is always shown, empty at All with the placeholder "All" (`NumberInput` takes
+     `value: number | null` and `placeholder`; an empty commit does nothing).
+   - The slider (`cutRange` over `getPieceBoxes`, as `stepCut` uses), from `min` to
+     `max + step`. The last notch is All. It is live, and blurs on pointer-up.
+   - All, the step, the stops (`formatHeight · count`, current by `sameHeight`) and
+     Support.
+   - In 3D, Ghost, with the Frost slider while Ghost is on.
+   - "Items go on" is gone.
+3. **Renames:** `formatLevel` → `formatHeight`, `sameLevel` / `SAME_LEVEL` →
+   `sameHeight` / `SAME_HEIGHT`, and `ElevationField` → `HeightField`. The field is
+   labelled "Height" for every kind, and its accessible name says what the height is for
+   that kind. Its history entry is "Change height". None of their users were in A's
+   files.
+4. **Status strip:** `y +1.2 m` is the height of the surface under the cursor
+   (`cursor.y`, to 0.1 m), with the title from §5.7. **Deviation:** it is always
+   rendered, as `y —` without a cursor. Shown only with a cursor, it came and went as
+   the pointer left the canvas. That shifted every control to its right by about
+   100 px, so a click aimed at Terrain or Roofs landed on the wrong button. The x / z
+   readout already worked this way.
+5. **Manual run** (§5.11 steps 7–11; headless Chrome 155 over CDP, port 5252; the
+   user's plan file, read only, and the test world; counts and booleans only):
+   - **7, the Cut bar.**
+     - At All the field is empty ("All") and ▲ is disabled. Typing 3 cuts at 3, and ▼
+       from All sets a cut and enables ▲.
+     - The slider: 6 notches at 1 m, 11 at 0.5 m (0.5 m apart). Each notch gives a
+       distinct cut, and the last is All.
+     - Each stop row becomes current when clicked. Shift+PageUp from the lowest stop
+       climbs and ends at All. Shift+PageDown from All walks down and stays at the
+       lowest. C ×4 goes All, cut, All, cut.
+     - **Ghost:** the Frost slider shows only with Ghost on and changes the ghosts live
+       (0.6 and 0.05 screenshots). Clicks at 60 points on each of the 3 stops select
+       exactly the same item with Ghost on as with it off (60/60 each). 44–48 of the 60
+       differ from what the same click picks at All, so the clicks pass through the
+       ghosts to what is behind.
+   - **8, the user's plan** (3 stops). Every stop in 2D, and in 3D with Ghost off and
+     on, in Boxes and Models, on WebGPU and `?webgl`. No console errors.
+   - **9, the test world with terrain** (4 stops).
+     - With every piece cut away (H −16), the status `y` follows the terrain (39
+       distinct readouts in 66 points; the 3 without one are sky).
+     - An item on a slope stands at the readout's height.
+     - 2D Build lands on the terrain, with the pivot within 0.5 m of the readout.
+     - With Terrain off, every readout is `y 0 m`. Beyond the patch (2D, zoomed out),
+       it is `y 0 m`.
+     - The drop line from an upper beam reaches the terrain, faint through the floor.
+     - The draped full grid shows in light and dark.
+   - **10, perf** (the M15 method; on the import; PageDown ×5, PageUp ×5, Shift+Page
+     across all stops both ways, 20 slider notches, C ×4, Ghost on and off with four
+     Frost values and 3 PageDowns between). New programs and pipelines are counted from
+     after entry:
+
+     | Backend | Look | Programs / pipelines at entry | New after entry | Long tasks |
+     |---|---|---|---|---|
+     | WebGPU | Boxes | 39 pipelines | 0 | 0 |
+     | WebGPU | Models | 65 pipelines | 0 | 0 |
+     | WebGL2 | Boxes | 36 programs | 0 | 0 |
+     | WebGL2 | Models | 58 programs | 0 | 0 |
+
+     The observer did see long tasks during the import (2–4 per run), so it was live.
+     **The 3D cursor's raycast** (A's finding 3) was also measured: a 234-move pointer
+     sweep over the import in Models gave no long task and no new pipeline on WebGPU or
+     WebGL2. A move took 50 ms to its second frame, at p50 and p95 alike (headless frame
+     pacing).
+   - **11.**
+     - The user's plan in light and dark, 2D and 3D with ghosts, WebGPU and `?webgl`:
+       no console errors.
+     - With the camera under the ground looking up, and with the pointer on the sky
+       above the horizon, there is no cursor (`y —`) and no error.
+     - An empty plan has no slider and no stops; PageDown gives 0. H −16 is accepted.
+     - A plan with only walls has no stops; its slider (2 notches) sweeps to All.
+     - Opening a file with Build armed and H 3 gives no errors and lands at All.
+6. **Out of scope / findings.**
+   1. **Overlapping ghosts compound the frost** (§5.13, 4). A stone chimney's stacked
+      courses read as a dense grey column with Ghost on.
+   2. **The cut field shows the locale decimal** (`4,968` here; pass 2, 10). A stop at
+      2.001 reads `+2 m` in the list and `2,001` in the field.
+   3. **The orphaned `valheimFloorPlanner.plateFrost.v1` key** is left in localStorage
+      (§5.13, 6).
+   4. **`favicon.ico` 404s** on the dev server, the only console error in every run. It
+      was there before this pass.
+   5. **The site-expansion handles (`+64 m`)** stand out in 3D screenshots at the
+      import's default framing. They predate this pass, so nothing changed here.
+   6. **Test harness:** `3` toggles the view (`toggleViewMode`); it doesn't switch to 3D,
+      and `2` isn't bound. Drive the 2D / 3D buttons instead. H (Build) and P (Item)
+      focus their panel's search field, so blur it before sending shortcut keys.
+7. **Fix round.**
+   - **README:** every 2D ray starts above everything drawn, so 2D lands on the topmost
+     drawn surface, else the ground, and 2D Build always lands. The import paragraph
+     now covers the world axes, "Align grid to the build", "With terrain" and the
+     Terrain toggle; before, it said the build was turned onto its own grid.
+   - **Stop rows and the cut field agree.** Both now show the height to the millimetre
+     with a decimal point: `+4.968 m` in the row (`formatHeight(h, 3)`) and `4.968` in
+     the field. `NumberInput` is now a text field (`inputMode="decimal"`). A
+     `type="number"` field shows the browser's locale decimal (a comma here), unlike
+     every label. It accepts a point or a comma and a typographic minus, and ArrowUp /
+     ArrowDown step the draft. This changes every number field (the Inspector's Height,
+     Rotation and Repeat), so they all show a point now. This closes pass 2's locale
+     finding (10) and finding 6.2 above.
+   - **Ghost opacity:** the slider is labelled "Ghost opacity" (visible text, the
+     accessible name and the title "higher is more solid"), with
+     `aria-valuetext` as a percentage. The atom is `ghostOpacityAtom` in
+     `store/ghostOpacity.ts` (`valheimFloorPlanner.ghostOpacity.v1`). The key was never
+     released, so there is no migration. The cut slider's `aria-valuetext` is "All" or
+     the height.
+   - **The cut outline hugs the build:** it goes 0.5 m around the bounds of the pieces
+     the cut shows (`CutShading.shownBounds`), unsnapped, and collapses while nothing
+     shows. On the import it is still wide, because a few far pieces belong to the
+     build.
+   - **The draped grid:** the theme's grid scale is capped at 0.6 when draped
+     (`DRAPED_THEME_CAP`). That takes the dark theme (0.8) down a quarter and leaves
+     the light one (0.55) as it was.
+   - `useGroundGrid()` takes no argument for the defaults. The status strip's readout
+     class is `.surface`. `useShownBoxes` is module-local. `StopList` uses
+     `toReversed()`.
+   - **Checked** (headless Chrome, the user's plan, now 2 stops): at each stop the field
+     equals the current row's height and the slider's `aria-valuetext`, all with a
+     decimal point. The screenshots are retaken.
+   - `DropLine3d` takes its ground from `groundHeight` (A's N5): the same rule, in one
+     place.
+   - **Interior edit:** at the +4.968 stop, a chest and a wood wall placed inside the
+     stone ground floor leave the cut where it is.
+   - **For the review: one storey with floors at two heights gets an extra stop.** In
+     the user's plan the ground storey has wood tiles (walking top about 1.03) and stone
+     tiles (0.5 to 1.5). The wood tiles' bottom makes a stop at +1.001. There the stone
+     tiles straddle the cut and show, but anything placed on them starts at 1.5, above
+     the cut, so the cut rises to show it. That follows the rules as designed.

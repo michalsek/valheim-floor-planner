@@ -1,18 +1,14 @@
-import { useAtomValue } from 'jotai';
 import type { ReactNode } from 'react';
 
-import { workPlaneAtom } from '../store/session';
-
 import styles from './Overlay.module.css';
-import { OverlayPlaneContext } from './useProject3d';
 
 /**
  * The 3D view's SVG layer over the canvas, in screen CSS px: labels and constant-size
- * marks placed with `useProject3d` on the work plane (lines are drawn in the scene). It
- * never takes pointer events.
+ * marks placed with `useProject3d`, each at the height its user sets (lines are drawn in
+ * the scene). It never takes pointer events.
  */
 export const Overlay3d = ({ children }: { children: ReactNode }) => (
   <svg className={styles.overlay} aria-hidden>
-    <OverlayPlaneContext value={useAtomValue(workPlaneAtom)}>{children}</OverlayPlaneContext>
+    {children}
   </svg>
 );

@@ -4,9 +4,14 @@ import { offsetThrough } from '../../model/geometry/dimension';
 import { samePoint } from '../../model/geometry/polyline';
 import type { Vec2 } from '../../model/types';
 
-/** The dimension being drawn (session state, never in history). */
+/**
+ * The dimension being drawn (session state, never in history), at height `y`: the
+ * surface under A (absolute).
+ */
 type DimensionDraft =
-  { phase: 'idle' } | { phase: 'b'; a: Vec2 } | { phase: 'offset'; a: Vec2; b: Vec2 };
+  | { phase: 'idle' }
+  | { phase: 'b'; a: Vec2; y: number }
+  | { phase: 'offset'; a: Vec2; b: Vec2; y: number };
 
 export const DIMENSION_IDLE: DimensionDraft = { phase: 'idle' };
 

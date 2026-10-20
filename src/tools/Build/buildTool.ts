@@ -65,12 +65,12 @@ let wheelRest = 0;
 
 /**
  * Builds single game pieces (raw pieces) the way the game does (M17 §2): the armed
- * piece's ghost follows the ray onto pieces, the ground or the level plate and snaps to
- * the nearest pair of snap points; a click places it (the tool stays armed). The wheel
- * turns it 22.5° a notch (up is clockwise), R / Shift+R 90° / 22.5°; Q / E pick the snap
- * point (auto → 1 … n → auto); Shift or Alt places freely; Ctrl/⌘ + click removes a raw
- * piece or item. Esc disarms; with nothing armed (or copies carried from Select) it goes
- * back to Select.
+ * piece's ghost follows the pointer onto pieces or the ground (`pointerHit`) and snaps
+ * to the nearest pair of snap points; a click places it (the tool stays armed). The
+ * wheel turns it 22.5° a notch (up is clockwise), R / Shift+R 90° / 22.5°; Q / E pick the
+ * snap point (auto → 1 … n → auto); Shift or Alt places freely; Ctrl/⌘ + click removes a
+ * raw piece or item. Esc disarms; with nothing armed (or copies carried from Select) it
+ * goes back to Select.
  */
 export const buildTool: Tool = {
   id: 'build',
@@ -83,10 +83,6 @@ export const buildTool: Tool = {
     wheelRest = 0;
   },
   onPointerDown(e, ctx) {
-    press(ctx, e.button);
-  },
-  onPointerMiss(e, ctx) {
-    // A terrain-only hit has no work-plane point, but the ghost is there.
     press(ctx, e.button);
   },
   onWheel(e, ctx) {

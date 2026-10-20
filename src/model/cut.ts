@@ -14,9 +14,8 @@ import { FLOOR_TILE_PREFABS } from '../catalog/pieceClasses';
 
 import type { PlanCommand } from './commands';
 import { clampElevation, MAX_ELEVATION, MIN_ELEVATION, roundElevation } from './elevation';
-import { boxCorners } from './geometry/orient';
 import { ITEM_KINDS } from './itemKinds';
-import { propBox, type BoxLib, type PieceBox } from './pieceBoxes';
+import { boxBottom, propBox, type BoxLib, type PieceBox } from './pieceBoxes';
 import { rawBox } from './rawBoxes';
 import type { Selection, SelectionItem } from './selection';
 import type { Plan } from './types';
@@ -37,18 +36,6 @@ export const MIN_STOP_TILES = 2;
 export type CutDirection = 1 | -1;
 
 const shownAt = (bottom: number, h: number): boolean => bottom < h - CUT_EPS;
-
-const bottoms = new WeakMap<PieceBox, number>();
-
-/** The height of a box's lowest corner (a tilted roof slab's too). */
-export const boxBottom = (box: PieceBox): number => {
-  let bottom = bottoms.get(box);
-  if (bottom === undefined) {
-    bottom = Math.min(...boxCorners(box).map((c) => c.y));
-    bottoms.set(box, bottom);
-  }
-  return bottom;
-};
 
 const NONE: readonly PieceBox[] = [];
 
@@ -267,15 +254,21 @@ const stopBands = (
     if (last && stop.height - last.height <= CUT_EPS) last.top = Math.min(last.top, stop.top);
     else merged.push(stop);
   }
-  return merged;
+  // Tiles resting on a storey's floor (stacked, or a dais) are not a storey of their own.
+  const storeys: typeof stops = [];
+  for (const stop of merged) {
+    if (!storeys.some((lower) => Math.abs(stop.height - lower.top) <= STOP_GAP)) storeys.push(stop);
+  }
+  return storeys;
 };
 
 const stopCache = new WeakMap<readonly PieceBox[], readonly StoreyStop[]>();
 
 /**
  * The plan's storey stops, lowest first: clusters of at least `MIN_STOP_TILES` untilted
- * floor tiles whose walking tops lie within `STOP_GAP` of the next. `boxes` are
- * `pieceBoxes`' (cached per array).
+ * floor tiles whose walking tops lie within `STOP_GAP` of the next, except a cluster
+ * whose bottom is within `STOP_GAP` of a lower stop's walking top (tiles resting on that
+ * floor). `boxes` are `pieceBoxes`' (cached per array).
  */
 export const storeyStops = (
   boxes: readonly PieceBox[],
@@ -331,8 +324,24 @@ export const steppedCut = (
 };
 
 /**
- * Where new things go in the interim (pass 2): the walking surface of the highest stop
- * the cut shows (its floor below H); 0 at All or below every stop.
+ * The cut values a slider sweeps (`step` apart): from the first that shows something
+ * (the step just above the lowest box bottom) to the one PageDown from All gives (just
+ * under the highest bottom); null without boxes, or when no step value lies between
+ * them (every bottom within one step: only All shows anything new). Above `max` is All.
  */
-export const workPlaneOf = (stops: readonly StoreyStop[], h: number | null): number =>
-  h === null ? 0 : (stops.filter((s) => s.height < h - CUT_EPS).at(-1)?.top ?? 0);
+export const cutRange = (
+  boxes: readonly PieceBox[],
+  step: number
+): { min: number; max: number } | null => {
+  if (boxes.length === 0) return null;
+  let lowest = Infinity;
+  let highest = -Infinity;
+  for (const box of boxes) {
+    const bottom = boxBottom(box);
+    lowest = Math.min(lowest, bottom);
+    highest = Math.max(highest, bottom);
+  }
+  const max = steppedCut(null, -1, step, highest) ?? 0;
+  const min = roundElevation(clampElevation((Math.floor((lowest + CUT_EPS) / step) + 1) * step));
+  return min > max ? null : { min, max };
+};

@@ -12,7 +12,7 @@ const RING_SEGMENTS = 96;
 const RING_DASH = 0.6;
 
 /**
- * A station's build radius or the ward's, as a dashed circle on the work plane about
+ * A station's build radius or the ward's, as a dashed circle on its group's plane about
  * the prop's pivot (nothing for other props).
  */
 export const GroundRing = ({ prop }: { prop: Pick<Prop, 'prefab' | 'position' | 'upgrades'> }) => {

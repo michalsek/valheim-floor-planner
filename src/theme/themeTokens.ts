@@ -35,8 +35,6 @@ export interface ThemeTokens {
   propGroups: PropGroupColors;
   /** Darkness of the 3D view's ground shadows (0–1). */
   shadowAlpha: number;
-  /** The canvas background: pieces off the current level fade towards it in 3D. */
-  canvas: string;
   support: SupportColors;
   terrain: TerrainColors;
   /** The 3D view's tool drawing: lines, the cursor, valid and invalid ghosts. */
@@ -83,7 +81,6 @@ export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   selection: '#ff5ad2',
   propGroups: Object.fromEntries(PROP_KEYS.map((g) => [g, '#9aa3ad'])) as PropGroupColors,
   shadowAlpha: 0.4,
-  canvas: '#2a2c30',
   support: {
     grounded: '#5d9bd8',
     high: '#6cc46a',
@@ -147,7 +144,6 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
       PROP_KEYS.map((g) => [g, color(`--prop-${g}`, def.propGroups[g])])
     ) as PropGroupColors,
     shadowAlpha: number('--shadow-alpha', def.shadowAlpha, 1),
-    canvas: color('--canvas', def.canvas),
     support: {
       grounded: color('--support-grounded', def.support.grounded),
       high: color('--support-high', def.support.high),

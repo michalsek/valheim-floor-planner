@@ -10,37 +10,32 @@ import { cutStepAtom } from '../../store/session';
 import { commitCommands } from '../../tools/commitCommands';
 import { useToolContext } from '../../tools/toolContext';
 
-interface ElevationFieldProps {
-  item: SelectionItem;
-  /** The field's name ("Elevation"; a raw piece's is its pivot's "Height"). */
-  label?: string;
-  /** What the value is, for screen readers. */
-  description?: string;
-}
+/** What the height is, for screen readers. */
+const DESCRIPTIONS: Record<SelectionItem['kind'], string> = {
+  raw: "The pivot's height above the plan's 0, in metres",
+  prop: 'The height it stands at, in metres',
+  dimension: 'The height it is drawn at, in metres',
+};
 
-/** The height an item stands at, editable (Mod+PageUp / PageDown step it too). */
-export const ElevationField = ({
-  item,
-  label = 'Elevation',
-  description = 'Elevation in metres',
-}: ElevationFieldProps) => {
+/** The absolute height an item is at, editable (Mod+PageUp / PageDown step it too). */
+export const HeightField = ({ item }: { item: SelectionItem }) => {
   const ctx = useToolContext();
   const step = useAtomValue(cutStepAtom);
-  const elevation = ITEM_KINDS[item.kind].elevation(usePlan(), item.id);
-  if (elevation === null) return null;
+  const height = ITEM_KINDS[item.kind].elevation(usePlan(), item.id);
+  if (height === null) return null;
   // Shown to the millimetre; the stored value keeps its precision until edited.
-  const shown = Math.round(elevation * 1000) / 1000;
+  const shown = Math.round(height * 1000) / 1000;
   return (
-    <Field label={label} suffix="m">
+    <Field label="Height" suffix="m">
       <NumberInput
-        key={elevation}
-        label={description}
+        key={height}
+        label={DESCRIPTIONS[item.kind]}
         value={shown}
         step={step}
         onCommit={(next) => {
-          const cmds = raiseCommands(ctx.plan.getPlan(), [item], next - elevation);
+          const cmds = raiseCommands(ctx.plan.getPlan(), [item], next - height);
           // The cut rises if the item went above it, as Mod+PageUp does.
-          commitCommands(ctx, `Change ${label.toLowerCase()}`, cmds);
+          commitCommands(ctx, 'Change height', cmds);
         }}
       />
     </Field>

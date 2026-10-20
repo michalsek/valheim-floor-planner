@@ -25,7 +25,9 @@ export const PropPreview3d = () => {
   return (
     <>
       <GhostBoxes boxes={boxes} />
-      <GroundRing prop={{ prefab: ghost.def.prefab, position: ghost.position, upgrades: 0 }} />
+      <group position-y={ghost.elevation}>
+        <GroundRing prop={{ prefab: ghost.def.prefab, position: ghost.position, upgrades: 0 }} />
+      </group>
     </>
   );
 };

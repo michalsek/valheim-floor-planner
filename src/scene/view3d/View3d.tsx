@@ -6,43 +6,42 @@ import { useActiveToolId } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { useDisplayPlan } from '../../store/planHooks';
 import { realLookAtom } from '../../store/modelView';
-import { workPlaneAtom } from '../../store/session';
 import { useShownSiteTerrain } from '../../store/siteTerrain';
 import { keptPrefabsAtom } from '../../tools/Build/buildState';
 import { getTool } from '../../tools/toolbox';
 import { ToolPreview3d } from '../../tools/ToolPreview';
 
+import { CutGhosts } from './CutGhosts';
+import { CutOutline3d } from './CutOutline3d';
 import { Dimensions3d } from './Dimensions3d';
 import { DropLine3d } from './DropLine3d';
 import { withKeptPrefabs } from './GhostModel';
 import { Ground } from './Ground';
 import { releaseModels } from './assets/useModels';
-import { LevelPlate } from './LevelPlate';
 import { Lights } from './Lights';
 import { OrbitRig } from './OrbitRig';
 import { BoxPieces, ModelPieces } from './PlanPieces';
 import { cameraFloor, siteReach, withGround } from './siteBounds';
 import { SnapCursor3d } from './SnapCursor3d';
 import { Terrain3d } from './Terrain3d';
-import { useLevelShading } from './useLevelShading';
+import { useCutShading } from './useCutShading';
 import { useViewCamera } from './useViewCamera';
 
 const NEVER = atom(false);
 
 /**
  * The 3D view of the plan: a perspective camera with orbit controls, lights and ground
- * shadows, the flat ground or a site's terrain (`Terrain3d`), every piece and prop as a
- * box at its real size and its own elevation, or as its real game model (in material or
- * support colours, below the cut or with ghosts above it: `useLevelShading`), the
- * level plate at the work plane, pinned dimensions at their own heights, and the snap
- * cursor, its drop line and the active tool's previews on the
- * work plane. Picking always uses the boxes. Pointer input goes through `ToolHost`, as
- * in 2D.
+ * shadows, the flat ground or a site's terrain (`Terrain3d`), every piece and prop below
+ * the cut as a box at its real size and height, or as its real game model (in material
+ * or support colours: `useCutShading`), with Ghost on what the cut hides as frosted
+ * boxes (`CutGhosts`), the cut's outline at H, pinned dimensions at their own heights,
+ * and the snap cursor, its drop line and the active tool's previews on the surfaces
+ * under the pointer (all at absolute heights). Picking always uses the drawn boxes,
+ * never the ghosts. Pointer input goes through `ToolHost`, as in 2D.
  */
 export const View3d = () => {
   const camera = useViewCamera();
   const plan = useDisplayPlan();
-  const plane = useAtomValue(workPlaneAtom);
   const realLook = useAtomValue(realLookAtom);
   const gl = useThree((s) => s.gl);
   // Models outlive the view (leaving 3D keeps them); back to boxes frees them.
@@ -50,7 +49,8 @@ export const View3d = () => {
     if (!realLook) releaseModels(gl);
   }, [realLook, gl]);
 
-  const { boxes, retainBoxes, bounds: planBounds, colorOf, tintOf } = useLevelShading(plan);
+  const shading = useCutShading(plan);
+  const { boxes, ghosts, retainBoxes, bounds: planBounds, colorOf, tintOf } = shading;
   // The Build ghost's recent prefabs stay loaded with the plan's models.
   const kept = useAtomValue(keptPrefabsAtom);
   const retainModels = useMemo(
@@ -69,19 +69,17 @@ export const View3d = () => {
       <OrbitRig camera={camera} bounds={bounds} reach={siteReach(site)} floor={floor} />
       <Lights bounds={bounds} />
       {site ? <Terrain3d ground={site} /> : <Ground />}
-      <LevelPlate bounds={bounds} />
       {realLook ? (
         <ModelPieces boxes={boxes} retainBoxes={retainModels} colorOf={colorOf} tintOf={tintOf} />
       ) : (
         <BoxPieces boxes={boxes} retainBoxes={retainBoxes} colorOf={colorOf} />
       )}
+      <CutGhosts ghosts={ghosts} retainBoxes={retainBoxes} />
+      <CutOutline3d bounds={shading.shownBounds} />
       <Dimensions3d />
-      {/* Drawn on the work plane: the previews are built at y = 0 and lifted here. */}
-      <group position-y={plane}>
-        <ToolPreview3d />
-        {!cursorHidden && <SnapCursor3d />}
-        {!cursorHidden && <DropLine3d />}
-      </group>
+      <ToolPreview3d />
+      {!cursorHidden && <SnapCursor3d />}
+      {!cursorHidden && <DropLine3d />}
     </>
   );
 };

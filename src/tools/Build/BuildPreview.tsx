@@ -43,9 +43,9 @@ const Footprints = ({
   ));
 
 /**
- * 2D: the ghost's footprint in its state colour on the work plane, its snap points (the
- * manual one filled, the snapped pair ringed) and the label by the cursor; with Ctrl/⌘
- * held, the piece a click would remove (M17 §2.2).
+ * 2D: the ghost's footprint in its state colour, its snap points (the manual one filled,
+ * the snapped pair ringed) and the label by the cursor; with Ctrl/⌘ held, the piece a
+ * click would remove (M17 §2.2).
  */
 export const BuildPreview = () => {
   const ghost = useAtomValue(buildGhostAtom);

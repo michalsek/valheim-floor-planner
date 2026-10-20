@@ -49,7 +49,7 @@ const LinesPair = ({ lines, color, dash, throughPieces = true }: PlaneLinesProps
 };
 
 /**
- * Polylines on the plane at y = 0 of the enclosing group (the work plane), 1 px wide.
+ * Polylines on the plane at y = 0 of the enclosing group, 1 px wide.
  * Where pieces hide them they still show, faintly, so a line behind a wall is found
  * but doesn't read as being on its face. The GPU clips them at the camera, which an
  * SVG overlay can't do.

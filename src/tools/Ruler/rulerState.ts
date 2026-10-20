@@ -3,9 +3,14 @@ import { atom } from 'jotai';
 import { samePoint } from '../../model/geometry/polyline';
 import type { Vec2 } from '../../model/types';
 
-/** Transient ruler state. It lives in the session, never in the plan document. */
+/**
+ * Transient ruler state. It lives in the session, never in the plan document. `y` is the
+ * height it measures at: the surface under A (absolute).
+ */
 export type RulerState =
-  { phase: 'idle' } | { phase: 'placing'; a: Vec2 } | { phase: 'done'; a: Vec2; b: Vec2 };
+  | { phase: 'idle' }
+  | { phase: 'placing'; a: Vec2; y: number }
+  | { phase: 'done'; a: Vec2; b: Vec2; y: number };
 
 export const RULER_IDLE: RulerState = { phase: 'idle' };
 

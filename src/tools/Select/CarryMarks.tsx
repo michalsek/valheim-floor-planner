@@ -40,7 +40,7 @@ const CarryMarks = ({ project, labelAt }: MarksProps) => {
   );
 };
 
-/** 2D: the marks on the work plane, the label by the cursor. */
+/** 2D: the marks from above, the label by the cursor. */
 export const CarryMarks2d = () => {
   const toScreen = useWorldToScreen();
   const g = useAtomValue(selectGestureAtom);

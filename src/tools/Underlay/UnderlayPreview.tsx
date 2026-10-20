@@ -2,7 +2,7 @@ import { useAtomValue } from 'jotai';
 
 import styles from '../../overlay/Overlay.module.css';
 import { useWorldToScreen } from '../../overlay/useWorldToScreen';
-import { cursorAtom } from '../../store/session';
+import { cursorAtom } from '../../store/pointer';
 
 import { underlayGestureAtom } from './underlayState';
 

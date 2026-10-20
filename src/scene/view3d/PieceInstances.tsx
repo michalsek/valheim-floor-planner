@@ -71,7 +71,7 @@ const writeMatrices = (mesh: InstancedMesh, boxes: readonly PieceBox[]) => {
   });
   mesh.count = boxes.length;
   // An empty mesh (its boxes cut away) still draws, nothing, wherever the camera is: its
-  // program links when the view opens, not on the level step that first shows it.
+  // program links when the view opens, not on the cut step that first shows it.
   mesh.frustumCulled = boxes.length > 0;
   mesh.instanceMatrix.needsUpdate = true;
   // Culling uses the bounds; they'd be stale otherwise.

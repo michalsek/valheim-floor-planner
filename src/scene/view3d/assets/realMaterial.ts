@@ -10,7 +10,7 @@
  * seconds, on every entry to 3D). Here meshes of the same material shape share one
  * program. Each instance has its matrix (`MATRIX_ATTRIBUTES`, a turn and a move) and
  * mixes its colour towards its tint (`TINT_ATTRIBUTE`, sRGB + amount), for selection,
- * hover, support and levels.
+ * hover and support.
  */
 import {
   attribute,
@@ -124,8 +124,8 @@ export const createRealMaterial = ({
   const base = uniform(new Vector4(r, g, b, desc.color[3]));
   const surface = albedo ? texture(albedo, st).mul(base) : base;
   const tint = attribute(TINT_ATTRIBUTE, 'vec4');
-  // Mixed in sRGB, as the boxes' colours are: in linear a light tint (the canvas, for
-  // pieces off the level) washes dark textures out to white.
+  // Mixed in sRGB, as the boxes' colours are: in linear a light tint washes dark
+  // textures out to white.
   // (r186's typings return an untyped Node from the transfer functions.)
   const display = sRGBTransferOETF(surface.rgb) as Node<'vec3'>;
   const tinted = sRGBTransferEOTF(mix(display, tint.rgb, tint.a)) as Node<'vec3'>;

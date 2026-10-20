@@ -61,7 +61,7 @@ const writeMatrices = (mesh: Mesh, boxes: readonly PieceBox[]) => {
   buffer.needsUpdate = true;
   (mesh as Mesh & { count: number }).count = boxes.length;
   // An empty mesh (its boxes cut away) still draws, nothing, wherever the camera is:
-  // its program links with the others on entering 3D, not on the level step that
+  // its program links with the others on entering 3D, not on the cut step that
   // first shows it.
   mesh.frustumCulled = boxes.length > 0;
   const bounds = (mesh.geometry.boundingSphere ??= new Sphere());

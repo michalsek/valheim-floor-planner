@@ -3,13 +3,13 @@ import { useAtomValue } from 'jotai';
 import {
   activeToolIdAtom,
   autosaveStatusAtom,
-  cursorAtom,
   modifiersAtom,
   rendererBackendAtom,
   snapStepAtom,
   viewportAtom,
   viewportSizeAtom,
 } from './session';
+import { cursorAtom } from './pointer';
 import { themeTokensAtom } from './theme';
 import { viewModeAtom } from './view3d';
 

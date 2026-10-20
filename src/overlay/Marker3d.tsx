@@ -10,7 +10,10 @@ interface Marker3dProps {
   className?: string | undefined;
 }
 
-/** A constant-size dot or ring on a work-plane point (hidden behind the camera). */
+/**
+ * A constant-size dot or ring on a plan point, at the overlay's height (hidden behind
+ * the camera).
+ */
 export const Marker3d = ({ at, r, className = styles.marker }: Marker3dProps) => {
   const p = useProject3d()(at);
   return p ? <circle className={className} cx={p.x} cy={p.y} r={r} /> : null;
