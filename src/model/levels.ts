@@ -1,12 +1,12 @@
 /**
  * Levels, derived from the plan rather than stored: a level is a distinct elevation of
- * its walls, floors, props, dimensions, roofs and raw pieces (`LEVELLED_KINDS`; openings stand on
- * their wall's). Stairs and ladders connect levels rather than make them: each piece of a
- * flight belongs to the level the flight starts from. Pure.
+ * its props, dimensions and raw pieces (`LEVELLED_KINDS`). Stairs and ladders connect
+ * levels rather than make them: each piece of a flight belongs to the level the flight
+ * starts from. Pure.
  *
  * `levelPlan` is the plan as one level sees it. It shares the entity objects, and a
  * filtered record is reused while it keeps the same objects (an edit on another level
- * leaves it alone), so the per-object caches (splits, rooms) keep hitting; with
+ * leaves it alone), so the per-object caches (boxes, outlines) keep hitting; with
  * everything on one level it is the plan itself.
  */
 import type { Library } from '../catalog/library';
@@ -29,7 +29,7 @@ export interface Level {
   count: number;
 }
 
-/** A ghost reaches within this of the current level from below (stilts, tall walls). */
+/** A ghost reaches within this of the current level from below (stilts, tall poles). */
 const GHOST_REACH = 0.5;
 
 /**
@@ -79,7 +79,7 @@ export const levelIndex = (plan: Plan, lib: Lib): LevelIndex => {
   return index;
 };
 
-/** The level an item is on (an opening: its wall's; a stair piece: its flight's). */
+/** The level an item is on (a stair piece: its flight's). */
 export const levelOfItem = (plan: Plan, item: SelectionItem, lib: Lib): number | null => {
   const elevation = ITEM_KINDS[item.kind].elevation(plan, item.id);
   if (elevation === null) return null;
@@ -148,25 +148,17 @@ const filterRecord = <T>(
 type Keep = { readonly [K in LevelledRecord]: (value: Plan[K][string]) => boolean };
 
 /**
- * The plan with only what `keep` keeps (openings with their wall); `plan` when that is
- * all. Props have their own cache key: whether a stair piece is kept depends on the
- * levels, the other records' filters don't.
+ * The plan with only what `keep` keeps; `plan` when that is all. Props have their own
+ * cache key: whether a stair piece is kept depends on the levels, the other records'
+ * filters don't.
  */
 const filterPlan = (plan: Plan, cacheKey: string, keep: Keep, propsKey = cacheKey): Plan => {
   const key = (record: string) => `${record}|${record === 'props' ? propsKey : cacheKey}`;
-  const walls = filterRecord(plan.walls, key('walls'), keep.walls);
   const view: Plan = {
     ...plan,
-    walls,
-    floors: filterRecord(plan.floors, key('floors'), keep.floors),
     props: filterRecord(plan.props, key('props'), keep.props),
     dimensions: filterRecord(plan.dimensions, key('dimensions'), keep.dimensions),
-    roofs: filterRecord(plan.roofs, key('roofs'), keep.roofs),
     rawPieces: filterRecord(plan.rawPieces, key('rawPieces'), keep.rawPieces),
-    openings:
-      walls === plan.walls
-        ? plan.openings
-        : filterRecord(plan.openings, key('openings'), (o) => Object.hasOwn(walls, o.wallId)),
   };
   return LEVELLED_KINDS.every(({ record }) => view[record] === plan[record]) ? plan : view;
 };
@@ -196,10 +188,7 @@ export const levelPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
       plan,
       key,
       {
-        walls: on,
-        floors: on,
         dimensions: on,
-        roofs: on,
         rawPieces: on,
         props: (p) => sameLevel(index.levelOf(p.elevation, isConnector(p, lib)), level),
       },
@@ -211,7 +200,7 @@ export const levelPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
 /**
  * What the level at `elevation` shows faintly from below: everything on the nearest
  * lower level, and anything lower whose top reaches within `GHOST_REACH` of it (a stilt,
- * a tall wall). Dimensions and roofs are left out.
+ * a tall pole). Dimensions are left out.
  */
 export const ghostPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
   const index = levelIndex(plan, lib);
@@ -223,8 +212,6 @@ export const ghostPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
       level <= below + 1e-6 &&
       (sameLevel(level, below) || top >= elevation - GHOST_REACH);
     return filterPlan(plan, key, {
-      walls: (w) => ghost(w.elevation, w.elevation + w.height),
-      floors: (f) => ghost(f.elevation, f.elevation),
       props: (p) => {
         const span = propSpan(lib.propDefs.get(p.prefab));
         const level = index.levelOf(p.elevation, isConnector(p, lib));
@@ -233,17 +220,8 @@ export const ghostPlan = (plan: Plan, elevation: number, lib: Lib): Plan => {
       // A raw piece reaches up to about its pivot.
       rawPieces: (r) => ghost(r.elevation, r.elevation + r.position.y),
       dimensions: () => false,
-      roofs: () => false,
     });
   });
-};
-
-/** The heights of the tops of the walls on the level at `elevation`, lowest first. */
-export const wallTops = (plan: Plan, elevation: number, lib: Lib): number[] => {
-  const tops = Object.values(levelPlan(plan, elevation, lib).walls).map((w) =>
-    roundElevation(w.elevation + w.height)
-  );
-  return [...new Set(tops)].sort((a, b) => a - b);
 };
 
 /** Everything on the level at `elevation` (Mod+A), its flights included. */
@@ -253,12 +231,11 @@ export const itemsAt = (plan: Plan, elevation: number, lib: Lib): SelectionItem[
 /** Everything at or above `elevation`: what a ripple move takes along. */
 export const itemsFrom = (plan: Plan, elevation: number): Selection =>
   allItems(plan).filter((item) => {
-    if (!ITEM_KINDS[item.kind].levelled) return false;
     const e = ITEM_KINDS[item.kind].elevation(plan, item.id);
     return e !== null && (e > elevation || sameLevel(e, elevation));
   });
 
-/** Commands raising (or lowering) `items` by `dy` metres; openings ride on their wall. */
+/** Commands raising (or lowering) `items` by `dy` metres. */
 export const shiftElevation = (plan: Plan, items: Selection, dy: number): PlanCommand[] =>
   dy === 0 ? [] : items.flatMap((item) => ITEM_KINDS[item.kind].raise(plan, item.id, dy));
 
@@ -300,8 +277,8 @@ export interface LevelViewOptions {
  * The boxes the 3D view draws in `mode`. The current level and the hovered one are
  * drawn whole, `above` adds the higher levels and `all` is everything. `cut` hides what
  * is over the work height: it adds lower levels' boxes that start below
- * `datum + CUT_ABOVE`, and holds the current level's roof covers (a top storey's roof,
- * derived or imported) to the same rule; its gable walls and fills stay. `boxes` itself
+ * `datum + CUT_ABOVE`, and holds the current level's roof covers (a top storey's roof)
+ * to the same rule; its gable walls stay. `boxes` itself
  * when nothing is left out.
  */
 export const boxesInView = (

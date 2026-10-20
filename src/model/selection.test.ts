@@ -8,11 +8,11 @@ const plan: Plan = {
   dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 1, z: 0 }, offset: 0, elevation: 0 } },
 };
 const dim: SelectionItem = { kind: 'dimension', id: 'd' };
-const wall: SelectionItem = { kind: 'wall', id: 'gone' };
+const gone: SelectionItem = { kind: 'raw', id: 'gone' };
 
 describe('selection', () => {
   it('normalizeSelection drops missing items and repeats, else returns the same array', () => {
-    expect(normalizeSelection(plan, [dim, wall, dim])).toEqual([dim]);
+    expect(normalizeSelection(plan, [dim, gone, dim])).toEqual([dim]);
     const valid = [dim];
     expect(normalizeSelection(plan, valid)).toBe(valid);
   });

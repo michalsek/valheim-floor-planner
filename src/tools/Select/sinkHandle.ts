@@ -1,17 +1,18 @@
 /**
- * The 3D sink handle: a selection of raw pieces, items, wall runs and floors that rests
- * on the ground (some piece's bottom on the terrain, or on y = 0 without one) and that no
- * unselected piece holds (none rests on or is snapped to one) can be lowered into the
- * ground by dragging a vertical arrow over it, and raised back up until a piece is on
- * the ground again. It changes a raw piece's height off its level, or a drawn item's
- * elevation, within the usual limits; the depth snaps to the elevation step (0.1 m with
- * Shift). The whole selection moves together, so a stack sinks as one.
+ * The 3D sink handle: a selection of raw pieces and items that rests on the ground (some
+ * piece's bottom on the terrain, or on y = 0 without one) and that no unselected piece
+ * holds (none rests on or is snapped to one) can be lowered into the ground by dragging
+ * a vertical arrow over it, and raised back up until a piece is on the ground again. It
+ * changes a raw piece's height off its level, or an item's elevation, within the usual
+ * limits; the depth snaps to the elevation step (0.1 m with Shift). The whole selection
+ * moves together, so a stack sinks as one.
  */
 import { boxBounds, boxSnapPoints, snapIndex, snapsNear } from '../../model/build/snapPoints';
 import type { PlanCommand } from '../../model/commands';
 import { MIN_ELEVATION } from '../../model/elevation';
 import { convexHull } from '../../model/geometry/convex';
 import { boxCorners } from '../../model/geometry/orient';
+import { round6 } from '../../model/geometry/round';
 import type { PieceBox } from '../../model/pieceBoxes';
 import { MAX_RAW_HEIGHT } from '../../model/rawPieces';
 import type { Selection, SelectionItem } from '../../model/selection';
@@ -28,7 +29,7 @@ const JOINED = 0.03;
 /** The finer depth step with Shift (metres). */
 export const FINE_STEP = 0.1;
 
-const SINKABLE: ReadonlySet<SelectionItem['kind']> = new Set(['raw', 'prop', 'wall', 'floor']);
+const SINKABLE: ReadonlySet<SelectionItem['kind']> = new Set(['raw', 'prop']);
 
 export interface SinkTarget {
   item: SelectionItem;
@@ -42,14 +43,9 @@ export interface SinkTarget {
 
 const sameItem = (a: SelectionItem, b: SelectionItem) => a.kind === b.kind && a.id === b.id;
 
-/**
- * The height an item rests at: its lowest box bottom, or a floor's walking surface
- * (floors hang below their elevation).
- */
-const baseOf = (plan: Plan, item: SelectionItem, boxes: readonly PieceBox[]): number =>
-  item.kind === 'floor'
-    ? (plan.floors[item.id]?.elevation ?? 0)
-    : Math.min(...boxes.map((box) => boxBounds(box).min.y));
+/** The height an item rests at: its lowest box bottom. */
+const baseOf = (boxes: readonly PieceBox[]): number =>
+  Math.min(...boxes.map((box) => boxBounds(box).min.y));
 
 /** Whether another piece's top is under the item's base, within its footprint's bounds. */
 const restsOnPiece = (boxes: readonly PieceBox[], others: readonly PieceBox[], base: number) => {
@@ -71,7 +67,7 @@ const snappedToOther = (plan: Plan, boxes: readonly PieceBox[], selection: Selec
     boxSnapPoints(box, lib).some((p) =>
       snapsNear(index, p, JOINED).some((t) => {
         const other = index.boxes[t.box]!;
-        return other.kind !== 'opening' && !selection.some((s) => sameItem(s, other.item));
+        return !selection.some((s) => sameItem(s, other.item));
       })
     )
   );
@@ -94,11 +90,9 @@ const targetOf = (
   const footprint = convexHull(corners.map((c) => ({ x: c.x, z: c.z })));
   const site = getSiteGround(plan);
   const ground = site ? groundUnderOrEdge(site.grid, site.frame, footprint) : 0;
-  const base = baseOf(plan, item, boxes);
+  const base = baseOf(boxes);
   if (restsOnPiece(boxes, others, base)) return null;
-  if ((item.kind === 'raw' || item.kind === 'prop') && snappedToOther(plan, boxes, selection)) {
-    return null;
-  }
+  if (snappedToOther(plan, boxes, selection)) return null;
   const xs = corners.map((c) => c.x);
   const zs = corners.map((c) => c.z);
   const top = {
@@ -137,8 +131,6 @@ export const sinkTargets = (plan: Plan, selection: Selection): SinkTarget[] => {
   return result;
 };
 
-const round6 = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
-
 /** An item lowered (negative) or raised by `shift` metres, within the limits. */
 const shiftCommand = (plan: Plan, item: SelectionItem, shift: number): PlanCommand | null => {
   switch (item.kind) {
@@ -149,19 +141,11 @@ const shiftCommand = (plan: Plan, item: SelectionItem, shift: number): PlanComma
       const y = round6(Math.max(min, piece.position.y + shift));
       return { type: 'raw.patch', id: item.id, changes: { position: { ...piece.position, y } } };
     }
-    case 'prop':
-    case 'wall':
-    case 'floor': {
-      const source =
-        item.kind === 'prop'
-          ? plan.props[item.id]
-          : item.kind === 'wall'
-            ? plan.walls[item.id]
-            : plan.floors[item.id];
-      if (!source) return null;
-      const elevation = round6(Math.max(MIN_ELEVATION, source.elevation + shift));
-      const type = `${item.kind}.patch` as const;
-      return { type, id: item.id, changes: { elevation } } as PlanCommand;
+    case 'prop': {
+      const prop = plan.props[item.id];
+      if (!prop) return null;
+      const elevation = round6(Math.max(MIN_ELEVATION, prop.elevation + shift));
+      return { type: 'prop.patch', id: item.id, changes: { elevation } };
     }
     default:
       return null;

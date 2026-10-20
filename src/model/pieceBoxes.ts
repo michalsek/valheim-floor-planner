@@ -1,13 +1,13 @@
 /**
- * The plan as boxes in 3D: every derived piece and every prop, at its real size and
- * height. Pure; the 3D view draws them as instances, tools draw their previews with the
- * per-kind builders, picking casts rays against them (`geometry/ray.ts`) and the
- * support check takes them as its bodies (`support/`).
+ * The plan as boxes in 3D: every prop and raw piece, at its real size and height. Pure;
+ * the 3D view draws them as instances, tools draw their previews with the per-kind
+ * builders, picking casts rays against them (`geometry/ray.ts`) and the support check
+ * takes them as its bodies (`support/`).
  *
- * Vertical convention: an object's elevation is its level's walking surface. A piece's
- * bottom is at elevation + `piece.base`: floors hang below it (base = −thickness);
- * walls and openings stand on it. Props stand on it at their collider's height span;
- * stairs, ladders, poles and beams with their whole collider.
+ * Vertical convention: a prop stands on its elevation at its collider's height span
+ * (stairs, ladders, poles and beams with their whole collider; see `propSpan`). A raw
+ * piece's pivot is at its elevation plus its own `position.y`, and its box is the
+ * prefab's collider (or roof shape) about that pivot (`rawBoxes.ts`).
  */
 import type { Library } from '../catalog/library';
 import {
@@ -18,25 +18,18 @@ import {
   type PropGroup,
 } from '../catalog/propDefs';
 
-import type { Derived } from './derivePlan';
-import { boxArea } from './geometry/box';
 import type { Bounds3 } from './geometry/bounds3';
 import { boxCorners } from './geometry/orient';
 import type { PieceShape } from './geometry/shapes';
 import { propCentre } from './geometry/propGeometry';
 import type { Hit } from './hitTest';
-import { ITEM_KINDS } from './itemKinds';
-import { pieceAnchor, pivotFrom, propPivotLift } from './piecePivot';
+import { propPivotLift } from './piecePivot';
 import { propArea } from './props';
-import { FLOOR_LIFT, PANEL_THICKNESS, rawBox } from './rawBoxes';
-import { roofPieceBoxes } from './roofBoxes';
-
-export { ROOF_SLAB, roofPieceBoxes } from './roofBoxes';
+import { rawBox } from './rawBoxes';
 import type { SelectionItem } from './selection';
-import { isOddTile } from './splitFloor';
-import type { PlacedPiece, Plan, Prop, Vec3 } from './types';
+import type { Plan, Prop, Vec3 } from './types';
 
-export type PieceBoxKind = 'wall' | 'floor' | 'opening' | 'prop' | 'roof' | 'raw';
+export type PieceBoxKind = 'prop' | 'raw';
 
 export interface PieceBox {
   /** Unique among the boxes of one plan. */
@@ -50,8 +43,6 @@ export interface PieceBox {
   material: string | null;
   /** The prop's group; null for pieces (and unknown props). */
   group: PropGroup | null;
-  /** The darker shade of a floor's checkerboard. */
-  odd: boolean;
   /** The elevation of the plan object it belongs to (its level). */
   elevation: number;
   center: Vec3;
@@ -64,7 +55,7 @@ export interface PieceBox {
   rollZ?: number;
   /** What the box holds, when not a solid box (roof corners, gable triangles). */
   shape?: PieceShape;
-  /** A roof's covering piece (not its gable walls or filler courses): hidden with roofs. */
+  /** A roof's covering piece (not its gable walls): hidden with roofs. */
   roofCover?: true;
   /** The piece's or prop's prefab (its model); null when unknown. */
   prefab: string | null;
@@ -80,63 +71,10 @@ export interface PieceBox {
   modelTurn?: Vec3;
 }
 
-export { PANEL_THICKNESS } from './rawBoxes';
-
 const DEG = Math.PI / 180;
 
 /** The shortest prop box, so a prop whose collider is all below its pivot still shows. */
 const MIN_PROP_HEIGHT = 0.1;
-
-/** A derived piece's box, standing on (or, for floors, hanging below) `elevation`. */
-const placedBox = (piece: PlacedPiece, hit: Hit, elevation: number): PieceBox => {
-  const { length, thickness } = piece.footprint;
-  const across = piece.kind === 'opening' ? Math.min(PANEL_THICKNESS, thickness) : thickness;
-  // Floor tops are lifted a hair, so a floor level with the wall top under it doesn't
-  // flicker against it.
-  const bottom = elevation + piece.base + (piece.kind === 'floor' ? FLOOR_LIFT : 0);
-  const center = { x: piece.center.x, y: bottom + piece.height / 2, z: piece.center.z };
-  return {
-    key: piece.key,
-    item: { kind: piece.kind, id: piece.sourceId },
-    hit,
-    kind: piece.kind,
-    material: piece.material,
-    group: null,
-    odd: piece.kind === 'floor' && isOddTile(piece),
-    elevation,
-    center,
-    size: { x: length, y: piece.height, z: across },
-    // The plan's angle turns +x towards +z (clockwise seen from above).
-    rotationY: -piece.rotation,
-    prefab: piece.prefab,
-    // At the centre until `withAnchor` knows the prefab's anchor.
-    pivot: center,
-  };
-};
-
-/** Wall pieces (every course), e.g. a run's split or the wall tool's preview. */
-export const wallPieceBoxes = (pieces: readonly PlacedPiece[], elevation = 0): PieceBox[] =>
-  pieces.map((piece) =>
-    placedBox(
-      piece,
-      { kind: 'wall', id: piece.sourceId, segment: piece.segment, distance: 0 },
-      elevation
-    )
-  );
-
-/** Floor tiles; `areaOf` gives each floor's area (what its hit reports). */
-export const floorPieceBoxes = (
-  pieces: readonly PlacedPiece[],
-  areaOf: (floorId: string) => number,
-  elevation = 0
-): PieceBox[] =>
-  pieces.map((piece) =>
-    placedBox(piece, { kind: 'floor', id: piece.sourceId, area: areaOf(piece.sourceId) }, elevation)
-  );
-
-/** A door or gate panel in its gap. */
-export const openingBox = (piece: PlacedPiece, elevation = 0): PieceBox =>
-  placedBox(piece, { kind: 'opening', id: piece.sourceId, distance: 0 }, elevation);
 
 /**
  * Where a prop's box sits above its elevation. Stairs, ladders, poles and beams stand
@@ -172,7 +110,6 @@ export const propBox = (
     kind: 'prop',
     material: def?.material ?? null,
     group: def?.group ?? null,
-    odd: false,
     elevation: prop.elevation,
     center: { x: centre.x, y: bottom + height / 2, z: centre.z },
     size: { x: rect.maxX - rect.minX, y: height, z: rect.maxZ - rect.minZ },
@@ -182,41 +119,14 @@ export const propBox = (
   };
 };
 
-/** A placed piece's box with its pivot off its prefab's anchor. */
-const withAnchor = (box: PieceBox, lib: Pick<Library, 'catalog'>): PieceBox => {
-  const def = box.prefab === null ? undefined : lib.catalog.pieces.get(box.prefab);
-  return { ...box, pivot: pivotFrom(box.center, box.rotationY, pieceAnchor(def, box.size)) };
-};
-
-const ofKind = (pieces: readonly PlacedPiece[], kind: PlacedPiece['kind']) =>
-  pieces.filter((piece) => piece.kind === kind);
-
-/** Every piece (all courses), prop and raw piece of the plan, each at its source's elevation. */
+/** Every prop and raw piece of the plan, each at its own elevation: props first. */
 export const pieceBoxes = (
-  derived: Pick<Derived, 'pieces' | 'roofPieces'>,
   plan: Plan,
   lib: Pick<Library, 'propDefs' | 'catalog' | 'roofFamilies' | 'gableWallSets'>
-): PieceBox[] => {
-  const floorArea = (id: string) => {
-    const floor = plan.floors[id];
-    return floor ? boxArea(floor) : 0;
-  };
-  const elevationOf = (piece: PlacedPiece): number =>
-    ITEM_KINDS[piece.kind].elevation(plan, piece.sourceId) ?? 0;
-  const placed = [
-    ...ofKind(derived.pieces, 'floor').flatMap((p) =>
-      floorPieceBoxes([p], floorArea, elevationOf(p))
-    ),
-    ...ofKind(derived.pieces, 'wall').flatMap((p) => wallPieceBoxes([p], elevationOf(p))),
-    ...ofKind(derived.pieces, 'opening').map((p) => openingBox(p, elevationOf(p))),
-  ];
-  return [
-    ...placed.map((box) => withAnchor(box, lib)),
-    ...roofPieceBoxes(derived.roofPieces, lib, (id) => plan.roofs[id]?.elevation ?? 0),
-    ...Object.values(plan.props).map((prop) => propBox(prop, lib)),
-    ...Object.values(plan.rawPieces).map((piece) => rawBox(piece, lib)),
-  ];
-};
+): PieceBox[] => [
+  ...Object.values(plan.props).map((prop) => propBox(prop, lib)),
+  ...Object.values(plan.rawPieces).map((piece) => rawBox(piece, lib)),
+];
 
 /** The axis-aligned box around every box (turns, tilts and shapes included); null when there are none. */
 export const boxesBounds = (boxes: readonly PieceBox[]): Bounds3 | null => {

@@ -3,7 +3,7 @@
  * file may carry the underlay image as a top-level `underlayImage` data URL.
  */
 import { planFileText, readPlanJson } from '../model/planFile';
-import { PlanParseError } from '../model/serialize';
+import { legacyItems, PlanParseError, type LegacyItems } from '../model/serialize';
 import { DEFAULT_PLAN_NAME, type Plan } from '../model/types';
 
 import { blobToDataUrl, dataUrlToBlob } from './prepareImage';
@@ -131,6 +131,8 @@ export interface PlanFile {
   plan: Plan;
   /** The embedded underlay image, if the file has one. */
   underlayImage: Blob | null;
+  /** The drawn items the file held, left out of `plan`; null when none. */
+  legacy: LegacyItems | null;
 }
 
 const embeddedImage = async (raw: unknown): Promise<Blob | null> => {
@@ -146,7 +148,11 @@ export const readPlanFile = async (file: File): Promise<PlanFile> => {
   }
   try {
     const raw: unknown = JSON.parse(await file.text());
-    return { plan: await readPlanJson(raw), underlayImage: await embeddedImage(raw) };
+    return {
+      plan: await readPlanJson(raw),
+      underlayImage: await embeddedImage(raw),
+      legacy: legacyItems(raw),
+    };
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new Error(`"${file.name}" isn't valid JSON.`, { cause: error });

@@ -2,7 +2,7 @@
  * Snap joints: two pieces with snap points within `SNAP_JOINT` of each other were
  * snapped together, so they touch for support even where their colliders only meet
  * along an edge (a ridge cap on two slopes, an arch on a wall's end). Passed to
- * `planSupport` as declared pairs, as `roofContacts` are. Pure.
+ * `planSupport` as declared pairs. Pure.
  */
 import { boxSnapPoints, type SnapLib } from '../build/snapPoints';
 import type { PieceBox } from '../pieceBoxes';

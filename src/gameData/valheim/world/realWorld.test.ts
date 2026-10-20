@@ -203,7 +203,7 @@ describe.skipIf(!dir)('a real world save', () => {
     const rate = (n: number, of: number) => `${n} / ${of} (${((100 * n) / of).toFixed(1)} %)`;
 
     it("shares a snap point with a neighbour (the catalogue's snap points match the build)", () => {
-      const boxes = pieceBoxes({ pieces: [], roofPieces: [] }, plan, testLibrary);
+      const boxes = pieceBoxes(plan, testLibrary);
       const index = snapIndex(boxes, testLibrary);
       const withSnaps = boxes.filter((box) => boxSnapPoints(box, testLibrary).length > 0);
       const coincident = withSnaps.filter((box) =>
@@ -218,7 +218,7 @@ describe.skipIf(!dir)('a real world save', () => {
 
     it('snaps a nudged piece back onto its place', () => {
       const raw = Object.values(plan.rawPieces);
-      const boxes = pieceBoxes({ pieces: [], roofPieces: [] }, plan, testLibrary);
+      const boxes = pieceBoxes(plan, testLibrary);
       const index = snapIndex(boxes, testLibrary);
       const nudges = [
         { x: 0.15, y: 0.05, z: -0.1 },

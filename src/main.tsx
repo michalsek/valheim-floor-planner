@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { startInstall } from './install/loadInstall';
 import { openPlanStorage, startAutosave } from './store/autosave';
+import { fileStatusAtom, legacyNotice } from './store/fileActions';
 import { pruneImages } from './store/imageStore';
 import { planStore } from './store/planInstance';
 import { startSelectionSync } from './store/selection';
@@ -26,6 +27,8 @@ const Root = () => (useInstall().loaded ? <App /> : <InstallGate />);
 const start = async () => {
   const storage = await openPlanStorage();
   planStore.load(storage.plan);
+  if (storage.legacy)
+    sessionStore.set(fileStatusAtom, legacyNotice(storage.legacy, storage.keptAside));
   // After the load, so the loaded plan isn't saved straight back.
   if (storage.saver) {
     startAutosave(planStore, storage.saver, {

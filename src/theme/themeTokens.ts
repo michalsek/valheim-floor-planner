@@ -1,6 +1,6 @@
 /**
  * The theme values that don't reach the page through CSS: the grid shader uniforms, the
- * slab mesh colours and the 3D view's colours (its tool lines and ghosts too). Parsed
+ * material colours and the 3D view's colours (its tool lines and ghosts too). Parsed
  * from the CSS custom properties in `global.css` through a getter, so this module stays
  * pure and testable; `store/theme.ts` feeds it `getComputedStyle`.
  */
@@ -28,8 +28,6 @@ export interface ThemeTokens {
   gridLine: string;
   /** Multiplies every grid level's opacity (light themes need quieter lines). */
   gridAlphaScale: number;
-  /** Floor slab opacity (0–1). */
-  floorOpacity: number;
   palette: MaterialPalette;
   /** Selected and hovered items (the 3D view mixes it into their colour). */
   selection: string;
@@ -39,8 +37,6 @@ export interface ThemeTokens {
   shadowAlpha: number;
   /** The canvas background: pieces off the current level fade towards it in 3D. */
   canvas: string;
-  /** The level below in 2D (its slabs; the overlay reads the same `--ghost`). */
-  ghost: string;
   support: SupportColors;
   terrain: TerrainColors;
   /** The 3D view's tool drawing: lines, the cursor, valid and invalid ghosts. */
@@ -80,18 +76,14 @@ const PROP_KEYS = [...PROP_GROUPS, 'fallback'] as const;
 export const DEFAULT_THEME_TOKENS: ThemeTokens = {
   gridLine: '#b4c2d0',
   gridAlphaScale: 0.8,
-  floorOpacity: 0.6,
   palette: {
     materials: uniformMaterials(FALLBACK),
     fallback: FALLBACK,
-    floorBase: '#3d424a',
-    floorShare: 0.4,
   },
   selection: '#ff5ad2',
   propGroups: Object.fromEntries(PROP_KEYS.map((g) => [g, '#9aa3ad'])) as PropGroupColors,
   shadowAlpha: 0.4,
   canvas: '#2a2c30',
-  ghost: '#8a929c',
   support: {
     grounded: '#5d9bd8',
     high: '#6cc46a',
@@ -146,12 +138,9 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
   return {
     gridLine: color('--grid-line', def.gridLine),
     gridAlphaScale: number('--grid-alpha-scale', def.gridAlphaScale),
-    floorOpacity: number('--floor-opacity', def.floorOpacity, 1),
     palette: {
       materials,
       fallback,
-      floorBase: color('--floor-base', def.palette.floorBase),
-      floorShare: number('--floor-material-share', def.palette.floorShare, 1),
     },
     selection: color('--selection', def.selection),
     propGroups: Object.fromEntries(
@@ -159,7 +148,6 @@ export const readThemeTokens = (get: (name: string) => string): ThemeTokens => {
     ) as PropGroupColors,
     shadowAlpha: number('--shadow-alpha', def.shadowAlpha, 1),
     canvas: color('--canvas', def.canvas),
-    ghost: color('--ghost', def.ghost),
     support: {
       grounded: color('--support-grounded', def.support.grounded),
       high: color('--support-high', def.support.high),

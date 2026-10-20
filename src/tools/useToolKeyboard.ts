@@ -99,7 +99,7 @@ const KEYMAP: readonly KeyBinding[] = [
     keys: ['0'],
     run: (s) => (in3d(s) ? requestOrbit(s, 'reset') : s.set(viewportAtom, DEFAULT_VIEWPORT)),
   },
-  // Home or Shift+1 frames the whole plan (F is the wall tool's flip).
+  // Home or Shift+1 frames the whole plan.
   {
     test: (e) =>
       !isMod(e) && !e.altKey && (e.key === 'Home' || (e.shiftKey && e.code === 'Digit1')),

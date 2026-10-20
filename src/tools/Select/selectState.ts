@@ -3,7 +3,7 @@ import { atom } from 'jotai';
 import type { BoxMode } from '../../model/geometry/box';
 import type { Hit } from '../../model/hitTest';
 import type { Selection } from '../../model/selection';
-import type { Vec2, WallRun } from '../../model/types';
+import type { Vec2 } from '../../model/types';
 import type { ScreenPoint } from '../../viewport/viewportMath';
 
 import type { SinkTarget } from './sinkHandle';
@@ -49,8 +49,6 @@ export type SelectGesture =
       currentScreen: ScreenPoint;
       additive: boolean;
     }
-  /** Dragging a corner of `run` (as it was at the start) to `target`, the last accepted one. */
-  | { phase: 'vertex'; run: WallRun; index: number; target: Vec2 }
   /** Snap-moving a selection of raw pieces (`snapMove.ts`); previewed in `editPreviewAtom`. */
   | { phase: 'carrying'; items: Selection; carry: Carry }
   /**

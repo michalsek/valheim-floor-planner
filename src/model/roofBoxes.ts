@@ -1,57 +1,51 @@
 /**
- * Roof pieces as 3D boxes: a straight piece is a slab tilted down its slope, ridges and
- * corners are their shapes, gable walls stand as they are. Used for derived roofs and
- * for imported raw roof pieces. Pure.
+ * Raw roof pieces as 3D boxes (`rawBoxes.ts`): a straight piece is a slab tilted down
+ * its slope, ridges and corners are their shapes, gable walls stand as they are. Pure.
  */
 import type { Library } from '../catalog/library';
 
 import { boxAxes } from './geometry/orient';
+import type { PieceShape } from './geometry/shapes';
 import type { PieceBox } from './pieceBoxes';
 import { pieceAnchor, pivotFrom } from './piecePivot';
-import type { RoofPiece } from './roofs/roofPiece';
+import type { Vec3 } from './types';
 
 /** A roof slab's thickness (metres): straight roof pieces are drawn as one. */
-export const ROOF_SLAB = 0.12;
+const ROOF_SLAB = 0.12;
 
-/** Who a roof box belongs to: a derived roof (default) or an imported raw piece. */
-export type RoofBoxOwner = Pick<PieceBox, 'key' | 'item' | 'hit' | 'kind'> & {
-  /** Hidden with the Roofs toggle (a derived roof's covering cells). */
-  cover: boolean;
-};
+/** What a roof prefab is in its family: a cover piece, or a gable wall. */
+export type RoofRole = 'straight' | 'ridge' | 'outer' | 'inner' | 'gableTri' | 'gablePeak';
+
+/** A placed roof piece, as `roofBody` reads it. */
+export interface RoofPiece {
+  prefab: string;
+  shape: PieceShape;
+  /** The middle of the box its snap points span (absolute height). */
+  center: Vec3;
+  /** That box in the piece's own frame: x along the eave (or wall), y its rise, z its run. */
+  size: Vec3;
+  /** Turn about +y (three.js sense) of the piece's own frame. */
+  yaw: number;
+  /** The slope (radians) of a cover piece; 0 for gable walls. */
+  slope: number;
+}
+
+/** The fields of a box that a roof piece's shape decides. */
+export type RoofBody = Pick<
+  PieceBox,
+  'center' | 'size' | 'rotationY' | 'tiltX' | 'shape' | 'pivot'
+>;
 
 /**
  * A roof piece's box. A straight piece is a slab tilted down its slope with its
  * underside on the roof plane, so it covers the wall top it rests on; ridges and
- * corners are their shape in their cell's box, lifted as much, so the tops meet; gable
- * walls stand as they are. The model's pivot comes from the cell box, which spans the
- * prefab's snap points. Piece frames are in planner space: downhill is local −z.
+ * corners are their shape in the box its snap points span, lifted as much, so the tops
+ * meet; gable walls stand as they are. The model's pivot comes from that box. Piece
+ * frames are in planner space: downhill is local −z.
  */
-export const roofBox = (
-  piece: RoofPiece,
-  elevation: number,
-  lib: Pick<Library, 'catalog'>,
-  owner?: RoofBoxOwner
-): PieceBox => {
-  const item = { kind: 'roof', id: piece.sourceId } as const;
+export const roofBody = (piece: RoofPiece, lib: Pick<Library, 'catalog'>): RoofBody => {
   const anchor = pieceAnchor(lib.catalog.pieces.get(piece.prefab), piece.size);
-  const { cover, ...own } = owner ?? {
-    key: piece.key,
-    item,
-    hit: { ...item, distance: 0 },
-    kind: 'roof' as const,
-    cover: piece.cell !== null,
-  };
-  const common = {
-    ...own,
-    material: piece.material,
-    group: null,
-    odd: false,
-    elevation,
-    rotationY: piece.yaw,
-    prefab: piece.prefab,
-    pivot: pivotFrom(piece.center, piece.yaw, anchor),
-    ...(cover ? { roofCover: true as const } : {}),
-  };
+  const common = { rotationY: piece.yaw, pivot: pivotFrom(piece.center, piece.yaw, anchor) };
   if (piece.slope === 0) {
     return { ...common, center: piece.center, size: piece.size, shape: piece.shape };
   }
@@ -72,10 +66,3 @@ export const roofBox = (
   };
   return { ...common, center, size, tiltX };
 };
-
-/** Roof pieces' boxes, each at its roof's elevation (`elevationOf`). */
-export const roofPieceBoxes = (
-  pieces: readonly RoofPiece[],
-  lib: Pick<Library, 'catalog'>,
-  elevationOf: (roofId: string) => number = () => 0
-): PieceBox[] => pieces.map((piece) => roofBox(piece, elevationOf(piece.sourceId), lib));

@@ -5,11 +5,12 @@
  * change. The datum (`origin.y`) and the levels stay, so the terrain, stored on the
  * world's vertex grid in heights above the datum, needs no change.
  *
- * Only a plan of raw pieces can be re-framed: drawn walls, floors, rooms, roofs and
- * props are laid out along the plan's axes, so turning them by a build's 22.5° would
- * take them off their own grids. Pure.
+ * Only a plan of raw pieces can be re-framed: props, dimensions and an underlay are
+ * laid out along the plan's axes, so turning them by a build's 22.5° would take them
+ * off their own grids. Pure.
  */
 import { normalizeDeg } from '../geometry/propGeometry';
+import { round6 } from '../geometry/round';
 import { planToWorld, worldToPlan, type SiteFrame } from '../terrain/siteTerrain';
 import type { Plan, RawPiece, Vec3 } from '../types';
 
@@ -17,25 +18,20 @@ import type { FramedPiece, ImportLib } from './framePieces';
 import { frameCorner, frameYaw, type FrameGrid } from './frameGrid';
 import { dominantYaw } from './pieceCloud';
 
-const round6 = (n: number): number => Math.round(n * 1e6) / 1e6 + 0;
-
-/** How many drawn items (anything but raw pieces) a plan holds, an underlay counted. */
-export const drawnItemCount = (plan: Plan): number =>
-  Object.keys(plan.walls).length +
-  Object.keys(plan.floors).length +
-  Object.keys(plan.openings).length +
-  Object.keys(plan.props).length +
-  Object.keys(plan.roofs).length +
-  Object.keys(plan.dimensions).length +
-  (plan.underlay ? 1 : 0);
+/**
+ * How many items laid out on the plan's grid (anything but raw pieces) a plan holds, an
+ * underlay counted.
+ */
+export const gridItemCount = (plan: Plan): number =>
+  Object.keys(plan.props).length + Object.keys(plan.dimensions).length + (plan.underlay ? 1 : 0);
 
 /** Why `plan` can't be re-framed; null when it can. */
 export const reframeProblem = (plan: Plan): string | null => {
   if (!plan.importFrame) return 'Only an imported build has a world frame.';
   if (Object.keys(plan.rawPieces).length === 0) return 'The plan has no imported pieces.';
-  const drawn = drawnItemCount(plan);
-  if (drawn > 0) {
-    return `Only a plan of imported pieces can turn its grid: this one has ${drawn} drawn ${drawn === 1 ? 'item' : 'items'} (walls, floors, roofs, props, dimensions or an underlay), which would be turned off their grid.`;
+  const count = gridItemCount(plan);
+  if (count > 0) {
+    return `Only a plan of imported pieces can turn its grid: this one has ${count} ${count === 1 ? 'item' : 'items'} laid out on the plan's grid (props, dimensions or an underlay), which would be turned off it.`;
   }
   return null;
 };

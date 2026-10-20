@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { encodeHeights } from '../model/terrain/siteTerrain';
 import { emptyPlan, type Plan } from '../model/types';
 
-import { readPlanRecord, writePlanRecord } from './planDb';
+import { keepLegacyRecord, readPlanRecord, writePlanRecord } from './planDb';
 import { fakeDb } from './testIdb';
 
 const withTerrain = (): Plan => ({
@@ -47,5 +47,16 @@ describe('the plan database', () => {
     expect(await readPlanRecord(fake.db)).toBeNull();
     fake.failing = true;
     await expect(readPlanRecord(fake.db)).rejects.toThrow();
+  });
+
+  it('keeps a legacy record once: never replaced, true only for the same record', async () => {
+    const fake = fakeDb();
+    const first = { ...withTerrain(), walls: { w: { id: 'w' } } };
+    expect(await keepLegacyRecord(fake.db, first)).toBe(true);
+    expect(await keepLegacyRecord(fake.db, structuredClone(first))).toBe(true);
+    expect(await keepLegacyRecord(fake.db, { ...first, name: 'Other' })).toBe(false);
+    expect(fake.data.get('legacy')).toEqual(first);
+    fake.failing = true;
+    expect(await keepLegacyRecord(fake.db, first)).toBe(false);
   });
 });

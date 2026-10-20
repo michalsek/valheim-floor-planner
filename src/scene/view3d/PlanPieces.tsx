@@ -9,9 +9,6 @@ import type { PieceColorer, PieceTinter } from './pieceColors';
 import { PieceInstances } from './PieceInstances';
 import { createPieceMaterial } from './pieceMaterial';
 
-/** Door and gate boxes are see-through, so the gap they stand in still reads. */
-const PANEL_OPACITY = 0.35;
-
 /** Dev only: `?modelBoxes` draws every box's wireframe over the models. */
 const SHOW_MODEL_BOXES =
   import.meta.env.DEV && new URLSearchParams(window.location.search).has('modelBoxes');
@@ -19,7 +16,6 @@ const SHOW_MODEL_BOXES =
 const createMaterials = () => ({
   solid: createPieceMaterial({ opacity: 1 }),
   shaped: createPieceMaterial({ opacity: 1, edges: false }),
-  panel: createPieceMaterial({ opacity: PANEL_OPACITY }),
 });
 
 interface BoxPiecesProps {
@@ -34,12 +30,9 @@ interface BoxPiecesProps {
   colorOf: PieceColorer;
 }
 
-const isPanel = (b: PieceBox) => b.kind === 'opening';
-const isSolid = (b: PieceBox) => b.kind !== 'opening';
-
 /**
- * Boxes in plan colours: one instanced draw for walls, floors, props and roof slabs, one
- * per roof shape, one for panels.
+ * Boxes in plan colours: one instanced draw for pieces, props and roof slabs, one per
+ * roof shape.
  */
 export const BoxPieces = ({ boxes, retainBoxes = boxes, colorOf }: BoxPiecesProps) => {
   const [materials] = useState(createMaterials);
@@ -47,32 +40,18 @@ export const BoxPieces = ({ boxes, retainBoxes = boxes, colorOf }: BoxPiecesProp
     () => () => {
       materials.solid.dispose();
       materials.shaped.dispose();
-      materials.panel.dispose();
     },
     [materials]
   );
-  const solid = useMemo(() => boxes.filter(isSolid), [boxes]);
-  const panels = useMemo(() => boxes.filter(isPanel), [boxes]);
-  const retainSolid = useMemo(() => retainBoxes.filter(isSolid), [retainBoxes]);
-  const retainPanels = useMemo(() => retainBoxes.filter(isPanel), [retainBoxes]);
   return (
-    <>
-      <PieceInstances
-        boxes={solid}
-        retain={retainSolid}
-        colorOf={colorOf}
-        material={materials.solid}
-        shapeMaterial={materials.shaped}
-        castShadow
-      />
-      <PieceInstances
-        boxes={panels}
-        retain={retainPanels}
-        colorOf={colorOf}
-        material={materials.panel}
-        castShadow={false}
-      />
-    </>
+    <PieceInstances
+      boxes={boxes}
+      retain={retainBoxes}
+      colorOf={colorOf}
+      material={materials.solid}
+      shapeMaterial={materials.shaped}
+      castShadow
+    />
   );
 };
 
@@ -94,8 +73,7 @@ interface ModelPiecesProps extends BoxPiecesProps {
 
 /**
  * The real game models, tinted like the boxes are coloured; pieces whose model isn't
- * loaded (or that draw nothing) stay boxes. Door and gate models are drawn solid: at
- * the boxes' panel opacity they looked like ghosts.
+ * loaded (or that draw nothing) stay boxes.
  */
 export const ModelPieces = ({ boxes, retainBoxes, colorOf, tintOf }: ModelPiecesProps) => {
   const prefabs = useMemo(

@@ -23,7 +23,6 @@ import { WorldButton } from '../WorldPanel/WorldButton';
 
 const hasUnderlay = (plan: Plan) => plan.underlay !== null;
 const hasRoofs = (plan: Plan) =>
-  Object.keys(plan.roofs).length > 0 ||
   Object.values(plan.rawPieces).some((piece) => isRawRoofCover(piece, getLibrary()));
 
 /**

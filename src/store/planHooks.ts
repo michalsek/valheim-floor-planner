@@ -81,7 +81,7 @@ const boxesCache = new WeakMap<Plan, PieceBox[]>();
 export const getPieceBoxes = (plan: Plan): PieceBox[] => {
   let boxes = boxesCache.get(plan);
   if (!boxes) {
-    boxes = pieceBoxes(getDerived(plan), plan, getLibrary());
+    boxes = pieceBoxes(plan, getLibrary());
     boxesCache.set(plan, boxes);
   }
   return boxes;
@@ -91,8 +91,7 @@ const roofless = new WeakMap<readonly PieceBox[], readonly PieceBox[]>();
 
 /**
  * The plan's boxes the 3D view shows (and Pick hits) on any level, before the level view
- * mode's filter: without roof covers (derived or imported) while roofs are hidden; gable
- * fills and filler courses stay.
+ * mode's filter: without roof covers while roofs are hidden; gable walls stay.
  */
 export const getShownBoxes = (plan: Plan, roofsVisible: boolean): readonly PieceBox[] => {
   const all = getPieceBoxes(plan);
@@ -107,7 +106,7 @@ export const useHistory = (): HistoryLabels =>
   useSyncExternalStore(subscribe, planStore.historyLabels);
 
 // One shared entry, so every component drawing the same preview frame gets the same
-// plan object (and `getDerived` splits it once).
+// plan object (and `getDerived` works it out once).
 let lastDisplay: { plan: Plan; preview: readonly PlanCommand[] | null; result: Plan } | null = null;
 
 /** `plan` with an in-progress edit applied; the committed plan if the edit no longer applies. */
@@ -118,14 +117,14 @@ const getDisplayPlan = (plan: Plan, preview: readonly PlanCommand[] | null): Pla
   try {
     result = applyCommands(plan, preview);
   } catch (error) {
-    // E.g. a file opened mid-drag removed the dragged wall.
+    // E.g. a file opened mid-drag removed the dragged piece.
     console.warn('Edit preview no longer applies.', error);
   }
   lastDisplay = { plan, preview, result };
   return result;
 };
 
-/** The plan as the canvas draws it: committed, plus the move or corner drag in progress. */
+/** The plan as the canvas draws it: committed, plus the move in progress. */
 export const useDisplayPlan = (): Plan => getDisplayPlan(usePlan(), useAtomValue(editPreviewAtom));
 
 /** Derived data for `useDisplayPlan` (the BOM panel keeps the committed plan's). */
@@ -134,8 +133,6 @@ export const useDisplayDerived = (): Derived => getDerived(useDisplayPlan());
 /** The displayed plan as the current level (the work datum) sees it: what 2D draws. */
 export const useLevelPlan = (): Plan =>
   levelPlan(useDisplayPlan(), useAtomValue(workDatumAtom), getLibrary());
-
-export const useLevelDerived = (): Derived => getDerived(useLevelPlan());
 
 /** What the current level shows faintly from below (2D). */
 export const useGhostPlan = (): Plan =>

@@ -4,7 +4,7 @@
  * state, never undone); moving objects is one history entry.
  */
 import { clampElevation, roundElevation } from '../model/elevation';
-import { itemsFrom, levelAbove, levelBelow, shiftElevation, wallTops } from '../model/levels';
+import { itemsFrom, levelAbove, levelBelow, shiftElevation } from '../model/levels';
 import { unionItems } from '../model/selection';
 import type { Vec2 } from '../model/types';
 import { getLibrary } from '../store/libraryInstance';
@@ -65,15 +65,6 @@ export const moveSelectionLevel = (
   const label = ripple ? 'Move levels' : dir > 0 ? 'Move up a level' : 'Move down a level';
   if (!commitCommands(ctx, label, cmds)) return false;
   setWorkElevation(ctx, datum + dy);
-  return true;
-};
-
-/** Up to the highest wall top on the current level (where the next floor goes). */
-export const jumpToTops = (ctx: ToolContext): boolean => {
-  const tops = wallTops(ctx.plan.getPlan(), ctx.get(workDatumAtom), getLibrary());
-  const top = tops.at(-1);
-  if (top === undefined) return false;
-  setWorkElevation(ctx, top);
   return true;
 };
 

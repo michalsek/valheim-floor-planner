@@ -1,11 +1,10 @@
 /*
  * Theme tokens. `index.html` sets `<html data-theme>` before the first paint and
  * `store/theme.ts` keeps it in sync; dark is also the default without the attribute.
- * Scene colours (grid, floors, walls) are read from here by `theme/themeTokens.ts`,
- * so `--grid-line`, `--floor-base`, `--canvas`, `--selection`, `--ghost`, `--mat-*`,
+ * Scene colours (grid, materials, props, support, terrain) are read from here by
+ * `theme/themeTokens.ts`, so `--grid-line`, `--canvas`, `--selection`, `--mat-*`,
  * `--prop-*`, `--support-*`, `--terrain-*`, `--contour` and `--water` must stay
- * `#rgb` / `#rrggbb` hex, and `--grid-alpha-scale` / `--floor-material-share` /
- * `--floor-opacity` / `--shadow-alpha` plain numbers.
+ * `#rgb` / `#rrggbb` hex, and `--grid-alpha-scale` / `--shadow-alpha` plain numbers.
  */
 :root,
 :root[data-theme='dark'] {
@@ -44,10 +43,7 @@
   --grid-alpha-scale: 0.8;
   --underlay-blend: normal;
 
-  /* Scene: floor tints mix towards the base, a little lighter than the canvas. */
-  --floor-base: #3d424a;
-  --floor-material-share: 0.4;
-  --floor-opacity: 0.6;
+  /* Scene: piece materials. */
   --mat-wood: #b07a45;
   --mat-hardwood: #8a5c38;
   --mat-timberwood: #8f6a4a;
@@ -115,10 +111,6 @@
   /* A white image background disappears into the light canvas instead of a slab. */
   --underlay-blend: multiply;
 
-  /* More material and less see-through than dark, so stone and marble differ. */
-  --floor-base: #c4c9d0;
-  --floor-material-share: 0.7;
-  --floor-opacity: 0.75;
   --mat-wood: #b07a45;
   --mat-hardwood: #7d5232;
   --mat-timberwood: #8f6a4a;
@@ -153,7 +145,6 @@
 :root {
   /* Aliases shared by both themes. */
   --label-halo: var(--canvas);
-  --floor-seam: var(--canvas);
   --focus-ring: var(--info);
   --ring-build: var(--accent);
   --ring-ward: var(--pinned);

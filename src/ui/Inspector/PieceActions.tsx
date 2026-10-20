@@ -30,17 +30,9 @@ const hasRing = (plan: Plan, items: readonly SelectionItem[]): boolean =>
     return prop !== undefined && propRadius(prop.prefab, 0, getLibrary().catalog) !== null;
   });
 
-/** Selected items Explode leaves as they are (an opening goes with its exploded wall). */
-const leftOver = (
-  plan: Plan,
-  items: readonly SelectionItem[],
-  explodable: readonly SelectionItem[]
-): number =>
-  items.filter((item) => {
-    if (canExplode(item)) return false;
-    const wallId = item.kind === 'opening' ? plan.openings[item.id]?.wallId : undefined;
-    return !explodable.some((e) => e.kind === 'wall' && e.id === wallId);
-  }).length;
+/** Selected items Explode leaves as they are: everything but props. */
+const leftOver = (items: readonly SelectionItem[]): number =>
+  items.filter((item) => !canExplode(item)).length;
 
 /**
  * How many of the raw pieces Mirror can't mirror exactly: those symmetric across neither
@@ -71,9 +63,9 @@ const MIRRORS: readonly { axis: MirrorAxis; label: string; title: string }[] = [
 ];
 
 /**
- * Edits that change what pieces the selection is made of (M17 §7): Explode for walls,
- * floors, roofs and props (one or several), Mirror X / Z and Repeat for raw pieces. Each
- * is one undo entry. Mirror and Repeat need a selection of raw pieces only.
+ * Edits that change what pieces the selection is made of (M17 §7): Explode for props
+ * (one or several), so they snap like built pieces; Mirror X / Z and Repeat for raw
+ * pieces. Each is one undo entry. Mirror and Repeat need a selection of raw pieces only.
  */
 export const PieceActions = () => {
   const ctx = useToolContext();
@@ -87,9 +79,7 @@ export const PieceActions = () => {
 
   const explode = () => {
     const result = explodeCommands(ctx.plan.getPlan(), items, getLibrary(), newId);
-    // Boxes without a prefab (none in practice) are counted in the history entry.
-    const skipped = result.skipped > 0 ? `, ${result.skipped} without a prefab left out` : '';
-    if (commitCommands(ctx, explodeLabel(result) + skipped, result.cmds)) {
+    if (commitCommands(ctx, explodeLabel(result), result.cmds)) {
       ctx.set(selectionAtom, result.items);
     }
   };
@@ -110,9 +100,7 @@ export const PieceActions = () => {
           <Button title={explodeTitle} onClick={explode}>
             {explodable.length === 1 ? 'Explode' : `Explode ${explodable.length} items`}
           </Button>
-          {leftOver(plan, items, explodable) > 0 && (
-            <span className={styles.info}>The rest stays as it is</span>
-          )}
+          {leftOver(items) > 0 && <span className={styles.info}>The rest stays as it is</span>}
         </div>
       )}
       {raws.length > 0 &&

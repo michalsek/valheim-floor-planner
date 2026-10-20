@@ -39,15 +39,11 @@ export interface PlanSupport {
 }
 
 /**
- * Walls, floors, roofs, stairs and poles carry weight; doors, furniture and stations
- * don't. Raw pieces all do (the catalogue doesn't say which can't, `m_supports`).
+ * Raw pieces carry weight (the catalogue doesn't say which can't, `m_supports`), and so
+ * do stair, ladder, pole and beam props; furniture and stations don't.
  */
 const gives = (box: PieceBox): boolean =>
-  box.kind === 'raw' ||
-  box.kind === 'wall' ||
-  box.kind === 'floor' ||
-  box.kind === 'roof' ||
-  (box.kind === 'prop' && box.group !== null && LOAD_BEARING_GROUPS.has(box.group));
+  box.kind === 'raw' || (box.group !== null && LOAD_BEARING_GROUPS.has(box.group));
 
 /** The highest ground (plan height) under a plan footprint. */
 export type GroundUnder = (footprint: readonly Vec2[]) => number;
@@ -111,8 +107,7 @@ export const boxSupportOf = (
 
 /**
  * Support of every box of a model. `extra` pairs boxes (by `PieceBox.key`) that rest on
- * each other whatever their shapes say (`roofContacts`: a roof piece on a wall's top
- * edge; `snapJoints`: pieces joined at a snap point).
+ * each other whatever their shapes say (`snapJoints`: pieces joined at a snap point).
  */
 export const modelSupport = (
   model: SupportModel,

@@ -14,34 +14,29 @@ import {
   type LevelViewMode,
 } from './levels';
 import type { PieceBox } from './pieceBoxes';
-import { emptyPlan, type Floor, type Plan, type WallRun } from './types';
+import { emptyPlan, type Plan, type RawPiece } from './types';
 
-const wall = (id: string, elevation: number, height = 2): WallRun => ({
+/** A raw piece on the level at `elevation`, its pivot `y` above it. */
+const raw = (id: string, prefab: string, elevation: number, y = 0): RawPiece => ({
   id,
-  familyId: 'wood',
-  points: [
-    { x: 0, z: 0 },
-    { x: 4, z: 0 },
-  ],
-  closed: false,
-  side: 'right',
-  height,
-  elevation,
-});
-
-const floor = (id: string, elevation: number): Floor => ({
-  id,
-  familyId: 'wood',
-  min: { x: 0, z: 0 },
-  max: { x: 4, z: 4 },
+  prefab,
+  position: { x: 0, y, z: 0 },
+  rotation: { yaw: 0, pitch: 0, roll: 0 },
   elevation,
 });
 
 const plan: Plan = {
   ...emptyPlan(),
-  walls: { g: wall('g', 0), tall: wall('tall', 0, 5.6), u: wall('u', 2), top: wall('top', 4) },
-  floors: { f2: floor('f2', 2), f4: floor('f4', 4) },
-  openings: { d: { id: 'd', wallId: 'u', prefab: 'wood_door', at: { x: 2, z: 0 } } },
+  rawPieces: {
+    g: raw('g', 'woodwall', 0),
+    // On the ground level, its pivot 3.6 m up: `ghostPlan` takes a raw piece's pivot for its
+    // reach, so this ghosts on the level at 4 (the pivot is the box's middle, not its top).
+    tall: raw('tall', 'wood_pole_log_4', 0, 3.6),
+    u: raw('u', 'woodwall', 2),
+    top: raw('top', 'woodwall', 4),
+    f2: raw('f2', 'wood_floor', 2),
+    f4: raw('f4', 'wood_floor', 4),
+  },
 };
 
 const stair = (id: string, elevation: number) => ({
@@ -67,14 +62,13 @@ const box = (key: string, elevation: number, bottom = elevation, height = 1): Pi
 describe('levels', () => {
   it('views one level with the plan’s own objects, and is the plan when all share it', () => {
     const level = levelPlan(plan, 2, testLibrary);
-    expect(Object.keys(level.walls)).toEqual(['u']);
-    expect(level.walls.u).toBe(plan.walls.u);
-    expect(level.openings).toEqual({ d: plan.openings.d });
+    expect(Object.keys(level.rawPieces)).toEqual(['u', 'f2']);
+    expect(level.rawPieces.u).toBe(plan.rawPieces.u);
     expect(levelPlan(plan, 2, testLibrary)).toBe(level);
-    // An edit elsewhere keeps the level's walls record (and so its rooms and splits).
+    // An edit elsewhere keeps the level's record (and so its cached boxes).
     const renamed = { ...plan, name: 'Hall' };
-    expect(levelPlan(renamed, 2, testLibrary).walls).toBe(level.walls);
-    const flat = { ...emptyPlan(), walls: { g: wall('g', 0) } };
+    expect(levelPlan(renamed, 2, testLibrary).rawPieces).toBe(level.rawPieces);
+    const flat = { ...emptyPlan(), rawPieces: { g: raw('g', 'woodwall', 0) } };
     expect(levelPlan(flat, 0, testLibrary)).toBe(flat);
   });
 
@@ -86,18 +80,16 @@ describe('levels', () => {
 
   it('ghosts the nearest level below, and lower things that reach near the current one', () => {
     const ghosts = ghostPlan(plan, 4, testLibrary);
-    expect(Object.keys(ghosts.walls).sort()).toEqual(['tall', 'u']);
-    expect(Object.keys(ghosts.floors)).toEqual(['f2']);
-    expect(Object.keys(ghostPlan(plan, 0, testLibrary).walls)).toEqual([]);
+    expect(Object.keys(ghosts.rawPieces).sort()).toEqual(['f2', 'tall', 'u']);
+    expect(Object.keys(ghostPlan(plan, 0, testLibrary).rawPieces)).toEqual([]);
   });
 
-  it('ripples everything from a level up by one step, openings riding on their wall', () => {
+  it('ripples everything from a level up by one step', () => {
     const items = itemsFrom(plan, 2);
     expect(items.map((i) => i.id).sort()).toEqual(['f2', 'f4', 'top', 'u']);
     const moved = applyCommands(plan, shiftElevation(plan, items, 1));
-    expect([moved.walls.u?.elevation, moved.walls.top?.elevation]).toEqual([3, 5]);
-    expect([moved.floors.f2?.elevation, moved.walls.g?.elevation]).toEqual([3, 0]);
-    expect(Object.keys(levelPlan(moved, 3, testLibrary).openings)).toEqual(['d']);
+    const { u, top, f2, g } = moved.rawPieces;
+    expect([u?.elevation, top?.elevation, f2?.elevation, g?.elevation]).toEqual([3, 5, 3, 0]);
   });
 
   it('draws the levels of each view mode, the current and hovered ones always whole', () => {
@@ -126,14 +118,14 @@ describe('levels', () => {
     );
   });
 
-  it('reports the levels of the selection: an opening’s wall’s, a stair piece’s flight’s', () => {
+  it('reports the levels of the selection: a stair piece’s is its flight’s', () => {
     const stairs = { ...plan, props: { s1: stair('s1', 3) } };
     const levels = selectionLevels(
       stairs,
       [
-        { kind: 'opening', id: 'd' },
+        { kind: 'raw', id: 'u' },
         { kind: 'prop', id: 's1' },
-        { kind: 'wall', id: 'top' },
+        { kind: 'raw', id: 'top' },
       ],
       testLibrary
     );

@@ -4,7 +4,7 @@
  * the ray's hit, then a snap to the nearest pair of snap points, dropped when it would
  * land on a piece of the same prefab. Pure.
  */
-import { FLOOR_FAMILY_SPECS } from '../../catalog/floorFamilies';
+import { FLOOR_TILE_PREFABS } from '../../catalog/pieceClasses';
 import { normalizeDeg } from '../geometry/propGeometry';
 import { fromLocal, toLocal } from '../geometry/orient';
 import { addVec3 as add, scaleVec3, subVec3 as sub } from '../geometry/ray';
@@ -61,12 +61,9 @@ const closestOnBox = (box: PieceBox, p: Vec3): Vec3 => {
   );
 };
 
-/** Floor tiles, whose raw boxes are lifted 1 mm for drawing (`rawBoxes.ts`). */
-const FLOOR_TILES: ReadonlySet<string> = new Set(FLOOR_FAMILY_SPECS.flatMap((spec) => spec.tiles));
-
 /** A box as its collider is: a floor tile's drawing lift taken off, so it rests on the hit. */
 const unlifted = (box: PieceBox): PieceBox =>
-  box.prefab !== null && FLOOR_TILES.has(box.prefab)
+  box.prefab !== null && FLOOR_TILE_PREFABS.has(box.prefab)
     ? { ...box, center: { ...box.center, y: box.center.y - FLOOR_LIFT } }
     : box;
 

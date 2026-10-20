@@ -1,5 +1,5 @@
 /**
- * Elevations: the height a wall, floor, prop or dimension stands at. Commands and file
+ * Elevations: the height a prop, dimension or raw piece stands at. Commands and file
  * parsing share the range, so whatever a command accepts also loads.
  */
 

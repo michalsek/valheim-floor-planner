@@ -11,7 +11,6 @@ import { Row, Section } from '../shared/PanelList';
 
 import { AutosaveNotice } from './AutosaveNotice';
 import styles from './BomPanel.module.css';
-import { BuildingSummary } from './BuildingSummary';
 import { HistoryList } from './HistoryList';
 import { IntegrityList } from './IntegrityList';
 import { PlanActions } from './PlanActions';
@@ -25,7 +24,7 @@ const SCOPES: readonly { value: Scope; label: string }[] = [
 
 /**
  * Undo history, then the bill of materials for the whole plan or the current level:
- * rooms and areas, piece counts, resources, what would collapse, and warnings.
+ * piece counts, resources, what would collapse, and warnings.
  */
 export const BomPanel = () => {
   const plan = usePlan();
@@ -33,8 +32,7 @@ export const BomPanel = () => {
   const [scope, setScope] = useState<Scope>('all');
   const levelled = levelIndex(plan, getLibrary()).levels.length > 1;
   const level = levelled && scope === 'level';
-  const derived = getDerived(level ? levelPlan(plan, datum, getLibrary()) : plan);
-  const { bom, warnings } = derived;
+  const { bom, warnings } = getDerived(level ? levelPlan(plan, datum, getLibrary()) : plan);
   const undoRedo = useUndoRedo();
 
   return (
@@ -53,12 +51,11 @@ export const BomPanel = () => {
             />
           </div>
         )}
-        <BuildingSummary derived={derived} />
         {bom.pieces.length === 0 ? (
           <p className={styles.empty}>
             {level
               ? 'Nothing on this level yet.'
-              : 'Draw walls (W) or floors (B), or place items (P), to see what they cost.'}
+              : 'Build pieces (H) or place items (P) to see what they cost.'}
           </p>
         ) : (
           <>
@@ -82,7 +79,7 @@ export const BomPanel = () => {
         {warnings.length > 0 && (
           <Section title="Warnings">
             {warnings.map((w, i) => (
-              <li key={i} className={w.level === 'info' ? styles.info : styles.warning}>
+              <li key={i} className={styles.warning}>
                 {w.message}
               </li>
             ))}

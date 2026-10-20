@@ -16,13 +16,13 @@ import {
   activeToolIdAtom,
   cursorAtom,
   cursorStyleAtom,
-  effectiveSnapStepAtom,
   levelPickAtom,
   modifiersAtom,
   panViewport,
   pointerScreenAtom,
   projection3dAtom,
   setModifier,
+  snapStepAtom,
   type Cursor,
 } from '../store/session';
 import { toolPressAtom, viewModeAtom } from '../store/view3d';
@@ -45,7 +45,7 @@ type HostPointerEvent = ReactPointerEvent<HTMLDivElement>;
 const surfaceCursor = (ctx: ToolContext, screen: ScreenPoint, alt: boolean): Cursor | null => {
   const raw = surfacePlanPoint(ctx, screen);
   if (!raw) return null;
-  const snapped = alt ? raw : snapToGrid(raw, ctx.get(effectiveSnapStepAtom));
+  const snapped = alt ? raw : snapToGrid(raw, ctx.get(snapStepAtom));
   return { raw, snapped, snapping: !alt };
 };
 type HostMouseEvent = ReactMouseEvent<HTMLDivElement>;

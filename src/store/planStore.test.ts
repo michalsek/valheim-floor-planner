@@ -1,30 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyPlan, type WallRun } from '../model/types';
+import { emptyPlan, type RawPiece } from '../model/types';
 
 import { createPlanStore } from './planStore';
 
-const wall = (id: string): WallRun => ({
+const piece = (id: string): RawPiece => ({
   id,
-  familyId: 'wood',
-  points: [
-    { x: 0, z: 0 },
-    { x: 2, z: 0 },
-  ],
-  closed: false,
-  side: 'right',
-  height: 2,
+  prefab: 'woodwall',
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { yaw: 0, pitch: 0, roll: 0 },
   elevation: 0,
 });
 
-const ids = (store: ReturnType<typeof createPlanStore>) => Object.keys(store.getPlan().walls);
+const ids = (store: ReturnType<typeof createPlanStore>) => Object.keys(store.getPlan().rawPieces);
 
 describe('planStore', () => {
   it('dispatches, undoes and redoes', () => {
     const store = createPlanStore(emptyPlan());
-    store.dispatch({ type: 'wall.insert', wall: wall('a') }, { label: 'Add wall' });
+    store.dispatch({ type: 'raw.insert', piece: piece('a') }, { label: 'Add piece' });
     expect(ids(store)).toEqual(['a']);
-    expect(store.peekUndoLabel()).toBe('Add wall');
+    expect(store.peekUndoLabel()).toBe('Add piece');
     expect(store.undo()).toBe(true);
     expect(ids(store)).toEqual([]);
     expect(store.redo()).toBe(true);
@@ -33,9 +28,9 @@ describe('planStore', () => {
 
   it('records a transaction as one entry', () => {
     const store = createPlanStore(emptyPlan());
-    store.transact('Two walls', (dispatch) => {
-      dispatch({ type: 'wall.insert', wall: wall('a') });
-      dispatch({ type: 'wall.insert', wall: wall('b') });
+    store.transact('Two pieces', (dispatch) => {
+      dispatch({ type: 'raw.insert', piece: piece('a') });
+      dispatch({ type: 'raw.insert', piece: piece('b') });
     });
     store.undo();
     expect(ids(store)).toEqual([]);
@@ -44,22 +39,22 @@ describe('planStore', () => {
 
   it('clears redo on a new edit and skips no-ops', () => {
     const store = createPlanStore(emptyPlan());
-    store.dispatch({ type: 'wall.insert', wall: wall('a') });
+    store.dispatch({ type: 'raw.insert', piece: piece('a') });
     store.undo();
-    store.dispatch({ type: 'wall.insert', wall: wall('b') });
+    store.dispatch({ type: 'raw.insert', piece: piece('b') });
     expect(store.canRedo()).toBe(false);
-    store.dispatch({ type: 'wall.patch', id: 'b', changes: { height: 2 } });
+    store.dispatch({ type: 'raw.patch', id: 'b', changes: { elevation: 0 } });
     store.undo();
     expect(store.canUndo()).toBe(false);
   });
 
   it('leaves the plan unchanged when a command fails', () => {
     const store = createPlanStore(emptyPlan());
-    store.dispatch({ type: 'wall.insert', wall: wall('a') });
+    store.dispatch({ type: 'raw.insert', piece: piece('a') });
     const before = store.getPlan();
     const result = store.transact('Bad', (dispatch) => {
-      dispatch({ type: 'wall.remove', id: 'a' });
-      dispatch({ type: 'wall.remove', id: 'a' });
+      dispatch({ type: 'raw.remove', id: 'a' });
+      dispatch({ type: 'raw.remove', id: 'a' });
     });
     expect(result.ok).toBe(false);
     expect(store.getPlan()).toBe(before);
@@ -68,7 +63,7 @@ describe('planStore', () => {
   it('lists history labels in order, with a stable snapshot', () => {
     const store = createPlanStore(emptyPlan());
     for (const id of ['a', 'b', 'c']) {
-      store.dispatch({ type: 'wall.insert', wall: wall(id) }, { label: `Add ${id}` });
+      store.dispatch({ type: 'raw.insert', piece: piece(id) }, { label: `Add ${id}` });
     }
     store.undo();
     store.undo();
@@ -81,22 +76,10 @@ describe('planStore', () => {
 
   it('keeps at most historyLimit entries, and load clears history', () => {
     const store = createPlanStore(emptyPlan(), { historyLimit: 2 });
-    for (const id of ['a', 'b', 'c']) store.dispatch({ type: 'wall.insert', wall: wall(id) });
+    for (const id of ['a', 'b', 'c']) store.dispatch({ type: 'raw.insert', piece: piece(id) });
     while (store.undo());
     expect(ids(store)).toEqual(['a']);
     store.load(emptyPlan());
     expect([store.canUndo(), store.canRedo()]).toEqual([false, false]);
-  });
-
-  it('deletes a wall with its openings, and one undo restores both', () => {
-    const store = createPlanStore(emptyPlan());
-    store.dispatch({ type: 'wall.insert', wall: wall('a') });
-    const opening = { id: 'o', wallId: 'a', prefab: 'wood_door', at: { x: 1, z: 0 } };
-    store.dispatch({ type: 'opening.insert', opening });
-    store.dispatch({ type: 'wall.remove', id: 'a' });
-    expect(store.getPlan().openings).toEqual({});
-    store.undo();
-    expect(store.getPlan().openings).toEqual({ o: opening });
-    expect(ids(store)).toEqual(['a']);
   });
 });

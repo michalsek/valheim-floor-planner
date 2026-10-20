@@ -8,7 +8,7 @@ import { SegmentedControl } from '../../controls/SegmentedControl';
 import { ToggleButton } from '../../controls/ToggleButton';
 import { formatLevel } from '../../format';
 import { sameLevel } from '../../model/elevation';
-import { levelsOf, selectionLevels, wallTops, type Level } from '../../model/levels';
+import { levelsOf, selectionLevels, type Level } from '../../model/levels';
 import { useViewMode } from '../../store/hooks';
 import { getLibrary } from '../../store/libraryInstance';
 import { getPieceBoxes, usePlan } from '../../store/planHooks';
@@ -21,7 +21,7 @@ import {
   workDatumAtom,
   type ElevationStep,
 } from '../../store/session';
-import { jumpToTops, setWorkElevation, stepLevel } from '../../tools/levelActions';
+import { setWorkElevation, stepLevel } from '../../tools/levelActions';
 import { useToolContext } from '../../tools/toolContext';
 
 import { LevelViewControls } from './LevelViewControls';
@@ -99,8 +99,8 @@ const LevelRows = ({ levels, datum }: { levels: Level[]; datum: number }) => {
 
 /**
  * The levels at the canvas edge: the level rows, the current level with ▲ / ▼ and a
- * field, the step, Tops (to the highest wall top here), Pick (the next click picks a
- * piece's top), the support view and (3D) which levels are drawn and the plate's frost.
+ * field, the step, Pick (the next click picks a piece's top), the support view and (3D)
+ * which levels are drawn and the plate's frost.
  */
 export const LevelsBar = () => {
   const ctx = useToolContext();
@@ -110,7 +110,6 @@ export const LevelsBar = () => {
   const [supportView, setSupportView] = useAtom(supportViewAtom);
   const is3d = useViewMode() === '3d';
   const levels = useLevels(datum);
-  const hasTops = wallTops(usePlan(), datum, getLibrary()).length > 0;
 
   return (
     <div className={styles.bar} role="toolbar" aria-label="Levels">
@@ -137,13 +136,6 @@ export const LevelsBar = () => {
       />
       <LevelRows levels={levels} datum={datum} />
       <div className={styles.actions}>
-        <Button
-          title="Up to the highest wall top on this level"
-          disabled={!hasTops}
-          onClick={() => jumpToTops(ctx)}
-        >
-          Tops
-        </Button>
         <ToggleButton
           title="Click a piece to go to its top (Esc to stop)"
           pressed={picking}

@@ -71,12 +71,11 @@ export const useGhostShades = (ghost: BuildGhost | null): GhostShades | null => 
   }, [ghost, tokens, warning]);
 };
 
-/** The piece Ctrl/⌘ + click would remove in red; one it can't in the neutral ink. */
+/** The piece Ctrl/⌘ + click would remove, in red. */
 export const useRemovalShades = (removal: BuildRemoval | null): GhostShades | null => {
   const tokens = useThemeTokens();
-  return useMemo(() => {
-    if (!removal) return null;
-    const color = removal.removable ? tokens.ink.danger : tokens.ink.neutral;
-    return shadesOf(new Map(), color, color);
-  }, [removal, tokens]);
+  return useMemo(
+    () => removal && shadesOf(new Map(), tokens.ink.danger, tokens.ink.danger),
+    [removal, tokens]
+  );
 };

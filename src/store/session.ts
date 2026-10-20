@@ -5,10 +5,9 @@
  */
 import { atom, createStore, type Getter } from 'jotai';
 
-import { DEFAULT_FLOOR_FAMILY_ID, DEFAULT_WALL_FAMILY_ID } from '../catalog';
 import { snapToGrid, type SnapStep } from '../model/geometry/snap';
 import type { LevelViewMode } from '../model/levels';
-import type { Vec2, WallSide } from '../model/types';
+import type { Vec2 } from '../model/types';
 import type { ToolId } from '../tools/toolIds';
 import {
   orbitTargetOf,
@@ -72,36 +71,6 @@ export const rendererBackendAtom = atom<RendererBackend>('pending');
 export type AutosaveStatus = 'ok' | 'failed' | 'unavailable' | 'unread';
 export const autosaveStatusAtom = atom<AutosaveStatus>('ok');
 
-// Wall tool settings (session state: they never enter undo history).
-export const wallFamilyIdAtom = atom<string>(DEFAULT_WALL_FAMILY_ID);
-/** 'right' is inside for a loop drawn clockwise on screen. */
-export const wallSideAtom = atom<WallSide>('right');
-export const wallHeightAtom = atom<number>(2);
-
-// Floor and opening tool settings (session state too).
-export const floorFamilyIdAtom = atom<string>(DEFAULT_FLOOR_FAMILY_ID);
-/** The opening the opening tool places (falls back to the picker's first entry). */
-export const openingPrefabAtom = atom<string>('wood_door');
-/**
- * The wall family whose openings the picker lists. Sticky: hovering a wall whose
- * family has openings of its own switches it, other walls keep it (so a stone wall can
- * take a wood door).
- */
-export const openingFamilyAtom = atom<string>(DEFAULT_WALL_FAMILY_ID);
-
-/**
- * The smallest snap step the active tool allows (0 for none): the floor tool asks
- * for 1 m, since tiles are at least that. `cursorAtom` snaps to the larger of this and
- * the grid step, so every consumer of the cursor agrees. (Moving selected floors and
- * openings has the same 1 m floor, but per selection: see `moveStep`.)
- */
-export const toolMinSnapAtom = atom<number>(0);
-
-/** The step the cursor snaps to: the grid step, or the active tool's minimum if larger. */
-export const effectiveSnapStepAtom = atom<number>((get) =>
-  Math.max(get(snapStepAtom), get(toolMinSnapAtom))
-);
-
 /**
  * The current level: the height of the plane tools work on (its walking surface). The
  * Levels bar and PageUp / PageDown set it; new objects are stamped with it, 2D shows
@@ -152,7 +121,7 @@ export const cursorAtom = atom<Cursor | null>((get) => {
   const raw = pointerWorld(get, screen);
   if (!raw) return null;
   const snapping = !get(modifiersAtom).alt;
-  const step = get(effectiveSnapStepAtom);
+  const step = get(snapStepAtom);
   return { raw, snapped: snapping ? snapToGrid(raw, step) : raw, snapping };
 });
 
@@ -210,7 +179,7 @@ export const cursorStyleAtom = atom<string | null>(null);
 export const showAllRadiiAtom = atom<boolean>(false);
 /**
  * Whether roofs are drawn, in both views (session only). Hidden roofs can't be picked,
- * so 3D clicks reach inside the house; their gable walls and filler courses still show.
+ * so 3D clicks reach inside the house; their gable walls still show.
  */
 export const roofsVisibleAtom = atom<boolean>(true);
 /**

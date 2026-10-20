@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { testLibrary } from '../../catalog/testLibrary';
-import { derivePlan } from '../derivePlan';
-import { pieceBoxes } from '../pieceBoxes';
 import { rawBox } from '../rawBoxes';
-import { emptyPlan, type Plan, type RawPiece } from '../types';
+import type { RawPiece } from '../types';
 
 import { boxSnapPoints, snapIndex, snapsNear } from './snapPoints';
 
@@ -29,31 +27,6 @@ describe('boxSnapPoints', () => {
       [2, 0, 4],
       [2, 0, 2],
     ]);
-  });
-
-  it("puts a drawn wall's snap points where the same raw wall's are", () => {
-    const plan: Plan = {
-      ...emptyPlan(),
-      walls: {
-        w: {
-          id: 'w',
-          familyId: 'wood',
-          points: [
-            { x: 0, z: 0 },
-            { x: 0, z: 2 },
-          ],
-          closed: false,
-          side: 'right',
-          height: 2,
-          elevation: 0,
-        },
-      },
-    };
-    const [drawn] = pieceBoxes(derivePlan(plan, testLibrary), plan, testLibrary);
-    const twin = rawBox(raw('r', drawn!.prefab!, 0, 1, 1, 90), testLibrary);
-    const sorted = (box: typeof twin) =>
-      rounded(boxSnapPoints(box, testLibrary)).sort((a, b) => a.join().localeCompare(b.join()));
-    expect(sorted(drawn!)).toEqual(sorted(twin));
   });
 });
 

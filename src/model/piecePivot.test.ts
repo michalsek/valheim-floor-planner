@@ -2,17 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { testLibrary } from '../catalog/testLibrary';
 
-import { derivePlan } from './derivePlan';
 import { pieceBoxes } from './pieceBoxes';
 import { pieceAnchor, pivotFrom } from './piecePivot';
 import { emptyPlan, type Plan, type Vec3 } from './types';
 
 const def = (prefab: string) => testLibrary.catalog.pieces.get(prefab);
 
-const boxesOf = (parts: Partial<Plan>) => {
-  const plan: Plan = { ...emptyPlan(), ...parts };
-  return pieceBoxes(derivePlan(plan, testLibrary), plan, testLibrary);
-};
+const boxesOf = (parts: Partial<Plan>) => pieceBoxes({ ...emptyPlan(), ...parts }, testLibrary);
 
 /** `pivot + R·local`, R a turn of `rotationY` about +y (three.js `makeRotationY`). */
 const place = (pivot: Vec3, rotationY: number, local: Vec3): Vec3 => ({
@@ -47,39 +43,6 @@ describe('piecePivot', () => {
     expect(door.y).toBeCloseTo(1.5, 2);
     // A wood floor's thickness is its collider's, which sits above the snap plane.
     expect(pieceAnchor(def('wood_floor'), { x: 2, y: 0.13, z: 2 }).y).toBeCloseTo(0.032);
-  });
-
-  it('stands a turned door model in its gap, and floors with their top on the level', () => {
-    const boxes = boxesOf({
-      walls: {
-        w: {
-          id: 'w',
-          familyId: 'ashwood',
-          points: [
-            { x: 0, z: 0 },
-            { x: 0, z: 8 },
-          ],
-          closed: false,
-          side: 'right',
-          height: 3,
-          elevation: 0,
-        },
-      },
-      openings: { d: { id: 'd', wallId: 'w', prefab: 'ashwood_door', at: { x: 0, z: 4 } } },
-      floors: {
-        f: { id: 'f', familyId: 'wood', min: { x: 2, z: 0 }, max: { x: 4, z: 2 }, elevation: 3 },
-      },
-    });
-    const door = boxes.find((b) => b.kind === 'opening');
-    // The run goes +z, so the door's local −x (its hinge side) points to −z.
-    expect(door).toMatchObject({ prefab: 'ashwood_door' });
-    expect(door!.pivot.x).toBeCloseTo(0, 1);
-    expect(door!.pivot.y).toBeCloseTo(0, 2);
-    expect(door!.pivot.z).toBeCloseTo(5);
-
-    const floor = boxes.find((b) => b.kind === 'floor');
-    // The collider's top (0.097 above the pivot) is the walking surface (+1 mm).
-    expect(floor!.pivot.y + 0.097).toBeCloseTo(3.001, 6);
   });
 
   it("lifts a pole's pivot by its lower half, and keeps a bed's on the level", () => {

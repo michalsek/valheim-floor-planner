@@ -7,7 +7,7 @@ import type { Library } from '../catalog/library';
 import { snapExtent, type PieceDef } from '../catalog/pieceDefs';
 
 import type { PieceShape } from './geometry/shapes';
-import type { RoofRole } from './roofs/roofPiece';
+import type { RoofRole } from './roofBoxes';
 import type { Vec3 } from './types';
 
 export type RawShapeLib = Pick<Library, 'catalog' | 'roofFamilies' | 'gableWallSets'>;

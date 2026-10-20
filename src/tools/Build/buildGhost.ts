@@ -29,10 +29,10 @@ import type { BoxSupport } from '../../model/support/planSupport';
 import { getLibrary } from '../../store/libraryInstance';
 import { getPieceBoxes } from '../../store/planHooks';
 import {
-  effectiveSnapStepAtom,
   modifiersAtom,
   pointerScreenAtom,
   projection3dAtom,
+  snapStepAtom,
   viewportAtom,
   viewportSizeAtom,
   workDatumAtom,
@@ -144,7 +144,7 @@ const landing = (
   const scene = sceneOf(get, targets, pointer.maxT);
   const hit = buildHit(pointer.ray, scene);
   if (!hit || free) return hit;
-  return hitOnGrid(hit, get(effectiveSnapStepAtom), scene);
+  return hitOnGrid(hit, get(snapStepAtom), scene);
 };
 
 /** What to place, and where the pointer is: the Build tool's armed set, or a carried one. */
@@ -220,10 +220,8 @@ export const buildGhostAtom = atom<BuildGhost | null>((get) => {
 });
 
 export interface BuildRemoval {
-  /** The piece under the pointer. */
+  /** The raw piece or prop under the pointer. */
   box: PieceBox;
-  /** Only raw pieces and props are removed; walls, floors and roofs need Explode first. */
-  removable: boolean;
 }
 
 /**
@@ -241,8 +239,7 @@ export const buildRemovalAtom = atom<BuildRemoval | null>((get) => {
       : getPieceBoxes(levelPlan(targets.plan, get(workDatumAtom), getLibrary()));
   const found = pickBoxes(pointer.ray, boxes);
   if (!found || found.t > pointer.maxT) return null;
-  const { kind } = found.box.item;
-  return { box: found.box, removable: kind === 'raw' || kind === 'prop' };
+  return { box: found.box };
 });
 
 /** The 3D snap cross and drop line hide while a ghost or a removal target shows. */

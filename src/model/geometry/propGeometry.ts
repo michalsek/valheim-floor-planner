@@ -1,7 +1,7 @@
 /**
  * Prop footprints on the plane: a prefab-local rectangle, rotated clockwise on screen
- * by `rotation` degrees about the pivot (local x along `(cos, sin)`, as in
- * `footprintCorners`), then moved to the pivot.
+ * by `rotation` degrees about the pivot (local x along `(cos, sin)`), then moved to the
+ * pivot.
  */
 import type { LocalRect, PropSnap } from '../../catalog/propDefs';
 import type { Prop, Vec2 } from '../types';

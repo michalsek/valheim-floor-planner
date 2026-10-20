@@ -16,6 +16,8 @@ const HEIGHTS = 'heights';
 /** Which heights `HEIGHTS` holds (an id per array, below). */
 const HEIGHTS_ID = 'heightsId';
 const CORRUPT = 'corrupt';
+/** A record that held drawn items when it was loaded (M18), as it was. */
+const LEGACY = 'legacy';
 
 /** The database, or null where IndexedDB is missing or refuses to open. */
 export const openPlanDb = (): Promise<IDBDatabase | null> => openDatabase(DB_NAME, STORE);
@@ -84,4 +86,36 @@ export const keepCorruptRecord = async (db: IDBDatabase, record: unknown): Promi
   } catch {
     // Nowhere left to keep it.
   }
+};
+
+/**
+ * Keeps a record with drawn items aside before the autosave overwrites it without them.
+ * A copy kept earlier stays: true when the kept copy is this record (just written, or
+ * the same one kept before), false when it is another's or the write failed.
+ */
+export const keepLegacyRecord = async (db: IDBDatabase, record: unknown): Promise<boolean> => {
+  let kept = false;
+  try {
+    await transact(db, 'readwrite', (store) => {
+      const existing = store.get(LEGACY);
+      existing.onsuccess = () => {
+        if (existing.result === undefined) {
+          store.put(record, LEGACY);
+          kept = true;
+        } else kept = sameRecord(existing.result, record);
+      };
+    });
+    return kept;
+  } catch {
+    return false;
+  }
+};
+
+/** Whether two stored records hold the same data (heights arrays included). */
+const sameRecord = (a: unknown, b: unknown): boolean => {
+  const text = (value: unknown) =>
+    JSON.stringify(value, (_key, v: unknown) =>
+      ArrayBuffer.isView(v) ? Array.from(v as Int16Array) : v
+    );
+  return text(a) === text(b);
 };

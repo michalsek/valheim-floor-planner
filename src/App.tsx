@@ -5,10 +5,8 @@ import styles from './App.module.css';
 import { captureDrop } from './install/dropFolder';
 import { dropWorldOnPlanner } from './install/loadWorld';
 import { PinnedDimensionLabels3d } from './overlay/DimensionLabel3d';
-import { FloorOutlines } from './overlay/FloorOutlines';
 import { LevelGhosts } from './overlay/LevelGhosts';
 import { LevelTags3d } from './overlay/LevelTags3d';
-import { OpeningSymbols } from './overlay/OpeningSymbols';
 import { Overlay } from './overlay/Overlay';
 import { Overlay3d } from './overlay/Overlay3d';
 import { PinnedDimensions } from './overlay/PinnedDimensions';
@@ -16,12 +14,8 @@ import { PropFootprints } from './overlay/PropFootprints';
 import { PropLabels } from './overlay/PropLabels';
 import { RadiusRings } from './overlay/RadiusRings';
 import { RawFootprints } from './overlay/RawFootprints';
-import { RoofLayer } from './overlay/RoofLayer';
-import { RoomLabels } from './overlay/RoomLabels';
-import { RoomOutlines } from './overlay/RoomOutlines';
 import { SelectionHighlight } from './overlay/SelectionHighlight';
 import { UnderlayLayer } from './overlay/UnderlayLayer';
-import { WallLines } from './overlay/WallLines';
 import { PlanCanvas } from './scene/PlanCanvas';
 import { useActiveToolId, useViewMode } from './store/hooks';
 import { sessionStore } from './store/session';
@@ -49,19 +43,13 @@ const PlanOverlay = () => (
     world={
       <>
         <LevelGhosts />
-        <FloorOutlines />
-        <RoomOutlines />
-        <WallLines />
         <RawFootprints />
         <PropFootprints />
-        <OpeningSymbols />
-        <RoofLayer />
         <SelectionHighlight />
         <ToolWorldPreview />
       </>
     }
   >
-    <RoomLabels />
     <RadiusRings />
     <PropLabels />
     <PinnedDimensions />
@@ -84,7 +72,7 @@ const CanvasLayers = () => {
   const is2d = useViewMode() === '2d';
   return (
     <>
-      {/* Before the canvas, so it draws under the grid and walls. */}
+      {/* Before the canvas, so it draws under the grid and pieces. */}
       {is2d && <UnderlayLayer />}
       <PlanCanvas />
       {is2d ? <PlanOverlay /> : <ViewOverlay3d />}

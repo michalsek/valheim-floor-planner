@@ -6,6 +6,7 @@
  * import (`importCluster`) and the sites it reveals later (`revealSites`). Pure.
  */
 import type { Library } from '../../catalog/library';
+import { FLOOR_TILE_PREFABS } from '../../catalog/pieceClasses';
 import type { PieceDef } from '../../catalog/pieceDefs';
 import { MAX_ELEVATION, MIN_ELEVATION, roundElevation } from '../elevation';
 import { normalizeDeg } from '../geometry/propGeometry';
@@ -16,10 +17,7 @@ import type { RawPiece, Vec2 } from '../types';
 
 import { cloudPiece, type CloudPiece, type PieceCloud } from './pieceCloud';
 
-export type ImportLib = Pick<
-  Library,
-  'catalog' | 'floorFamilies' | 'roofFamilies' | 'gableWallSets'
->;
+export type ImportLib = Pick<Library, 'catalog' | 'roofFamilies' | 'gableWallSets'>;
 
 /** A floor level needs this many tiles at its height. */
 const MIN_LEVEL_TILES = 2;
@@ -102,10 +100,7 @@ export const rawPiecesInFrame = (
   idOf: (k: number) => string,
   levels: readonly number[] = []
 ): FramedRaw => {
-  const tiles = new Set(
-    [...lib.floorFamilies.values()].flatMap((f) => f.tiles.map((t) => t.prefab))
-  );
-  const isTile = (p: FramedPiece) => tiles.has(p.piece.prefab);
+  const isTile = (p: FramedPiece) => FLOOR_TILE_PREFABS.has(p.piece.prefab);
   const standsAt = (p: FramedPiece) =>
     p.piece.y - datum + (isTile(p) ? heightSpan(p.def).high : heightSpan(p.def).low);
   const all = [...new Set([...floorLevels(framed.filter(isTile).map(standsAt)), ...levels])].sort(

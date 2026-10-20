@@ -3,10 +3,12 @@
  * a bad shape; `planFile.ts` turns files to and from JSON. Collections added by later
  * milestones default to `{}`, a missing underlay and import frame to null, and a missing
  * name to "Untitled". Version 1 files (before levels) load with every elevation at 0,
- * version 2 ones (before roofs) without roofs, version 3 ones (before world imports)
- * without raw pieces, version 4 import frames without terrain; version 5 terrain heights
- * are base64 (version 6 ones arrive already unpacked). Plans are always version 6, so an
- * older app refuses them instead of dropping what it doesn't know.
+ * version 3 ones (before world imports) without raw pieces, version 4 import frames
+ * without terrain; version 5 terrain heights are base64 (version 6 ones arrive already
+ * unpacked). Plans are always version 6, so an older app refuses them instead of
+ * dropping what it doesn't know. Records of the drawn kinds in older files (walls,
+ * floors, openings and roofs, whose tools went in M18) are left out and counted by
+ * `legacyItems`.
  */
 import { elevationProblem, MAX_ELEVATION, MIN_ELEVATION } from './elevation';
 import { samePoint } from './geometry/polyline';
@@ -16,22 +18,15 @@ import { MAX_RAW_PIECES, rawPieceProblem } from './rawPieces';
 import {
   DEFAULT_PLAN_NAME,
   type Dimension,
-  type Floor,
   type ImportFrame,
-  type Opening,
   type Plan,
   type Prop,
   type RawPiece,
-  type Roof,
-  type RoofKind,
   type SiteTerrain,
   type Underlay,
   type Vec2,
   type Vec3,
-  type WallRun,
-  type WallSide,
 } from './types';
-import { roofProblem } from './roofs/roofCheck';
 import { siteTerrainProblem } from './terrain/siteCheck';
 import { heightsFromBase64 } from './terrain/siteTerrain';
 import { underlayProblem } from './underlay';
@@ -43,20 +38,16 @@ export class PlanParseError extends Error {
   }
 }
 
-/** Hand-edited files beyond these would make the splitter crawl. */
-export const MAX_WALL_HEIGHT_M = 64;
-export const MAX_POINTS_PER_RUN = 10_000;
-/** Floors beyond this would make the tiler crawl. */
-export const MAX_FLOOR_SIDE_M = 512;
-
 function fail(path: string, expected: string): never {
   throw new PlanParseError(path, expected);
 }
 
+/** A plain object (not null, not an array). */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const asRecord = (value: unknown, path: string): Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : fail(path, 'an object');
+  isRecord(value) ? value : fail(path, 'an object');
 
 const asFinite = (value: unknown, path: string): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : fail(path, 'a finite number');
@@ -78,9 +69,6 @@ const asPoint3 = (value: unknown, path: string): Vec3 => {
   };
 };
 
-const asSide = (value: unknown, path: string): WallSide =>
-  value === 'left' || value === 'right' ? value : fail(path, `'left' or 'right'`);
-
 /** How an object's elevation is read: required (version 2) or always 0 (version 1). */
 type ElevationReader = (value: unknown, path: string) => number;
 
@@ -94,32 +82,6 @@ const readElevation: ElevationReader = (value, path) => {
 const groundElevation: ElevationReader = () => 0;
 
 type Parser<T> = (value: unknown, key: string, path: string) => T;
-
-const parseWall =
-  (elevationOf: ElevationReader): Parser<WallRun> =>
-  (value, key, path) => {
-    const w = asRecord(value, path);
-    const id = asString(w.id, `${path}.id`);
-    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-    const { points, closed } = w;
-    if (!Array.isArray(points) || points.length > MAX_POINTS_PER_RUN) {
-      fail(`${path}.points`, `an array of at most ${MAX_POINTS_PER_RUN} points`);
-    }
-    if (typeof closed !== 'boolean') fail(`${path}.closed`, 'a boolean');
-    const height = asFinite(w.height, `${path}.height`);
-    if (height <= 0 || height > MAX_WALL_HEIGHT_M) {
-      fail(`${path}.height`, `a height above 0 and at most ${MAX_WALL_HEIGHT_M} m`);
-    }
-    return {
-      id,
-      familyId: asString(w.familyId, `${path}.familyId`),
-      points: points.map((p: unknown, i) => asPoint(p, `${path}.points[${i}]`)),
-      closed,
-      side: asSide(w.side, `${path}.side`),
-      height,
-      elevation: elevationOf(w.elevation, `${path}.elevation`),
-    };
-  };
 
 const parseDimension =
   (elevationOf: ElevationReader): Parser<Dimension> =>
@@ -136,43 +98,6 @@ const parseDimension =
       b,
       offset: asFinite(d.offset, `${path}.offset`),
       elevation: elevationOf(d.elevation, `${path}.elevation`),
-    };
-  };
-
-const parseFloor =
-  (elevationOf: ElevationReader): Parser<Floor> =>
-  (value, key, path) => {
-    const f = asRecord(value, path);
-    const id = asString(f.id, `${path}.id`);
-    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-    const min = asPoint(f.min, `${path}.min`);
-    const max = asPoint(f.max, `${path}.max`);
-    if (!(max.x > min.x && max.z > min.z)) fail(`${path}.max`, 'a point beyond min on both axes');
-    if (max.x - min.x > MAX_FLOOR_SIDE_M || max.z - min.z > MAX_FLOOR_SIDE_M) {
-      fail(`${path}.max`, `sides of at most ${MAX_FLOOR_SIDE_M} m`);
-    }
-    return {
-      id,
-      familyId: asString(f.familyId, `${path}.familyId`),
-      min,
-      max,
-      elevation: elevationOf(f.elevation, `${path}.elevation`),
-    };
-  };
-
-const parseOpening =
-  (walls: Plan['walls']) =>
-  (value: unknown, key: string, path: string): Opening => {
-    const o = asRecord(value, path);
-    const id = asString(o.id, `${path}.id`);
-    if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-    const wallId = asString(o.wallId, `${path}.wallId`);
-    if (!Object.hasOwn(walls, wallId)) fail(`${path}.wallId`, 'the id of a wall in the plan');
-    return {
-      id,
-      wallId,
-      prefab: asString(o.prefab, `${path}.prefab`),
-      at: asPoint(o.at, `${path}.at`),
     };
   };
 
@@ -194,33 +119,6 @@ const parseProp =
     const problem = propProblem(prop);
     return problem ? fail(path, `an item where ${problem}`) : prop;
   };
-
-/** Shapes are checked here, values by `roofProblem`; an unknown family loads (and warns). */
-const parseRoof: Parser<Roof> = (value, key, path) => {
-  const r = asRecord(value, path);
-  const id = asString(r.id, `${path}.id`);
-  if (id !== key) fail(`${path}.id`, `the key "${key}"`);
-  if (!Array.isArray(r.outline)) fail(`${path}.outline`, 'an array of points');
-  const overhang = asRecord(r.overhang, `${path}.overhang`);
-  const roof = {
-    id,
-    elevation: readElevation(r.elevation, `${path}.elevation`),
-    base: asFinite(r.base, `${path}.base`),
-    outline: r.outline.map((p: unknown, i) => asPoint(p, `${path}.outline[${i}]`)),
-    familyId: asString(r.familyId, `${path}.familyId`),
-    pitch: asFinite(r.pitch, `${path}.pitch`) as Roof['pitch'],
-    kind: asString(r.kind, `${path}.kind`) as RoofKind,
-    ridgeAxis: asString(r.ridgeAxis, `${path}.ridgeAxis`) as Roof['ridgeAxis'],
-    lowSide: asString(r.lowSide, `${path}.lowSide`) as Roof['lowSide'],
-    overhang: {
-      eave: asFinite(overhang.eave, `${path}.overhang.eave`) as Roof['overhang']['eave'],
-      gable: asFinite(overhang.gable, `${path}.overhang.gable`) as Roof['overhang']['gable'],
-    },
-    gableWalls: asString(r.gableWalls, `${path}.gableWalls`) as Roof['gableWalls'],
-  };
-  const problem = roofProblem(roof);
-  return problem ? fail(path, `a roof where ${problem}`) : roof;
-};
 
 /** Unknown prefabs load (the plan warns about them). Ranges are `rawPieceProblem`'s. */
 const parseRawPiece: Parser<RawPiece> = (value, key, path) => {
@@ -388,16 +286,11 @@ export const parsePlan = (raw: unknown): Plan => {
     fail('$.version', '1 to 6');
   }
   const elevationOf = version === 1 ? groundElevation : readElevation;
-  const walls = parseCollection(root.walls, '$.walls', parseWall(elevationOf));
   return {
     version: 6,
     name: parseName(root.name),
-    walls,
     dimensions: parseCollection(root.dimensions, '$.dimensions', parseDimension(elevationOf)),
-    floors: parseCollection(root.floors, '$.floors', parseFloor(elevationOf)),
-    openings: parseCollection(root.openings, '$.openings', parseOpening(walls)),
     props: parseProps(root.props, elevationOf),
-    roofs: version >= 3 ? parseCollection(root.roofs, '$.roofs', parseRoof) : {},
     rawPieces: version >= 4 ? parseRawPieces(root.rawPieces) : {},
     underlay: parseUnderlay(root.underlay, '$.underlay'),
     importFrame:
@@ -409,4 +302,26 @@ export const parsePlan = (raw: unknown): Plan => {
           )
         : null,
   };
+};
+
+/** How many records of each drawn kind an older file holds (`parsePlan` leaves them out). */
+export interface LegacyItems {
+  walls: number;
+  floors: number;
+  doors: number;
+  roofs: number;
+}
+
+const countOf = (value: unknown): number => (isRecord(value) ? Object.keys(value).length : 0);
+
+/** The drawn items in a raw plan record; null when it has none. */
+export const legacyItems = (root: unknown): LegacyItems | null => {
+  if (!isRecord(root)) return null;
+  const items = {
+    walls: countOf(root.walls),
+    floors: countOf(root.floors),
+    doors: countOf(root.openings),
+    roofs: countOf(root.roofs),
+  };
+  return Object.values(items).some((n) => n > 0) ? items : null;
 };

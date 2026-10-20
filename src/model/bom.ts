@@ -21,7 +21,7 @@ export interface Bom {
 const byCount = (a: number, b: number, nameA: string, nameB: string): number =>
   b - a || nameA.localeCompare(nameB);
 
-/** Counts `entries` by prefab: derived pieces and placed props alike. */
+/** Counts `entries` by prefab: props and raw pieces alike. */
 export const computeBom = (entries: readonly { prefab: string }[], catalog: Catalog): Bom => {
   const counts = new Map<string, number>();
   for (const { prefab } of entries) counts.set(prefab, (counts.get(prefab) ?? 0) + 1);

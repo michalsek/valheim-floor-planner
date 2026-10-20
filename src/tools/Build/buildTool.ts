@@ -34,7 +34,7 @@ const place = (ctx: ToolContext): void => {
 /** Removes the raw piece or prop under the pointer (Ctrl/⌘ + click) as one undo entry. */
 const remove = (ctx: ToolContext): void => {
   const removal = ctx.get(buildRemovalAtom);
-  if (!removal?.removable) return;
+  if (!removal) return;
   const { box } = removal;
   const label = `Remove ${pieceName(box.prefab)}`;
   const { kind, id } = box.item;

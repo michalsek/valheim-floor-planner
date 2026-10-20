@@ -88,7 +88,7 @@ export const PropFootprint = ({ prop, className, color: override }: PropFootprin
 };
 
 /**
- * Every prop's footprint on the current level (world layer, above walls so overlaps
+ * Every prop's footprint on the current level (world layer, above raw pieces so overlaps
  * show through), larger ones first so smaller ones stay on top, as they are hit. In the
  * support view, props that take part are filled in their support band's colour.
  */

@@ -41,11 +41,7 @@ export const BuildOptions = () => {
   const mod = useAtomValue(removeModeAtom);
   if (mod) {
     if (!removal) return <span>{MOD}+click a piece or item to remove it</span>;
-    return removal.removable ? (
-      <span>Click to remove {pieceName(removal.box.prefab)}</span>
-    ) : (
-      <span>Explode it to remove single pieces</span>
-    );
+    return <span>Click to remove {pieceName(removal.box.prefab)}</span>;
   }
   if (!armed) return <span>Pick a piece in the palette · {MOD}+click removes</span>;
   const pieces = armed.pieces;

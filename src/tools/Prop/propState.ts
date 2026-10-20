@@ -4,7 +4,7 @@ import type { PropDef, PropGroup } from '../../catalog/propDefs';
 import { placementPosition } from '../../model/geometry/propGeometry';
 import type { Vec2 } from '../../model/types';
 import { getLibrary } from '../../store/libraryInstance';
-import { cursorAtom, effectiveSnapStepAtom } from '../../store/session';
+import { cursorAtom, snapStepAtom } from '../../store/session';
 
 /** The prefab the Prop tool places (null: nothing armed). */
 export const armedPrefabAtom = atom<string | null>(null);
@@ -36,7 +36,7 @@ export const propGhostAtom = atom<PropGhost | null>((get) => {
   const cursor = get(cursorAtom);
   if (!def || !cursor) return null;
   const rotation = get(propRotationAtom);
-  const step = cursor.snapping ? get(effectiveSnapStepAtom) : null;
+  const step = cursor.snapping ? get(snapStepAtom) : null;
   const position = placementPosition(cursor.raw, rotation, def.rect, step, def.snap);
   return { def, rotation, position };
 });

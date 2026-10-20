@@ -8,7 +8,7 @@ interface RunPathProps {
   className: string | undefined;
 }
 
-/** A wall run's drawn line (world layer). */
+/** A polyline or outline (world layer). */
 export const RunPath = ({ points, closed, className }: RunPathProps) => {
   const Shape = closed ? 'polygon' : 'polyline';
   return (

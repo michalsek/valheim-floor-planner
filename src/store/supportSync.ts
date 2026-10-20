@@ -7,7 +7,6 @@
  */
 import { atom, useAtomValue } from 'jotai';
 
-import { roofContacts } from '../model/roofs/roofContacts';
 import type { CommittedIndex } from '../model/support/ghostSupport';
 import {
   modelSupport,
@@ -20,7 +19,7 @@ import { groundUnderOrEdge } from '../model/terrain/siteTerrain';
 import type { Plan } from '../model/types';
 
 import { getLibrary } from './libraryInstance';
-import { getDerived, getPieceBoxes, usePlan } from './planHooks';
+import { getPieceBoxes, usePlan } from './planHooks';
 import type { PlanStore } from './planStore';
 import { activeToolIdAtom, supportViewAtom, type SessionStore } from './session';
 import { getSiteGround } from './siteTerrain';
@@ -87,11 +86,10 @@ export const committedSupportIndex = (plan: Plan): CommittedIndex => {
   return index;
 };
 
-/** Every box checked, raw pieces included, with roof rests and snap joints declared. */
+/** Every box checked, with snap joints declared. */
 export const computeSupport = (plan: Plan): PlanSupport => {
   const { model, joints } = committedSupportIndex(plan);
-  const roofs = roofContacts(plan, getDerived(plan), getLibrary());
-  return modelSupport(model, [...roofs, ...joints.pairs]);
+  return modelSupport(model, joints.pairs);
 };
 
 /** Keeps `supportAtom` following the committed plan while support is wanted. */

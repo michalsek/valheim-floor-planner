@@ -6,6 +6,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { FLOOR_TILE_PREFABS } from '../../../catalog/pieceClasses';
 import { testLibrary } from '../../../catalog/testLibrary';
 import { runTerrainJob } from '../../../install/terrainJob';
 import {
@@ -14,7 +15,6 @@ import {
   terrainAvailability,
   terrainJobFor,
 } from '../../../install/siteGeneration';
-import { derivePlan } from '../../../model/derivePlan';
 import { pieceBoxes } from '../../../model/pieceBoxes';
 import { planFileText, readPlanJson } from '../../../model/planFile';
 import { ghostSupport } from '../../../model/support/ghostSupport';
@@ -189,12 +189,9 @@ describe.skipIf(!dir)('terrain of a real world save', () => {
     const grid = terrainGrid(terrain);
     const ground = (footprint: Parameters<typeof groundUnder>[2]) =>
       groundUnder(grid, frame, footprint) ?? 0;
-    const tiles = new Set(
-      [...testLibrary.floorFamilies.values()].flatMap((f) => f.tiles.map((t) => t.prefab))
-    );
-    const boxes = pieceBoxes(derivePlan(plan, testLibrary), plan, testLibrary);
+    const boxes = pieceBoxes(plan, testLibrary);
     const support = planSupport(boxes, testLibrary.catalog.materialSupport, [], ground);
-    const floors = boxes.filter((b) => b.prefab !== null && tiles.has(b.prefab));
+    const floors = boxes.filter((b) => b.prefab !== null && FLOOR_TILE_PREFABS.has(b.prefab));
     // How far the ground rises over each tile's top: at its centre, and the highest under
     // its footprint (its edges may meet a slope).
     const shapes = floors.map(boxShape);

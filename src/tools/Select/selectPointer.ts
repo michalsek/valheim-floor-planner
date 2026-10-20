@@ -1,24 +1,21 @@
 /**
  * The Select tool's pointer state machine: press, then either a click (select), a
- * move of the selection (a snap-move for raw pieces only), a corner drag, a sink-handle
- * drag (3D) or a box select. Moves and corner drags are
- * previewed through `editPreviewAtom` and committed on release as one history entry.
+ * move of the selection (a snap-move for raw pieces only), a sink-handle drag (3D) or a
+ * box select. Moves are previewed through `editPreviewAtom` and committed on release as
+ * one history entry.
  */
-import { refusedSlides, translateCommands, vertexDragCommands } from '../../model/editCommands';
+import { translateCommands } from '../../model/editCommands';
 import { hitItem } from '../../model/hitTest';
 import { isSelected, itemsLabel, toggleItem, unionItems } from '../../model/selection';
 import { snapValue } from '../../model/geometry/snap';
 import type { Vec2 } from '../../model/types';
-import { clampVertexTarget } from '../../model/vertexDrag';
-import { getLibrary } from '../../store/libraryInstance';
 import { editPreviewAtom, hoverAtom, selectionAtom } from '../../store/selection';
 import { cursorStyleAtom, snapStepAtom, workDatumAtom } from '../../store/session';
-import { viewModeAtom } from '../../store/view3d';
 import { dragThresholdPx, itemsInSelectBox, onPlaneAt, pickGrab } from '../picking';
 import { PRIMARY_BUTTON } from '../pointerButtons';
 import type { OffPlanePointerEvent, ToolContext, ToolPointerEvent } from '../types';
 
-import { anchoredDelta, anchorOf, commitCommands, moveStep } from './selectActions';
+import { anchoredDelta, anchorOf, commitCommands } from './selectActions';
 import { commitSink, dragSink, overSinkHandle, pressSinkHandle } from './sinkPointer';
 import { carryTo, startCarry } from './snapMove';
 import {
@@ -42,7 +39,7 @@ const updateHover = (ctx: ToolContext, e: ToolPointerEvent): void => {
   }
   const { hit } = pickGrab(ctx, e);
   ctx.set(hoverAtom, hit);
-  ctx.set(cursorStyleAtom, hit ? (hit.kind === 'vertex' ? 'grab' : 'move') : null);
+  ctx.set(cursorStyleAtom, hit ? 'move' : null);
 };
 
 const finish = (ctx: ToolContext): void => {
@@ -76,7 +73,7 @@ export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
   const { hit, y } = pickGrab(ctx, e);
   const selection = ctx.get(selectionAtom);
   // Select on press, so press-and-drag moves an unselected item in one gesture.
-  const item = hit && hit.kind !== 'vertex' ? hitItem(hit) : null;
+  const item = hit ? hitItem(hit) : null;
   const addedOnDown = item !== null && !isSelected(selection, item);
   if (item && addedOnDown) ctx.set(selectionAtom, e.shiftKey ? [...selection, item] : [item]);
   ctx.set(selectGestureAtom, {
@@ -94,20 +91,6 @@ export const onSelectDown = (e: ToolPointerEvent, ctx: ToolContext): void => {
 const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture => {
   ctx.set(hoverAtom, null);
   const { hit, startWorld, grab } = press;
-  if (hit?.kind === 'vertex') {
-    const run = ctx.plan.getPlan().walls[hit.wallId];
-    const corner = run?.points[hit.index];
-    if (run && corner) {
-      ctx.set(cursorStyleAtom, 'grabbing');
-      return { phase: 'vertex', run, index: hit.index, target: corner };
-    }
-  }
-  // In 3D roofs cover the house: a roof moves only once it is selected, so a drag that
-  // starts on one by accident doesn't carry it away.
-  if (hit?.kind === 'roof' && press.addedOnDown && ctx.get(viewModeAtom) === '3d') {
-    ctx.set(cursorStyleAtom, null);
-    return SELECT_IDLE;
-  }
   if (hit) {
     ctx.set(cursorStyleAtom, 'move');
     const items = ctx.get(selectionAtom);
@@ -130,14 +113,13 @@ const startDrag = (ctx: ToolContext, press: Gesture<'pressing'>): SelectGesture 
 };
 
 /**
- * Snapped moves keep an off-grid object's offset (in whole metres when floors or
- * openings move), but a grabbed pole or beam lands its anchor on the grid; with Alt (no
- * snapping) the raw delta.
+ * Snapped moves keep an off-grid object's offset, but a grabbed pole or beam lands its
+ * anchor on the grid; with Alt (no snapping) the raw delta.
  */
 const moveDelta = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEvent): Vec2 => {
   const { world, snapped } = g.grab;
   if (e.altKey) return { x: e.snapped.x - world.x, z: e.snapped.z - world.z };
-  const step = moveStep(g.items, ctx.get(snapStepAtom));
+  const step = ctx.get(snapStepAtom);
   if (g.anchor)
     return anchoredDelta(g.anchor, { x: e.world.x - world.x, z: e.world.z - world.z }, step);
   return {
@@ -146,39 +128,9 @@ const moveDelta = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEvent):
   };
 };
 
-/**
- * Follows the pointer with the corner. A target that would collapse the run is
- * pulled back to the nearest accepted one on the way from the last accepted target.
- */
-const dragCorner = (
-  ctx: ToolContext,
-  g: Gesture<'vertex'>,
-  e: ToolPointerEvent
-): Gesture<'vertex'> => {
-  const plan = ctx.plan.getPlan();
-  let target = e.snapped;
-  let cmds = vertexDragCommands(plan, g.run, g.index, target);
-  if (!cmds) {
-    const step = e.altKey ? null : ctx.get(snapStepAtom);
-    target = clampVertexTarget(g.run, g.index, g.target, target, step);
-    cmds = vertexDragCommands(plan, g.run, g.index, target) ?? [];
-  }
-  ctx.set(editPreviewAtom, cmds.length > 0 ? cmds : null);
-  return { ...g, target };
-};
-
-/**
- * Previews the selection moved to the pointer. An opening whose slide is refused
- * keeps the position it had in the last preview (its last valid one).
- */
+/** Previews the selection moved to the pointer. */
 const moveSelection = (ctx: ToolContext, g: Gesture<'moving'>, e: ToolPointerEvent): void => {
-  const plan = ctx.plan.getPlan();
-  const d = moveDelta(ctx, g, e);
-  const refused = refusedSlides(plan, g.items, d, getLibrary());
-  const kept = (ctx.get(editPreviewAtom) ?? []).filter(
-    (cmd) => cmd.type === 'opening.patch' && refused.has(cmd.id)
-  );
-  const cmds = [...translateCommands(plan, g.items, d, getLibrary()), ...kept];
+  const cmds = translateCommands(ctx.plan.getPlan(), g.items, moveDelta(ctx, g, e));
   ctx.set(editPreviewAtom, cmds.length > 0 ? cmds : null);
 };
 
@@ -199,8 +151,6 @@ const drag = (ctx: ToolContext, g: SelectGesture, e: ToolPointerEvent): SelectGe
       return dragSink(ctx, g, e);
     case 'box':
       return { ...g, currentWorld: e.world, currentScreen: e.screen };
-    case 'vertex':
-      return dragCorner(ctx, g, e);
     case 'idle':
     case 'pressing':
       return g;
@@ -230,7 +180,6 @@ const click = (ctx: ToolContext, press: Gesture<'pressing'>): void => {
     if (!shift) ctx.set(selectionAtom, []);
     return;
   }
-  if (hit.kind === 'vertex') return;
   const item = hitItem(hit);
   if (!shift) ctx.set(selectionAtom, [item]);
   else if (!addedOnDown) ctx.set(selectionAtom, (s) => toggleItem(s, item));
@@ -260,9 +209,6 @@ export const onSelectUp = (e: ToolPointerEvent, ctx: ToolContext): void => {
       break;
     case 'box':
       selectInBox(ctx, g);
-      break;
-    case 'vertex':
-      commitCommands(ctx, 'Move corner', preview);
       break;
     case 'sinking':
       commitSink(ctx, g);

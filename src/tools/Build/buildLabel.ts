@@ -57,7 +57,7 @@ export const ghostLabel = (ghost: BuildGhost): LabelLine[] => {
 };
 
 /** What Ctrl/⌘ + click would do to the piece under the pointer. */
-export const removalLabel = ({ box, removable }: BuildRemoval): LabelLine =>
-  removable
-    ? { text: `Remove ${pieceName(box.prefab)}`, warn: false }
-    : { text: 'Explode it to remove single pieces', warn: true };
+export const removalLabel = ({ box }: BuildRemoval): LabelLine => ({
+  text: `Remove ${pieceName(box.prefab)}`,
+  warn: false,
+});

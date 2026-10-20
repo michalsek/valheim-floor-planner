@@ -11,7 +11,7 @@ export const ItemWarnings = ({ item }: { item: SelectionItem }) => {
   return (
     <ul className={styles.warnings}>
       {mine.map((w, i) => (
-        <li key={i} className={w.level === 'info' ? styles.info : styles.warning}>
+        <li key={i} className={styles.warning}>
           {w.message}
         </li>
       ))}

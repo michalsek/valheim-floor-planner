@@ -4,15 +4,6 @@
   gap: 6px;
 }
 
-.select {
-  padding: 2px 4px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-sunken);
-  color: var(--text);
-  font: inherit;
-}
-
 .segments {
   display: flex;
   border: 1px solid var(--border);

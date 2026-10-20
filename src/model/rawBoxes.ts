@@ -4,12 +4,10 @@
  * into planner space: three.js 'YXZ' of (−pitch, −yaw, roll); yaw is stored clockwise,
  * so `rotationY` is −yaw). Roof pieces take their roof shape, diagonal beams a beam,
  * anything else its collider box; doors and gates their thin panel. Floor tiles' boxes
- * are lifted 1 mm, as derived floors' are; their pivot (the model, snap points) stays. Pure.
+ * are lifted 1 mm; their pivot (the model, snap points) stays. Pure.
  */
-import { FLOOR_FAMILY_SPECS } from '../catalog/floorFamilies';
-import { OPENING_PREFABS } from '../catalog/openingDefs';
+import { DOOR_PREFABS, FLOOR_TILE_PREFABS } from '../catalog/pieceClasses';
 
-import type { Hit } from './hitTest';
 import { convexHull, polygonArea } from './geometry/convex';
 import { normalizeDeg, rotate } from './geometry/propGeometry';
 import { round6 } from './geometry/round';
@@ -18,22 +16,19 @@ import type { PieceBox } from './pieceBoxes';
 import { pieceAnchor } from './piecePivot';
 import { rawDef, rawRect, rawSpan } from './rawPieces';
 import { rawBeam, rawRoofDef, type RawShapeLib } from './rawShapes';
-import { roofBox } from './roofBoxes';
+import { roofBody } from './roofBoxes';
 import type { RawPiece, Vec2, Vec3 } from './types';
 
 const DEG = Math.PI / 180;
 
 /**
- * How far floor boxes are lifted (metres): 1 mm, so a floor level with the wall top under
- * it doesn't flicker against it (M11 finding 13). Derived floors lift their model too.
+ * How far floor tiles' boxes are lifted (metres): 1 mm, so a floor level with the wall
+ * top under it doesn't flicker against it (M11 finding 13).
  */
 export const FLOOR_LIFT = 0.001;
 
 /** Door and gate panels are drawn this thin at most, so the gap still reads as one. */
 export const PANEL_THICKNESS = 0.12;
-
-/** The floor families' tiles: lifted as derived floors are. */
-const FLOOR_TILES: ReadonlySet<string> = new Set(FLOOR_FAMILY_SPECS.flatMap((spec) => spec.tiles));
 
 const pivotOf = (piece: RawPiece): Vec3 => ({
   x: piece.position.x,
@@ -67,35 +62,19 @@ const placed = (piece: RawPiece, local: Vec3): Vec3 =>
 const level = (piece: RawPiece) => piece.rotation.pitch === 0 && piece.rotation.roll === 0;
 
 /** The box without its owner's fields (key, item, hit, colours). */
-type Body = Pick<
-  PieceBox,
-  'center' | 'size' | 'rotationY' | 'tiltX' | 'rollZ' | 'shape' | 'pivot' | 'roofCover'
->;
+type Body = Pick<PieceBox, 'center' | 'size' | 'rotationY' | 'tiltX' | 'rollZ' | 'shape' | 'pivot'>;
 
-const bodyOf = (piece: RawPiece, lib: RawShapeLib, item: PieceBox['item'], hit: Hit): Body => {
+const bodyOf = (piece: RawPiece, lib: RawShapeLib): Body => {
   const def = rawDef(lib, piece);
   const frame = frameOf(piece);
   const roof = level(piece) ? rawRoofDef(lib, piece.prefab) : undefined;
   if (roof && def) {
-    const centre = placed(piece, pieceAnchor(def, roof.size));
-    const owner = { key: `raw:${piece.id}`, item, hit, kind: 'raw' as const, cover: false };
-    const roofPiece = {
-      key: owner.key,
-      prefab: piece.prefab,
-      material: def.material ?? '',
-      sourceId: piece.id,
-      role: roof.role,
-      shape: roof.shape,
-      center: centre,
-      size: roof.size,
-      yaw: frame.rotationY,
-      slope: roof.slope,
-      cell: null,
-    };
-    const box = roofBox(roofPiece, piece.elevation, lib, owner);
-    const { key: _key, item: _item, hit: _hit, kind: _kind, material: _material, ...rest } = box;
-    const { group: _group, odd: _odd, elevation: _elevation, prefab: _prefab, ...body } = rest;
-    return body;
+    const center = placed(piece, pieceAnchor(def, roof.size));
+    const { shape, size, slope } = roof;
+    return roofBody(
+      { prefab: piece.prefab, shape, center, size, yaw: frame.rotationY, slope },
+      lib
+    );
   }
   const beam = rawBeam(def);
   if (beam) {
@@ -114,14 +93,14 @@ const bodyOf = (piece: RawPiece, lib: RawShapeLib, item: PieceBox['item'], hit: 
     y: (span.minY + span.maxY) / 2,
     z: (rect.minZ + rect.maxZ) / 2,
   };
-  // A door or gate is its panel, as in a drawn wall's gap.
+  // A door or gate is its panel, so the gap it closes still reads as one.
   const depth = rect.maxZ - rect.minZ;
   return {
     center: placed(piece, local),
     size: {
       x: rect.maxX - rect.minX,
       y: span.maxY - span.minY,
-      z: OPENING_PREFABS.has(piece.prefab) ? Math.min(PANEL_THICKNESS, depth) : depth,
+      z: DOOR_PREFABS.has(piece.prefab) ? Math.min(PANEL_THICKNESS, depth) : depth,
     },
     ...frame,
     pivot: pivotOf(piece),
@@ -139,9 +118,7 @@ const outlines = new WeakMap<RawPiece, { lib: RawShapeLib; outline: Vec2[] }>();
 export const rawOutline = (piece: RawPiece, lib: RawShapeLib): Vec2[] => {
   const cached = outlines.get(piece);
   if (cached?.lib === lib) return cached.outline;
-  const item = { kind: 'raw', id: piece.id } as const;
-  const body = bodyOf(piece, lib, item, { ...item, area: 0 });
-  const box: OrientedBox = body;
+  const box: OrientedBox = bodyOf(piece, lib);
   const outline = convexHull(boxCorners(box).map((c) => ({ x: c.x, z: c.z })));
   outlines.set(piece, { lib, outline });
   return outline;
@@ -156,8 +133,7 @@ export const isRawRoof = (piece: RawPiece, lib: RawShapeLib): boolean =>
 
 /**
  * Whether the piece covers a roof (a roof family's straight, ridge or corner piece, at
- * any tilt): hidden with the Roofs toggle, as a derived roof's cells are. Gable walls,
- * the Roof Cross among them, stay.
+ * any tilt): hidden with the Roofs toggle. Gable walls, the Roof Cross among them, stay.
  */
 export const isRawRoofCover = (piece: RawPiece, lib: RawShapeLib): boolean => {
   const role = rawRoofDef(lib, piece.prefab)?.role;
@@ -169,8 +145,8 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
   const item = { kind: 'raw', id: piece.id } as const;
   const hit = { ...item, area: rawOutlineArea(piece, lib) };
   const frame = frameOf(piece);
-  const body = withoutZeros(bodyOf(piece, lib, item, hit));
-  const lift = FLOOR_TILES.has(piece.prefab) ? FLOOR_LIFT : 0;
+  const body = withoutZeros(bodyOf(piece, lib));
+  const lift = FLOOR_TILE_PREFABS.has(piece.prefab) ? FLOOR_LIFT : 0;
   return {
     key: `raw:${piece.id}`,
     item,
@@ -178,7 +154,6 @@ export const rawBox = (piece: RawPiece, lib: RawShapeLib): PieceBox => {
     kind: 'raw',
     material: rawDef(lib, piece)?.material ?? null,
     group: null,
-    odd: false,
     elevation: piece.elevation,
     ...body,
     center: { ...body.center, y: body.center.y + lift },

@@ -33,17 +33,6 @@ export const commitCommands = (
   return result.ok;
 };
 
-/**
- * The step a move of `items` goes in: the snap step, but at least 1 m when floors or
- * openings move. Floors stay on the metre grid their tiles need, and openings slide
- * in whole metres, so a 0.5 m step would never move them. (`toolMinSnapAtom` does the
- * same for the cursor of a tool that draws on that grid.)
- */
-export const moveStep = (items: Selection, step: number): number =>
-  items.some((item) => item.kind === 'floor' || item.kind === 'opening' || item.kind === 'roof')
-    ? Math.max(step, 1)
-    : step;
-
 export const clearSelection = (ctx: ToolContext): boolean => {
   if (ctx.get(selectionAtom).length === 0) return false;
   ctx.set(selectionAtom, []);
@@ -58,7 +47,7 @@ export const selectAll = (ctx: ToolContext): void => {
 export const deleteSelection = (ctx: ToolContext): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  const cmds = removeCommands(ctx.plan.getPlan(), items, getLibrary());
+  const cmds = removeCommands(ctx.plan.getPlan(), items);
   commitCommands(ctx, itemsLabel('Delete', items), cmds);
   return true;
 };
@@ -86,10 +75,10 @@ export const anchoredDelta = (anchor: Vec2 | null, d: Vec2, step: number): Vec2 
 export const nudgeSelection = (ctx: ToolContext, dx: number, dz: number): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  const step = moveStep(items, ctx.get(snapStepAtom));
+  const step = ctx.get(snapStepAtom);
   const anchor = anchorOf(ctx.plan.getPlan(), items[0]);
   const d = anchoredDelta(anchor, { x: dx * step, z: dz * step }, step);
-  commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d, getLibrary()));
+  commitCommands(ctx, 'Nudge', translateCommands(ctx.plan.getPlan(), items, d));
   return true;
 };
 
@@ -97,9 +86,9 @@ export const nudgeSelection = (ctx: ToolContext, dx: number, dz: number): boolea
 export const duplicateSelection = (ctx: ToolContext): boolean => {
   const items = ctx.get(selectionAtom);
   if (items.length === 0) return false;
-  const step = moveStep(items, ctx.get(snapStepAtom));
+  const step = ctx.get(snapStepAtom);
   const d = { x: step, z: step };
-  const copy = duplicateCommands(ctx.plan.getPlan(), items, d, newId, getLibrary());
+  const copy = duplicateCommands(ctx.plan.getPlan(), items, d, newId);
   if (commitCommands(ctx, itemsLabel('Duplicate', items), copy.cmds)) {
     ctx.set(selectionAtom, copy.items);
   }

@@ -59,16 +59,18 @@ describe('re-framing an import', () => {
     expect(build.importFrame!.origin.y).toBe(world.importFrame!.origin.y);
   });
 
-  it('is refused while the plan holds anything drawn', () => {
+  it('is refused while the plan holds anything laid out on its grid', () => {
     const plan = applyCommands(imported('world'), [
       {
         type: 'dimension.insert',
         dimension: { id: 'd1', a: { x: 0, z: 0 }, b: { x: 2, z: 0 }, offset: 1, elevation: 0 },
       },
     ]);
-    expect(reframeProblem(plan)).toMatch(/1 drawn item/);
-    expect(() => reframePlan(plan, testLibrary, 'build')).toThrow(/drawn item/);
+    expect(reframeProblem(plan)).toMatch(/1 item laid out on the plan's grid/);
+    expect(() => reframePlan(plan, testLibrary, 'build')).toThrow(/laid out on the plan's grid/);
     const turn = reframePlan(imported('world'), testLibrary, 'build');
-    expect(() => applyCommands(plan, [{ type: 'site.reframe', ...turn }])).toThrow(/drawn item/);
+    expect(() => applyCommands(plan, [{ type: 'site.reframe', ...turn }])).toThrow(
+      /laid out on the plan's grid/
+    );
   });
 });

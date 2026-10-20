@@ -5,7 +5,6 @@ import { useWorldToScreen } from '../../overlay/useWorldToScreen';
 import type { ScreenPoint } from '../../viewport/viewportMath';
 
 import { CarryMarks2d } from './CarryMarks';
-import { HANDLE_DRAWN_PX, handleClass, useHandles } from './handles';
 import { boxMode, selectGestureAtom } from './selectState';
 
 /** A select box between two screen points: solid when it contains, dashed when it touches. */
@@ -30,27 +29,9 @@ const SelectBox = () => {
   );
 };
 
-/** Corner handles of the single selected wall. */
-const VertexHandles = () => {
-  const { run, isHot } = useHandles();
-  const toScreen = useWorldToScreen();
-  if (!run) return null;
-  return (
-    <g>
-      {run.points.map((p, i) => {
-        const { x, y } = toScreen(p);
-        return (
-          <circle key={i} className={handleClass(isHot(i))} cx={x} cy={y} r={HANDLE_DRAWN_PX} />
-        );
-      })}
-    </g>
-  );
-};
-
-/** The Select tool's screen-space overlay: corner handles, the selection box, snap-move marks. */
+/** The Select tool's screen-space overlay: the selection box and snap-move marks. */
 export const SelectPreview = () => (
   <>
-    <VertexHandles />
     <SelectBox />
     <CarryMarks2d />
   </>

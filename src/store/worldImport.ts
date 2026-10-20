@@ -38,6 +38,7 @@ import {
 import type { TerrainPhase } from '../install/terrainJob';
 
 import { persistedAtom } from './browserStorage';
+import { fileStatusAtom } from './fileActions';
 import { getLibrary } from './libraryInstance';
 import type { PlanStore } from './planStore';
 import { hoverAtom, selectionAtom } from './selection';
@@ -199,6 +200,8 @@ const replaceWithBuild = async (
   ctx.plan.dispatch({ type: 'plan.replace', plan }, { label: `Import from ${world.name}` });
   ctx.set(selectionAtom, []);
   ctx.set(hoverAtom, null);
+  // A file's outcome (a "Left out …" notice) was about the plan this one replaces.
+  ctx.set(fileStatusAtom, null);
   ctx.set(workDatumAtom, roundElevation(clampElevation(build.level)));
   fitViewTo(ctx, planBounds(plan, getLibrary()));
   resetOrbit(ctx);

@@ -8,7 +8,7 @@ import { RawGhosts } from './RawFootprints';
 
 /**
  * The items of the level below, as neutral dashed outlines under the current level's
- * (world layer, drawn first); its walls and floors are `GhostMeshes`.
+ * (world layer, drawn first).
  */
 export const LevelGhosts = () => {
   const ghost = useGhostPlan();

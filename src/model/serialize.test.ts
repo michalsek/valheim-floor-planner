@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { applyCommands, type PlanCommand } from './commands';
 import { MAX_PROPS } from './props';
 import { planFileText, readPlanJson } from './planFile';
-import { parsePlan } from './serialize';
+import { legacyItems, parsePlan } from './serialize';
 import { encodeHeights } from './terrain/siteTerrain';
 import { emptyPlan, type Plan, type SiteTerrain } from './types';
 
@@ -28,25 +28,7 @@ const terrain: SiteTerrain = {
 const plan: Plan = {
   version: 6,
   name: 'Longhouse',
-  walls: {
-    a: {
-      id: 'a',
-      familyId: 'wood',
-      points: [
-        { x: 0, z: 0 },
-        { x: 4, z: 0 },
-      ],
-      closed: false,
-      side: 'right',
-      height: 2,
-      elevation: 2,
-    },
-  },
   dimensions: { d: { id: 'd', a: { x: 0, z: 0 }, b: { x: 4, z: 0 }, offset: -1.5, elevation: 0 } },
-  floors: {
-    f: { id: 'f', familyId: 'wood', min: { x: 0, z: 0 }, max: { x: 4, z: 2 }, elevation: 2 },
-  },
-  openings: { o: { id: 'o', wallId: 'a', prefab: 'wood_door', at: { x: 2, z: 0 } } },
   props: {
     p: {
       id: 'p',
@@ -55,26 +37,6 @@ const plan: Plan = {
       rotation: 22.5,
       upgrades: 2,
       elevation: -0.5,
-    },
-  },
-  roofs: {
-    r: {
-      id: 'r',
-      elevation: 2,
-      base: 2,
-      outline: [
-        { x: 0, z: 0 },
-        { x: 4, z: 0 },
-        { x: 4, z: 2 },
-        { x: 0, z: 2 },
-      ],
-      familyId: 'thatch',
-      pitch: 26,
-      kind: 'gable',
-      ridgeAxis: 'x',
-      lowSide: '-z',
-      overhang: { eave: 1, gable: 1 },
-      gableWalls: 'wood',
     },
   },
   rawPieces: {
@@ -101,6 +63,29 @@ const plan: Plan = {
     yaw: 22.5,
     terrain,
   },
+};
+
+/** One record of each kind the drawn tools made (before M18). */
+const drawn = {
+  walls: {
+    a: {
+      id: 'a',
+      familyId: 'wood',
+      points: [
+        { x: 0, z: 0 },
+        { x: 4, z: 0 },
+      ],
+      closed: false,
+      side: 'right',
+      height: 2,
+      elevation: 2,
+    },
+  },
+  floors: {
+    f: { id: 'f', familyId: 'wood', min: { x: 0, z: 0 }, max: { x: 4, z: 2 }, elevation: 2 },
+  },
+  openings: { o: { id: 'o', wallId: 'a', prefab: 'wood_door', at: { x: 2, z: 0 } } },
+  roofs: { r: { id: 'r', elevation: 2, base: 2, familyId: 'thatch', pitch: 26 } },
 };
 
 const withProp = (prop: Record<string, unknown>) => ({
@@ -153,34 +138,39 @@ describe('serialize', () => {
     expect(parsePlan(saved).importFrame?.terrain?.notices.unreadEdits).toBe(0);
   });
 
-  it('loads a version 2 file without roofs, and saves it as version 6', () => {
-    const v2 = { ...stored(), version: 2 };
-    const loaded = parsePlan(v2);
+  it('loads a version 3 file (before world imports) without raw pieces, as version 6', () => {
+    const loaded = parsePlan({ ...stored(), version: 3 });
     expect(loaded.version).toBe(6);
-    expect(loaded.roofs).toEqual({});
     expect(loaded.rawPieces).toEqual({});
     expect(loaded.importFrame).toBeNull();
-    expect(loaded.walls).toEqual(plan.walls);
+    expect(loaded.props).toEqual(plan.props);
   });
 
-  it('loads a version 3 file with its roofs and without raw pieces', () => {
-    const loaded = parsePlan({ ...stored(), version: 3 });
-    expect(loaded.roofs).toEqual(plan.roofs);
-    expect(loaded.rawPieces).toEqual({});
+  it.each([6, 1])('loads a version %i file without its drawn items, and counts them', (version) => {
+    const raw = { ...stored(), ...structuredClone(drawn), version };
+    const loaded = parsePlan(raw);
+    expect(Object.keys(loaded)).toEqual(Object.keys(plan));
+    expect(loaded.props.p).toBeDefined();
+    expect(legacyItems(raw)).toEqual({ walls: 1, floors: 1, doors: 1, roofs: 1 });
+    expect(legacyItems(stored())).toBeNull();
+  });
+
+  it('counts only drawn records that are objects', () => {
+    expect(legacyItems({ walls: [1, 2], floors: 'f', openings: null, roofs: 3 })).toBeNull();
+    expect(legacyItems([{ walls: { a: {} } }])).toBeNull();
+    expect(legacyItems('plan')).toBeNull();
   });
 
   it('loads a version 1 file with every elevation at 0, and saves it as version 6', () => {
     const v1 = stored();
     v1.version = 1;
-    for (const kind of ['walls', 'floors', 'props', 'dimensions']) {
+    for (const kind of ['props', 'dimensions']) {
       for (const item of Object.values(v1[kind]) as { elevation?: number }[]) {
         delete item.elevation;
       }
     }
     const loaded = parsePlan(v1);
     expect(loaded.version).toBe(6);
-    expect(loaded.walls.a?.elevation).toBe(0);
-    expect(loaded.floors.f?.elevation).toBe(0);
     expect(loaded.props.p?.elevation).toBe(0);
     expect(loaded.dimensions.d?.elevation).toBe(0);
   });
@@ -197,7 +187,7 @@ describe('serialize', () => {
   it.each([
     null,
     [],
-    { version: 7, walls: {} },
+    { version: 7 },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, elevation: 200 } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, position: { x: 0, y: 300, z: 0 } } } },
     { version: 4, rawPieces: { w: { ...plan.rawPieces.w, rotation: { yaw: 0 } } } },
@@ -227,23 +217,8 @@ describe('serialize', () => {
         terrain: { ...terrain, biomes: { ...terrain.biomes, zx0: 3 } },
       },
     },
-    { version: 3, roofs: { r: { ...plan.roofs.r, pitch: 30 } } },
-    { version: 2, walls: { a: { ...plan.walls.a, elevation: 200 } } },
     { version: 2, props: { p: { ...plan.props.p, elevation: undefined } } },
-    { version: 1, walls: { a: { id: 'a' } } },
     { version: 1, dimensions: { d: { id: 'd', a: { x: 1, z: 1 }, b: { x: 1, z: 1 }, offset: 0 } } },
-    {
-      version: 1,
-      floors: { f: { id: 'f', familyId: 'wood', min: { x: 1, z: 0 }, max: { x: 1, z: 2 } } },
-    },
-    {
-      version: 1,
-      floors: { f: { id: 'f', familyId: 'wood', min: { x: 0, z: 0 }, max: { x: 600, z: 2 } } },
-    },
-    {
-      version: 1,
-      openings: { o: { id: 'o', wallId: 'gone', prefab: 'wood_door', at: { x: 0, z: 0 } } },
-    },
     withProp({ prefab: '', position: { x: 0, z: 0 }, rotation: 0 }),
     withProp({ prefab: 'bed', position: { x: 0, z: 0 }, rotation: 0, upgrades: 1.5 }),
     { version: 1, underlay: { ...plan.underlay, metresPerPixel: 0 } },
@@ -265,7 +240,7 @@ describe('commands accept only what loads', () => {
     ['opacity above 1', { type: 'underlay.patch', changes: { opacity: 1.5 } }],
     ['upgrades above the cap', { type: 'prop.patch', id: 'p', changes: { upgrades: 21 } }],
     ['an empty prefab', { type: 'prop.insert', prop: { ...bench, id: 'q', prefab: '' } }],
-    ['an elevation out of range', { type: 'wall.patch', id: 'a', changes: { elevation: -20 } }],
+    ['an elevation out of range', { type: 'prop.patch', id: 'p', changes: { elevation: -20 } }],
     [
       'a piece far off its level',
       { type: 'raw.patch', id: 'w', changes: { position: { x: 0, y: -300, z: 0 } } },

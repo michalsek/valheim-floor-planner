@@ -10,10 +10,10 @@
  */
 import { snapExtent, type Catalog } from './pieceDefs';
 
-export const ROOF_PITCHES = [26, 45, 67] as const;
+const ROOF_PITCHES = [26, 45, 67] as const;
 export type RoofPitch = (typeof ROOF_PITCHES)[number];
 
-export interface RoofPitchPieces {
+interface RoofPitchPieces {
   /** Rise per metre of run: 0.5, 1 and 2 for 26°, 45° and 67°. */
   k: number;
   straight: string;
@@ -27,8 +27,6 @@ export interface RoofPitchPieces {
 
 export interface RoofFamily {
   id: string;
-  label: string;
-  material: string;
   /** The pitches this install can build, lowest first. */
   pitches: ReadonlyMap<RoofPitch, RoofPitchPieces>;
 }
@@ -42,7 +40,6 @@ interface PitchSpec {
 
 export interface RoofFamilySpec {
   id: string;
-  label: string;
   pitches: Partial<Record<RoofPitch, PitchSpec>>;
 }
 
@@ -69,11 +66,10 @@ const woodLike = (prefix: string): Partial<Record<RoofPitch, PitchSpec>> => ({
 });
 
 export const ROOF_FAMILY_SPECS: readonly RoofFamilySpec[] = [
-  { id: 'thatch', label: 'Thatch', pitches: woodLike('wood_roof') },
-  { id: 'shingle', label: 'Darkwood shingle', pitches: woodLike('darkwood_roof') },
+  { id: 'thatch', pitches: woodLike('wood_roof') },
+  { id: 'shingle', pitches: woodLike('darkwood_roof') },
   {
     id: 'grausten',
-    label: 'Grausten',
     pitches: {
       // Its two corner pieces are triangles with a high edge and a low point, which
       // don't make a hip corner (docs/Findings.md, M12): grausten has no corner pieces.
@@ -111,19 +107,14 @@ export const deriveRoofFamilies = (
       const pieces = pitchSpec && derivePitch(catalog, pitchSpec);
       if (pieces) pitches.set(pitch, pieces);
     }
-    const [first] = pitches.values();
-    const material = first && catalog.pieces.get(first.straight)?.material;
-    return material ? [{ id: spec.id, label: spec.label, material, pitches }] : [];
+    return pitches.size > 0 ? [{ id: spec.id, pitches }] : [];
   });
 
-export type GableWallsId = 'wood' | 'ashwood';
+type GableWallsId = 'wood' | 'ashwood';
 
-/** Triangle walls under a gable, and the wall family the rectangles below them come from. */
+/** Triangle walls under a gable. */
 export interface GableWallSet {
   id: GableWallsId;
-  label: string;
-  /** The wall family for the rectangles under the triangles. */
-  wallFamilyId: string;
   /** Right triangles, 2 m long, rising 2k towards local +x. */
   triangles: ReadonlyMap<RoofPitch, string>;
   /** The "Roof Cross" piece for a column across the ridge (shape unverified in game). */
@@ -132,8 +123,6 @@ export interface GableWallSet {
 
 interface GableWallSpec {
   id: GableWallsId;
-  label: string;
-  wallFamilyId: string;
   triangles: Record<RoofPitch, string>;
   peaks: Partial<Record<RoofPitch, string>>;
 }
@@ -141,15 +130,11 @@ interface GableWallSpec {
 export const GABLE_WALL_SPECS: readonly GableWallSpec[] = [
   {
     id: 'wood',
-    label: 'Wood',
-    wallFamilyId: 'wood',
     triangles: { 26: 'wood_wall_roof_a', 45: 'wood_wall_roof_45', 67: 'wood_wall_roof_67_a' },
     peaks: { 26: 'wood_wall_roof_top', 45: 'wood_wall_roof_top_45', 67: 'wood_wall_roof_top_67' },
   },
   {
     id: 'ashwood',
-    label: 'Ashwood',
-    wallFamilyId: 'ashwood',
     triangles: {
       26: 'ashwood_wall_roof_26',
       45: 'ashwood_wall_roof_45',
@@ -176,8 +161,6 @@ export const deriveGableWallSets = (
 ): GableWallSet[] =>
   specs.map((spec) => ({
     id: spec.id,
-    label: spec.label,
-    wallFamilyId: spec.wallFamilyId,
     triangles: presentPieces(catalog, spec.triangles),
     peaks: presentPieces(catalog, spec.peaks),
   }));

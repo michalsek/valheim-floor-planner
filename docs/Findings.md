@@ -2144,3 +2144,73 @@ which reads as a slight turn; the old copy's build is at 22.5°.
    draped grid and the sea show first, likely while its pipelines compile. The first 2D
    relief can come up unshaded for a moment too. It isn't tied to the frame, and later
    imports draw at once.
+
+## From M18 pass 1 (removal of the drawn kinds)
+
+Plan: `private/plans/M18.md` §3. The Wall, Floor, Roof and Opening tools are gone; the
+levels machinery stays as it was for raw pieces, props and dimensions until pass 2.
+
+1. **Removed:** the four tools (`tools/Wall`, `Floor`, `Roof`, `Opening`), derived walls,
+   floors, rooms and roofs (`model/deriveWalls`, `deriveFloors`, `rooms`, `faces`,
+   `fillFace`, `openings`, `splitWall`, `splitFloor`, `wallGraph`, `wallSolid`,
+   `vertexDrag`, `roof`, the whole `model/roofs/`), `geometry/{region,rings,labelSpot}`,
+   their 2D overlays and 3D meshes (`WallLines`, `FloorOutlines`, `RoomLabels`,
+   `RoomOutlines`, `OpeningSymbols`, `RoofLayer`, `PieceFootprints`, `WallMeshes`,
+   `FloorMeshes`, `GhostMeshes`, the slab resources), their inspectors and
+   `BuildingSummary`, `controls/Select`, Select's corner handles, the wall, floor and
+   opening session atoms, `toolMinSnapAtom` and `effectiveSnapStepAtom`, the Tops button
+   (`wallTops`, `jumpToTops`), and the wall, floor and opening catalogue families. About
+   10 800 lines out, 740 in.
+   - **Kept as classification tables:** `catalog/pieceClasses.ts` (`FLOOR_TILE_PREFABS`,
+     `DOOR_PREFABS`; one shared set where `rawBoxes` and `placement` each had a copy),
+     `roofFamilies.ts` (no `wallFamilyId` any more) and `roofBoxes.ts`, which now holds
+     the slim `RoofPiece` and `RoofRole` and takes a required owner.
+   - **Explode stays, for props only:** a prop becomes the raw piece it is, so it snaps.
+     `Explosion.skipped` went (every prop box has a prefab).
+   - **Also gone as dead code:** `polyline.ts` wall helpers (`normalizeRun`,
+     `runSegments`, `isLoop`, `footprintCorners`, `orientClockwise`, `signedArea`,
+     `constrainOrthogonal`, `pointAlong`, `cross`) with `polyline.test.ts`, `boxArea` /
+     `boxIntersection`, `floorColor`, `formatArea`, the 2D slab band helpers in
+     `supportColors.ts`, and the overlay and BOM CSS classes only they used
+     (`--floor-seam` too). `lineInBox` uses `segments` directly.
+2. **Version:** plans stay version 6 in pass 1. A pass-1 plan is a subset of v6, so older
+   builds read it; pass 2 bumps to 7 once, for absolute raw heights.
+3. **Loading older plans with drawn items:** `parsePlan` ignores `walls`, `floors`,
+   `openings` and `roofs` (no longer validated); `legacyItems(raw)` counts them.
+   - A file opened shows "Left out 1 wall, 1 floor, 1 door and 1 roof: they were drawn
+     with tools this version no longer has. To keep them as single pieces, open the plan
+     in an earlier version and Explode them first." in the plan header (the error tone,
+     as a save without its image). One item reads "it was … Explode it first".
+   - **The autosave keeps the record aside once:** IndexedDB key `legacy` in the
+     `valheimFloorPlanner.autosave` / `plan` store (the IndexedDB path and the one-time
+     localStorage migration), or `valheimFloorPlanner.plan.v1.legacy` (the localStorage
+     fallback). A kept copy is never replaced: `keepLegacyRecord` / `keepLocalLegacy`
+     report whether the copy there afterwards is *this* record (written now, or the same
+     one kept before); another record's copy, a quota or any other failure means not
+     kept. `OpenedStorage.keptAside` carries it to the notice: "The plan as it was is kept
+     aside in this browser.", or, when it wasn't, "The plan as it was couldn't be kept
+     aside in this browser: open it in an earlier version before editing."
+   - **Write-back:** once the record is kept aside, the plan without its drawn items is
+     saved at once, so the next start shows no notice. When it couldn't be kept nothing
+     is written: the stored record stays the only copy until the first edit (and the
+     migration leaves the localStorage key in place).
+   - **The notice outlives Mod+Z** of the open (as other file statuses do). A world
+     import clears the file status, so a "Left out …" notice doesn't sit over an
+     imported build.
+   - **The `m17-final` tag** (local, at `961ae18`) is the last build that can open such
+     a plan with its drawn items and Explode them.
+4. **Checked against the baseline** (pokemanz with terrain, headless Chrome on 5241):
+   the bill of materials, the 1 142 boxes (count and a coordinate checksum), the
+   Levels rows (+8 / +7 / +5 / +4 / 0 m with 595 / 113 / 147 / 264 / 23) and Integrity
+   (10 pieces would collapse, the same list) are identical; screenshots differ only in
+   the tool rail and the missing Tops button. The Roofs toggle hides the 241 roof covers.
+   WebGPU and `?webgl`, light and dark, no console errors.
+5. **Fix round (QA and review):** `roofBox` became `roofBody`, which takes only what it
+   reads and returns the body fields (no owner, cover or elevation); the dead `'info'`
+   warning level, the floor and ghost theme tokens (`floorOpacity`, `floorBase`,
+   `floorShare`, `ThemeTokens.ghost`; the overlay still reads `--ghost`), the roof
+   catalogue's unread `label` and `material` fields and some file-local exports went;
+   `reframe.drawnItemCount` is `gridItemCount` ("items laid out on the plan's grid").
+6. **For pass 3:** opening a file keeps the current work level, so the first view can be
+   an empty level (a pokemanz level +4 over a plan on 0 m). Pass 3 should set H = All on
+   open.

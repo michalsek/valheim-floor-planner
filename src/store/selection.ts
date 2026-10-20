@@ -21,8 +21,8 @@ export const selectionAtom = atom<Selection>([]);
 export const hoverAtom = atom<Hit | null>(null);
 
 /**
- * The commands of a move or corner drag in progress. The canvas draws the plan with
- * them applied; pointer-up commits the same commands as one history entry.
+ * The commands of a move in progress. The canvas draws the plan with them applied;
+ * pointer-up commits the same commands as one history entry.
  */
 export const editPreviewAtom = atom<readonly PlanCommand[] | null>(null);
 
@@ -48,10 +48,8 @@ export const startSelectionSync = (plan: PlanStore, session: SessionAccess): (()
     const pruned = source === 'load' ? [] : normalizeSelection(next, selection);
     if (pruned !== selection) session.set(selectionAtom, pruned);
     if (source === 'undo' || source === 'redo') followSelection(next, session);
-    // A vertex index may now point at another corner.
     const hover = session.get(hoverAtom);
-    const stale = source === 'load' || hover?.kind === 'vertex';
-    if (hover && (stale || !itemExists(next, hitItem(hover)))) {
+    if (hover && (source === 'load' || !itemExists(next, hitItem(hover)))) {
       session.set(hoverAtom, null);
     }
   });

@@ -4,16 +4,10 @@
  * member to `SelectionItem` and an entry there.
  */
 import { ITEM_KINDS, SELECTION_KINDS } from './itemKinds';
-import type { DimId, FloorId, OpeningId, Plan, PropId, RawPieceId, RoofId, WallId } from './types';
+import type { DimId, Plan, PropId, RawPieceId } from './types';
 
 export type SelectionItem =
-  | { kind: 'wall'; id: WallId }
-  | { kind: 'opening'; id: OpeningId }
-  | { kind: 'floor'; id: FloorId }
-  | { kind: 'dimension'; id: DimId }
-  | { kind: 'prop'; id: PropId }
-  | { kind: 'roof'; id: RoofId }
-  | { kind: 'raw'; id: RawPieceId };
+  { kind: 'dimension'; id: DimId } | { kind: 'prop'; id: PropId } | { kind: 'raw'; id: RawPieceId };
 
 export type SelectionKind = SelectionItem['kind'];
 
@@ -40,12 +34,6 @@ export const allItems = (plan: Plan): SelectionItem[] =>
 
 export const isPlanEmpty = (plan: Plan): boolean =>
   SELECTION_KINDS.every((kind) => idsOf(plan, kind).length === 0);
-
-/** The wall whose corners show drag handles: the only selected item, if it's a wall. */
-export const handleWallId = (selection: Selection): WallId | null => {
-  const [only] = selection;
-  return selection.length === 1 && only?.kind === 'wall' ? only.id : null;
-};
 
 /**
  * Drops items that no longer exist and repeats (keeping the first). Returns the same
@@ -74,7 +62,7 @@ export const unionItems = (selection: Selection, items: readonly SelectionItem[]
   return added.length === 0 ? selection : [...selection, ...added];
 };
 
-/** "Move wall" for one item, "Move 3 items" for several. */
+/** "Move piece" for one item, "Move 3 items" for several. */
 export const itemsLabel = (verb: string, items: Selection): string => {
   const [first] = items;
   if (items.length === 1 && first) return `${verb} ${ITEM_KINDS[first.kind].noun}`;

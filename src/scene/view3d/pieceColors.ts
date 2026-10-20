@@ -4,7 +4,7 @@
  * hover tint over it. Models are tinted the
  * same way, over their textures.
  */
-import { floorColor, materialColor, mixHex } from '../../catalog/materialColors';
+import { materialColor, mixHex } from '../../catalog/materialColors';
 import { hitItem, type Hit } from '../../model/hitTest';
 import type { PieceBox } from '../../model/pieceBoxes';
 import type { Selection, SelectionItem } from '../../model/selection';
@@ -21,19 +21,13 @@ const HOVER_MIX = 0.35;
 /** How far a piece off the current level fades towards the canvas colour. */
 const OFF_LEVEL_MIX = 0.4;
 
-/** The plan colours: materials, the floor checkerboard and prop groups. */
+/** The plan colours: materials and prop groups. */
 export const materialColorer =
   ({ palette, propGroups }: ThemeTokens): PieceColorer =>
-  (box) => {
-    switch (box.kind) {
-      case 'floor':
-        return floorColor(palette, box.material ?? '', box.odd);
-      case 'prop':
-        return propGroups[box.group ?? 'fallback'];
-      default:
-        return materialColor(palette, box.material);
-    }
-  };
+  (box) =>
+    box.kind === 'prop'
+      ? propGroups[box.group ?? 'fallback']
+      : materialColor(palette, box.material);
 
 /**
  * Colours by support band; pieces that take no part (or before support is worked out)

@@ -2,8 +2,8 @@
  * The support view's colours, shared by both views, on the game's scale (as recalled
  * from `WearNTear`): blue at the material's maximum (on the ground, or capped like wood
  * on stone), then red → yellow → green up to half the maximum, which is all green.
- * Values are bucketed into bands, so 2D slabs keep one material per band: 'max', six
- * ramp bands from weak (0) to strong (5), and collapsing (magenta).
+ * Values are bucketed into bands: 'max', six ramp bands from weak (0) to strong (5), and
+ * collapsing (magenta).
  */
 import { mixHex } from '../catalog/materialColors';
 import type { BoxSupport, PlanSupport } from '../model/support/planSupport';
@@ -43,27 +43,4 @@ export const supportBandColor = ({ support }: ThemeTokens, band: SupportBand): s
   return t < 0.5
     ? mixHex(support.low, support.mid, t * 2)
     : mixHex(support.mid, support.high, (t - 0.5) * 2);
-};
-
-/** Slab style keys carry the band as `support:<band>`. */
-const SUPPORT_KEY = 'support:';
-
-export const bandKey = (band: SupportBand): string => `${SUPPORT_KEY}${band}`;
-
-/** The band in a slab style key, or null for a material key. */
-export const bandOfKey = (key: string): SupportBand | null => {
-  if (!key.startsWith(SUPPORT_KEY)) return null;
-  const band = key.slice(SUPPORT_KEY.length);
-  return band === 'max' || band === 'broken' || band === 'none' ? band : Number(band);
-};
-
-/**
- * What a wall column shows in 2D: collapsing when any course would; at maximum when its
- * base course is (a ground wall reads as one); else its weakest course.
- */
-export const columnBand = (base: SupportBand, courses: readonly SupportBand[]): SupportBand => {
-  if (courses.includes('broken') || base === 'broken') return 'broken';
-  if (base === 'max' || base === 'none') return base;
-  const ramp = [base, ...courses].filter((b): b is number => typeof b === 'number');
-  return ramp.length > 0 ? Math.min(...ramp) : base;
 };

@@ -82,10 +82,10 @@ const onIdleKey = (e: KeyboardEvent, ctx: ToolContext): boolean => {
 
 /**
  * Click to select (Shift toggles), drag a selected item to move the selection (raw
- * pieces snap as in Build; the wheel and R turn them mid-drag), drag a selected wall's
- * corner to reshape it, or drag on empty space to box-select. Delete, arrows (nudge),
- * R / Shift+R (turn props), Mod+D (duplicate; raw pieces: carry copies into Build), Mod+A
- * and Esc act on the selection.
+ * pieces snap as in Build; the wheel and R turn them mid-drag), or drag on empty space
+ * to box-select; in 3D, the sink handle lowers a grounded selection. Delete, arrows
+ * (nudge), R / Shift+R (turn props), Mod+D (duplicate; raw pieces: carry copies into
+ * Build), Mod+A and Esc act on the selection.
  */
 export const selectTool: Tool = {
   id: 'select',
